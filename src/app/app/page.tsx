@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -66,7 +67,7 @@ export default async function Dashboard() {
             <Link href="/app/documents" className="group flex items-center gap-4 rounded-2xl border border-ink/10 p-4 transition-colors hover:border-ink/30"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-lime text-sm font-black text-ink">02</span><span className="flex min-w-0 flex-1 flex-col gap-1"><strong className="text-sm">Track every document</strong><span className="truncate text-xs text-ink/50">Quotes, invoices and payments in one place.</span></span><span className="text-xl text-ink/30 transition-transform group-hover:translate-x-1">→</span></Link>
           </div>
         </div>
-        <aside className="flex flex-col justify-between gap-6 rounded-[1.75rem] bg-orange p-5 text-ink sm:p-7"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-ink/60">At a glance</p><h2 className="mt-2 text-2xl font-black tracking-[-.06em]">Nothing hidden.</h2><p className="mt-3 text-sm leading-6 text-ink/75">Yebo keeps the important number close and the busywork out of your way.</p></div><Link href="/app/settings" className="w-fit rounded-full border-2 border-ink px-4 py-2 text-sm font-bold transition-colors hover:bg-ink hover:text-orange">Tune your setup →</Link></aside>
+        <aside className="relative flex min-h-[18rem] flex-col justify-between gap-6 overflow-hidden rounded-[1.75rem] bg-orange p-5 text-ink sm:p-7"><div className="relative z-10"><p className="text-xs font-bold uppercase tracking-[.16em] text-ink/60">At a glance</p><h2 className="mt-2 max-w-[12rem] text-2xl font-black tracking-[-.06em]">Nothing hidden.</h2><p className="mt-3 max-w-xs text-sm leading-6 text-ink/75">Yebo keeps the important number close and the busywork out of your way.</p></div><Image src="/yebo-dashboard-art.png" alt="Abstract layered invoice artwork" width={240} height={300} className="pointer-events-none absolute -bottom-16 -right-10 w-44 rotate-6 opacity-80 mix-blend-multiply sm:w-52" /><Link href="/app/settings" className="relative z-10 w-fit rounded-full border-2 border-ink px-4 py-2 text-sm font-bold transition-colors hover:bg-ink hover:text-orange">Tune your setup →</Link></aside>
       </section>
     </main>
   );

@@ -17,7 +17,7 @@ export default async function PublicDocument({ params }: { params: Promise<{ tok
   const isQuote = d.type === "quote";
   const canAnswer = isQuote && ["sent", "viewed"].includes(d.status);
   const color = b.brand_color;
-  const url = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/d/${token}`;
+  const url = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://yebo-invoices.vercel.app"}/d/${token}`;
   const qr = await QRCode.toDataURL(url, { margin: 1, width: 220 });
   const hasBank = b.bank_account_holder && b.bank_account_number && b.bank_branch_code;
   const plan = d.payment_plan === "full" ? "Payment in full is needed to confirm the booking."
