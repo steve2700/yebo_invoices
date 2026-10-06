@@ -26,20 +26,20 @@ Yebo is built around one rule: **a new user should send their first quote within
 
 ### Version 1 (MVP)
 
-- [ ] Sign up and login (Google, email magic link)
-- [ ] Quick setup: business name, logo, VAT status, trade
-- [ ] Clients: add inline while creating a document, search, history
-- [ ] Items library with autocomplete (from past items and trade starter packs)
-- [ ] Create quotes and invoices (shared document model)
-- [ ] Automatic VAT and totals
-- [ ] Optional deposit on quotes
-- [ ] Preview and send via WhatsApp link, email, or copy link
-- [ ] Public document page for clients (no login): view, accept or decline quote
-- [ ] Quote to invoice conversion
-- [ ] Dashboard: Unpaid, Overdue, Paid this month
-- [ ] Activity feed ("Thabo viewed your quote")
+- [x] Sign up and login (Google and email link)
+- [x] Quick setup: business name, contact details, logo, VAT status and company registration
+- [x] Create quotes with clients, line items, VAT, payment plans and tips
+- [x] Save quote drafts and send them from the document detail page
+- [x] Documents list with quotes and invoices in one place
+- [x] Public client document page (no login): view, accept or decline a quote
+- [x] Activity events for sent, viewed, accepted and declined documents
+- [x] Quote to invoice conversion
+- [x] Dashboard: paid this month, unpaid and overdue totals
+- [x] Settings: branding, banking details and guarantee copy
+- [x] WhatsApp sharing, public link copying and QR code display
+- [x] Mark invoices paid by EFT or cash
+- [ ] Email delivery and PDF downloads
 - [ ] Automatic reminders (unanswered quotes, due and overdue invoices)
-- [ ] Rule-based tips engine (see below)
 - [ ] Installable PWA (works like a mobile app)
 
 ### Planned
@@ -129,7 +129,7 @@ Examples:
 
 ## Getting started
 
-> Setup will be filled in as the project is scaffolded.
+The current scaffold runs as a Next.js app backed by Supabase.
 
 ```bash
 # 1. Clone the repo
@@ -145,6 +145,8 @@ cp .env.example .env.local
 # 4. Run the dev server
 npm run dev
 ```
+
+Open [http://localhost:3000](http://localhost:3000). Apply `supabase/migrations/0001_init.sql` to a Supabase project before using authenticated or document flows.
 
 ### Environment variables
 
@@ -163,16 +165,36 @@ Never commit real keys. Keep `.env.local` in `.gitignore`.
 
 ---
 
+## Recommended next features
+
+Prioritise the next work around the moment between **creating a document and getting paid**:
+
+1. **Polish the create-document flow** — make client and item creation effortless, add stronger empty states, improve mobile keyboard flow, and add a clear send confirmation.
+2. **Finish document delivery** — generate polished PDFs, add email sending, and show delivery status alongside WhatsApp and copy-link actions.
+3. **Build the client follow-up loop** — reminders for unanswered quotes and overdue invoices, with editable timing and a simple activity timeline.
+4. **Make payments real** — add PayFast first, reconcile webhook events idempotently, and make payment status obvious on both sides.
+5. **Improve repeat work** — repeat-last-invoice, saved item packs and quote templates for common trades.
+6. **Harden production readiness** — onboarding completion states, error recovery, audit events, rate limits, backups and a small end-to-end test suite.
+
+### Polish before expanding scope
+
+- Keep the first quote under three minutes from a blank account.
+- Make every document status and next action obvious.
+- Treat the public client page as a branded sales and payment experience.
+- Use clear South African terminology, rand formatting and VAT explanations.
+- Prefer one strong default over a settings-heavy workflow.
+
 ## Suggested build order
 
-1. Sign up and setup
-2. Create and preview a document (the core screen)
-3. Public link page with Accept
-4. Send via email and WhatsApp link
+1. Onboarding and business profile
+2. Create and preview a quote
+3. Public client page with accept or decline
+4. Send via WhatsApp, email and PDF
 5. Dashboard and documents list
 6. Quote to invoice conversion
-7. Reminders and tips engine
+7. Reminders and activity timeline
 8. Online payments
+9. Repeat documents and templates
 
 ---
 
