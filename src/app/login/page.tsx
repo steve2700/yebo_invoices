@@ -10,13 +10,23 @@ export default function Login() {
   const redirectTo = () => `${window.location.origin}/auth/callback`;
 
   async function google() {
-    await createClient().auth.signInWithOAuth({ provider: "google", options: { redirectTo: redirectTo() } });
+    try {
+      await createClient().auth.signInWithOAuth({ provider: "google", options: { redirectTo: redirectTo() } });
+    } catch {
+      setError(true);
+      setMsg("Sign-in is temporarily unavailable because Supabase is not configured for this deployment.");
+    }
   }
   async function magic(e: React.FormEvent) {
     e.preventDefault();
-    const { error } = await createClient().auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo() } });
-    setError(!!error);
-    setMsg(error ? error.message : "Check your email for your sign-in link. It can take a minute, so check spam too.");
+    try {
+      const { error } = await createClient().auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo() } });
+      setError(!!error);
+      setMsg(error ? "We could not send that link. Check the email and try again." : "Check your email for your sign-in link. It can take a minute, so check spam too.");
+    } catch {
+      setError(true);
+      setMsg("Sign-in is temporarily unavailable because Supabase is not configured for this deployment.");
+    }
   }
 
   return (
