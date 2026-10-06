@@ -3,6 +3,32 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { addDays } from "@/lib/dates";
 
+export async function emailDocument(fd: FormData) {
+  const id = String(fd.get("id"));
+  const sb = await createClient();
+  const { data: doc } = await sb.from("documents").select("id,number,type,public_token,status,client_id,business_id").eq("id", id).single();
+  if (!doc) redirect(`/app/documents/${id}`);
+  const { data: client } = await sb.from("clients").select("name,email").eq("id", doc.client_id).single();
+  const { data: business } = await sb.from("businesses").select("name").eq("id", doc.business_id).single();
+  if (!client?.email) redirect(`/app/documents/${id}`);
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://yebo-invoices.vercel.app";
+  const link = `${base}/d/${doc.public_token}`;
+  const kind = doc.type === "quote" ? "quote" : "invoice";
+  const fromDomain = process.env.RESEND_EMAIL_DOMAIN ?? "resend.dev";
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: `${business?.name ?? "Yebo Invoices"} <noreply@${fromDomain}>`,
+      to: [client.email],
+      subject: `Your ${kind} ${doc.number}`,
+      html: `<p>Hi ${client.name.split(" ")[0]},</p><p>Your ${kind} from ${business?.name ?? "Yebo Invoices"} is ready.</p><p><a href="${link}">View your ${kind}</a></p>`,
+    }),
+  });
+  if (response.ok) await sb.from("events").insert({ document_id: id, type: "emailed" });
+  redirect(`/app/documents/${id}`);
+}
+
 export async function sendDraft(fd: FormData) {
   const id = String(fd.get("id"));
   const sb = await createClient();

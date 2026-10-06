@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { formatRand } from "@/lib/money";
 import { waLink } from "@/lib/dates";
 import CopyButton from "../CopyButton";
-import { convertToInvoice, markPaid, sendDraft } from "../actions";
+import PrintButton from "../PrintButton";
+import { convertToInvoice, emailDocument, markPaid, sendDraft } from "../actions";
 
 export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -27,16 +28,21 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       <h1 className="mt-2 text-2xl font-extrabold">{d.number}</h1>
       <p className="text-neutral-600">{client?.name} · {formatRand(d.total_cents)} · <b>{d.status}</b></p>
 
-      {d.status === "draft" ? (
-        <form action={sendDraft} className="mt-5"><input type="hidden" name="id" value={d.id} />
-          <button className={`${btn} bg-yebo text-white`}>Mark as sent</button></form>
-      ) : (
-        <div className="mt-5 flex flex-wrap gap-2">
-          <a href={waLink(client?.whatsapp_number ?? null, msg)} target="_blank" className={`${btn} bg-yebo text-white`}>Send on WhatsApp</a>
-          <CopyButton text={link} />
-          <a href={link} target="_blank" className={`${btn} border-2 border-neutral-300`}>Open client view</a>
-        </div>
-      )}
+      <div className="mt-5 flex flex-wrap gap-2 print:hidden">
+        {d.status === "draft" && (
+          <form action={sendDraft}><input type="hidden" name="id" value={d.id} />
+            <button className={`${btn} bg-yebo text-white`}>Mark as sent</button>
+          </form>
+        )}
+        <form action={emailDocument}>
+          <input type="hidden" name="id" value={d.id} />
+          <button className={`${btn} border-2 border-yebo text-yebo`} disabled={!client?.email}>Email document</button>
+        </form>
+        <a href={waLink(client?.whatsapp_number ?? null, msg)} target="_blank" rel="noreferrer" className={`${btn} bg-yebo text-white`}>Send on WhatsApp</a>
+        <CopyButton text={link} />
+        <PrintButton />
+        <a href={link} target="_blank" rel="noreferrer" className={`${btn} border-2 border-neutral-300`}>Open client view</a>
+      </div>
 
       <div className="mt-5 flex flex-wrap gap-2">
         {d.type === "quote" && d.status === "accepted" && (
