@@ -15,7 +15,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const { data: events } = await sb.from("events").select("type,created_at").eq("document_id", id).order("created_at", { ascending: false });
   const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
 
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://yebo-invoices.vercel.app";
   const link = `${base}/d/${d.public_token}`;
   const kind = d.type === "quote" ? "quote" : "invoice";
   const msg = `Hi ${client?.name.split(" ")[0] ?? "there"}, here is your ${kind} ${d.number} from ${biz?.name}: ${link}`;

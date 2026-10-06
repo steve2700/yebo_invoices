@@ -6,166 +6,39 @@ import { formatRand } from "@/lib/money";
 type Client = { id: string; name: string; whatsapp_number: string | null; address: string | null; preferred_payment: string | null };
 type Item = { description: string; default_price_cents: number };
 type Plan = "after" | "deposit" | "full";
-
-const box = "mt-1 w-full rounded-xl border px-3 py-2";
-const lbl = "mt-4 block text-sm font-semibold text-neutral-600";
+const input = "mt-2 w-full rounded-2xl border border-ink/10 bg-paper/60 px-4 py-3 text-sm outline-none transition focus:border-orange focus:bg-white";
+const label = "mt-5 block text-xs font-black uppercase tracking-[0.16em] text-ink/55";
 
 export default function QuoteForm({ clients, items, vatRegistered }: { clients: Client[]; items: Item[]; vatRegistered: boolean }) {
   const [clientId, setClientId] = useState("");
   const [nc, setNc] = useState({ name: "", whatsapp: "", email: "", address: "" });
-  const [f, setF] = useState({ title: "", location: "", description: "", jobDate: "", jobDateTbd: false, laborOnly: false,
-    plan: "after" as Plan, pct: 50, terms: "on completion", note: "" });
+  const [f, setF] = useState({ title: "", location: "", description: "", jobDate: "", jobDateTbd: false, laborOnly: false, plan: "after" as Plan, pct: 50, terms: "on completion", note: "" });
   const [lines, setLines] = useState([{ description: "", quantity: 1, price: 0 }]);
   const [gone, setGone] = useState<string[]>([]);
   const [err, setErr] = useState("");
   const [pending, start] = useTransition();
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((p) => ({ ...p, [k]: v }));
-
-  const sub = lines.reduce((a, l) => a + l.quantity * l.price, 0);
-  const vat = vatRegistered ? sub * 0.15 : 0;
-  const total = sub + vat;
+  const sub = lines.reduce((a, l) => a + l.quantity * l.price, 0), vat = vatRegistered ? sub * 0.15 : 0, total = sub + vat;
   const valid = lines.filter((l) => l.description.trim() && l.price > 0).length;
   const first = (clients.find((c) => c.id === clientId)?.name ?? nc.name).split(" ")[0] || "there";
   const job = (f.title || "the job").toLowerCase();
-
-  const tips: [boolean, string, string][] = [
-    [valid > 0 && !f.description.trim(), "d", "Describe the job in 2 or 3 sentences. Clients say yes faster when they see you understood what they want."],
-    [!!f.description.trim() && !/not included/i.test(f.description), "x", "Say what's NOT included to avoid arguments later."],
-    [valid > 0 && !f.location.trim(), "l", "Add the job location so the client knows you have the right address."],
-    [f.plan === "after" && total > 5000, "p", "Big job with no deposit. Consider asking for a deposit to cover materials."],
-    [valid > 0 && !f.note.trim(), "n", "Add a short personal note. Tap Friendly below to start."],
-  ];
+  const tips: [boolean, string, string][] = [[valid > 0 && !f.description.trim(), "d", "Describe the job in 2 or 3 sentences. Clients say yes faster when they see you understood what they want."], [valid > 0 && !f.location.trim(), "l", "Add the job location so your client knows you have the right address."], [valid > 0 && !f.note.trim(), "n", "Add a short personal note to make this feel like you, not a template."]];
   const tip = tips.find((t) => t[0] && !gone.includes(t[1]));
-
-  function pick(id: string) {
-    setClientId(id);
-    const c = clients.find((x) => x.id === id);
-    if (c?.address && !f.location) set("location", c.address);
-    if (c?.preferred_payment === "deposit" || c?.preferred_payment === "after" || c?.preferred_payment === "full") set("plan", c.preferred_payment);
-  }
-  function setLine(i: number, patch: Partial<(typeof lines)[number]>) {
-    setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
-  }
-  function desc(i: number, v: string) {
-    const m = items.find((it) => it.description === v);
-    setLine(i, { description: v, ...(m && !lines[i].price ? { price: m.default_price_cents / 100 } : {}) });
-  }
-  function submit(send: boolean) {
-    setErr("");
-    start(async () => {
-      const r = await createQuote({ clientId: clientId === "new" ? "" : clientId, newClient: clientId === "new" ? nc : null,
-        ...f, plan: f.plan, items: lines, send });
-      if (r?.error) setErr(r.error);
-    });
-  }
-
-  return (
-    <main className="mx-auto max-w-xl px-5 pb-32 pt-8">
-      <h1 className="text-2xl font-extrabold">New quote</h1>
-      {tip && (
-        <div className="mt-4 rounded-lg border-l-4 border-amber-400 bg-amber-50 p-3 text-sm">
-          <b>Tip:</b> {tip[2]}
-          <div className="mt-1 text-xs text-neutral-500">
-            <button onClick={() => setGone([...gone, tip[1]])}>Dismiss</button>
-          </div>
-        </div>
-      )}
-      <section className="mt-4 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 p-5">
-        <label className={lbl} style={{ marginTop: 0 }}>Client</label>
-        <select className={box} value={clientId} onChange={(e) => pick(e.target.value)}>
-          <option value="">Choose a client</option>
-          {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          <option value="new">+ New client</option>
-        </select>
-        {clientId === "new" && (
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <input className={box} placeholder="Name" value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })} />
-            <input className={box} placeholder="WhatsApp number" value={nc.whatsapp} onChange={(e) => setNc({ ...nc, whatsapp: e.target.value })} />
-            <input className={box} placeholder="Email (optional)" value={nc.email} onChange={(e) => setNc({ ...nc, email: e.target.value })} />
-            <input className={box} placeholder="Address (optional)" value={nc.address} onChange={(e) => setNc({ ...nc, address: e.target.value })} />
-          </div>
-        )}
-        <label className={lbl}>Job name</label>
-        <input className={box} placeholder="e.g. Kitchen cupboards" value={f.title} onChange={(e) => set("title", e.target.value)} />
-        <div className="grid grid-cols-2 gap-2">
-          <div><label className={lbl}>Location</label>
-            <input className={box} value={f.location} onChange={(e) => set("location", e.target.value)} /></div>
-          <div><label className={lbl}>Job date</label>
-            <input type="date" className={box} value={f.jobDate} disabled={f.jobDateTbd} onChange={(e) => set("jobDate", e.target.value)} /></div>
-        </div>
-        <label className="mt-2 flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={f.jobDateTbd} onChange={(e) => set("jobDateTbd", e.target.checked)} /> Date to be agreed
-        </label>
-        <label className={lbl}>What you'll do</label>
-        <textarea rows={4} className={box} value={f.description} onChange={(e) => set("description", e.target.value)}
-          placeholder="e.g. Build and install 6 kitchen cupboards. Includes clearing away the old units." />
-        <div className="mt-2 flex flex-wrap gap-2 text-xs">
-          {[["+ What's not included", "Not included: extra repairs found once work starts."], ["+ Access needed", "Access: someone needs to be on site to let us in."]].map(([l, t]) => (
-            <button key={l} className="rounded-full border px-3 py-1" onClick={() => set("description", (f.description ? f.description + "\n" : "") + t)}>{l}</button>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-4 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="font-extrabold">Items and prices</h2>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.laborOnly} onChange={(e) => set("laborOnly", e.target.checked)} /> Labour only</label>
-        </div>
-        <datalist id="items">{items.map((i) => <option key={i.description} value={i.description} />)}</datalist>
-        {lines.map((l, i) => (
-          <div key={i} className="mt-3 rounded-xl border p-3">
-            <input list="items" className={box} placeholder="What are you charging for?" value={l.description} onChange={(e) => desc(i, e.target.value)} />
-            <div className="mt-2 flex items-center gap-2">
-              <input type="number" min={1} className="w-16 rounded-xl border px-2 py-2" value={l.quantity} onChange={(e) => setLine(i, { quantity: Math.max(1, +e.target.value || 1) })} />
-              <input type="number" min={0} className="flex-1 rounded-xl border px-3 py-2" placeholder="Price (R)" value={l.price || ""} onChange={(e) => setLine(i, { price: Math.max(0, +e.target.value || 0) })} />
-              <span className="w-24 text-right font-bold">{formatRand(l.quantity * l.price * 100)}</span>
-            </div>
-            {lines.length > 1 && <button className="mt-1 text-xs text-neutral-500" onClick={() => setLines(lines.filter((_, x) => x !== i))}>Remove</button>}
-          </div>
-        ))}
-        <button className="mt-3 text-sm font-semibold text-yebo" onClick={() => setLines([...lines, { description: "", quantity: 1, price: 0 }])}>+ Add another item</button>
-        <div className="mt-4 space-y-1 border-t pt-3 text-sm">
-          <div className="flex justify-between"><span>Subtotal</span><span>{formatRand(sub * 100)}</span></div>
-          <div className="flex justify-between"><span>VAT</span><span>{vatRegistered ? formatRand(vat * 100) : "Not applicable"}</span></div>
-          <div className="flex justify-between text-lg font-extrabold"><span>Total</span><span>{formatRand(total * 100)}</span></div>
-        </div>
-      </section>
-
-      <section className="mt-4 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 p-5">
-        <h2 className="font-extrabold">How and when you get paid</h2>
-        <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
-          {([["after", "Pay after the job"], ["deposit", "Deposit first"], ["full", "Full upfront"]] as [Plan, string][]).map(([p, l]) => (
-            <button key={p} onClick={() => set("plan", p)}
-              className={`rounded-xl border-2 px-2 py-2 font-semibold ${f.plan === p ? "border-yebo bg-emerald-50 text-yebo" : ""}`}>{l}</button>
-          ))}
-        </div>
-        {f.plan === "deposit" && (
-          <select className={box} value={f.pct} onChange={(e) => set("pct", +e.target.value)}>
-            {[25, 50, 70].map((p) => <option key={p} value={p}>{p}% deposit</option>)}
-          </select>
-        )}
-        {f.plan !== "full" && (
-          <select className={box} value={f.terms} onChange={(e) => set("terms", e.target.value)}>
-            {["on completion", "within 7 days", "within 14 days", "within 30 days"].map((t) => <option key={t}>{t}</option>)}
-          </select>
-        )}
-        <label className={lbl}>Personal note</label>
-        <textarea rows={3} className={box} value={f.note} onChange={(e) => set("note", e.target.value)} />
-        <div className="mt-2 flex gap-2 text-xs">
-          <button className="rounded-full border px-3 py-1" onClick={() => set("note", `Hi ${first}, thanks for the chat today. I've put together everything we discussed for ${job}. Happy to adjust anything.`)}>Friendly</button>
-          <button className="rounded-full border px-3 py-1" onClick={() => set("note", `Dear ${first}, thank you for the opportunity to quote for ${job}. Please get in touch with any questions.`)}>Professional</button>
-          <button className="rounded-full border px-3 py-1" onClick={() => set("note", `Hi ${first}, here's your quote for ${job}. Shout if you'd like changes.`)}>Short</button>
-        </div>
-      </section>
-
-      {err && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{err}</p>}
-      <div className="fixed inset-x-0 bottom-0 border-t bg-white p-4">
-        <div className="mx-auto flex max-w-xl items-center gap-3">
-          <div className="text-xs text-neutral-500">Total<b className="block text-lg text-neutral-900">{formatRand(total * 100)}</b></div>
-          <button disabled={pending || !valid} onClick={() => submit(false)} className="ml-auto rounded-xl border-2 border-yebo px-4 py-3 font-bold text-yebo disabled:opacity-40">Save draft</button>
-          <button disabled={pending || !valid} onClick={() => submit(true)} className="rounded-xl bg-yebo px-5 py-3 font-bold text-white disabled:opacity-40">{pending ? "Saving..." : "Create & send"}</button>
-        </div>
-      </div>
-    </main>
-  );
+  function pick(id: string) { setClientId(id); const c = clients.find((x) => x.id === id); if (c?.address && !f.location) set("location", c.address); if (["deposit", "after", "full"].includes(c?.preferred_payment ?? "")) set("plan", c?.preferred_payment as Plan); }
+  function setLine(i: number, patch: Partial<(typeof lines)[number]>) { setLines((ls) => ls.map((l, idx) => idx === i ? { ...l, ...patch } : l)); }
+  function desc(i: number, v: string) { const m = items.find((it) => it.description === v); setLine(i, { description: v, ...(m && !lines[i].price ? { price: m.default_price_cents / 100 } : {}) }); }
+  function submit(send: boolean) { setErr(""); start(async () => { const r = await createQuote({ clientId: clientId === "new" ? "" : clientId, newClient: clientId === "new" ? nc : null, ...f, items: lines, send }); if (r?.error) setErr(r.error); }); }
+  return <main className="mx-auto max-w-2xl px-4 pb-36 pt-5 sm:px-6 sm:pt-10">
+    <div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[0.22em] text-orange">A little magic</p><h1 className="mt-2 text-4xl font-black tracking-[-0.06em] text-ink">Make it an easy yes.</h1><p className="mt-2 max-w-md text-sm leading-6 text-ink/60">Create a quote that feels considered, clear and unmistakably yours.</p></div><div className="hidden rounded-full bg-lime px-3 py-2 text-xs font-black text-ink sm:block">NEW QUOTE</div></div>
+    {tip && <div className="mb-5 rounded-2xl border border-orange/20 bg-orange/10 p-4 text-sm leading-6 text-ink"><span className="font-black">A thoughtful touch:</span> {tip[2]} <button className="ml-2 font-black underline" onClick={() => setGone([...gone, tip[1]])}>Got it</button></div>}
+    <section className="rounded-[2rem] bg-white p-5 shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5 sm:p-7"><p className="text-xs font-black uppercase tracking-[0.18em] text-orange">01 · The essentials</p><h2 className="mt-2 text-xl font-black tracking-tight">Who is this for?</h2>
+      <label className={label}>Client</label><select className={input} value={clientId} onChange={(e) => pick(e.target.value)}><option value="">Choose a client</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}<option value="new">+ New client</option></select>
+      {clientId === "new" && <div className="grid grid-cols-2 gap-2"><input aria-label="Name" className={input} placeholder="Name" value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })}/><input aria-label="WhatsApp number" className={input} placeholder="WhatsApp" value={nc.whatsapp} onChange={(e) => setNc({ ...nc, whatsapp: e.target.value })}/><input aria-label="Email" className={input} placeholder="Email" value={nc.email} onChange={(e) => setNc({ ...nc, email: e.target.value })}/><input aria-label="Address" className={input} placeholder="Address" value={nc.address} onChange={(e) => setNc({ ...nc, address: e.target.value })}/></div>}
+      <label className={label}>Job name</label><input className={input} placeholder="e.g. Kitchen cupboards" value={f.title} onChange={(e) => set("title", e.target.value)}/><div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><div><label className={label}>Location</label><input className={input} placeholder="Where is the magic happening?" value={f.location} onChange={(e) => set("location", e.target.value)}/></div><div><label className={label}>Job date</label><input type="date" className={input} value={f.jobDate} disabled={f.jobDateTbd} onChange={(e) => set("jobDate", e.target.value)}/></div></div><label className="mt-3 flex items-center gap-2 text-sm text-ink/70"><input type="checkbox" checked={f.jobDateTbd} onChange={(e) => set("jobDateTbd", e.target.checked)}/> Date to be agreed</label>
+      <label className={label}>What you&apos;ll do</label><textarea rows={4} className={input} value={f.description} onChange={(e) => set("description", e.target.value)} placeholder="Describe the work in a way that makes your client feel looked after."/><div className="mt-3 flex flex-wrap gap-2 text-xs"><button className="rounded-full border border-ink/15 px-3 py-2 font-bold" onClick={() => set("description", (f.description ? f.description + "\n" : "") + "Not included: extra repairs found once work starts.")}>+ What&apos;s not included</button><button className="rounded-full border border-ink/15 px-3 py-2 font-bold" onClick={() => set("description", (f.description ? f.description + "\n" : "") + "Access: someone needs to be on site to let us in.")}>+ Access needed</button></div>
+    </section>
+    <section className="mt-5 rounded-[2rem] bg-ink p-5 text-paper shadow-[0_16px_60px_rgba(20,42,31,.12)] sm:p-7"><div className="flex items-end justify-between"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-lime">02 · The investment</p><h2 className="mt-2 text-xl font-black">Make the value clear.</h2></div><label className="flex items-center gap-2 text-xs text-paper/70"><input type="checkbox" checked={f.laborOnly} onChange={(e) => set("laborOnly", e.target.checked)}/> Labour only</label></div><datalist id="items">{items.map((i) => <option key={i.description} value={i.description}/>)}</datalist>{lines.map((l, i) => <div key={i} className="mt-4 rounded-2xl bg-white/10 p-3"><input list="items" className="w-full rounded-xl border-0 bg-white px-3 py-3 text-sm text-ink outline-none" placeholder="What are you charging for?" value={l.description} onChange={(e) => desc(i, e.target.value)}/><div className="mt-2 flex items-center gap-2"><input aria-label="Quantity" type="number" min={1} className="w-16 rounded-xl border-0 bg-white px-2 py-3 text-ink" value={l.quantity} onChange={(e) => setLine(i, { quantity: Math.max(1, +e.target.value || 1) })}/><input aria-label="Price" type="number" min={0} className="min-w-0 flex-1 rounded-xl border-0 bg-white px-3 py-3 text-ink" placeholder="Price (R)" value={l.price || ""} onChange={(e) => setLine(i, { price: Math.max(0, +e.target.value || 0) })}/><span className="w-20 text-right text-sm font-black text-lime">{formatRand(l.quantity * l.price * 100)}</span></div>{lines.length > 1 && <button className="mt-2 text-xs text-paper/60 underline" onClick={() => setLines(lines.filter((_, x) => x !== i))}>Remove</button>}</div>)}<button className="mt-4 rounded-full border border-lime/40 px-4 py-2 text-sm font-bold text-lime" onClick={() => setLines([...lines, { description: "", quantity: 1, price: 0 }])}>+ Add another item</button><div className="mt-6 border-t border-white/15 pt-4 text-sm"><div className="flex justify-between text-paper/60"><span>Subtotal</span><span>{formatRand(sub * 100)}</span></div><div className="mt-2 flex justify-between text-paper/60"><span>VAT</span><span>{vatRegistered ? formatRand(vat * 100) : "Not applicable"}</span></div><div className="mt-3 flex justify-between text-xl font-black"><span>Total</span><span className="text-lime">{formatRand(total * 100)}</span></div></div></section>
+    <section className="mt-5 rounded-[2rem] bg-white p-5 shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5 sm:p-7"><p className="text-xs font-black uppercase tracking-[0.18em] text-orange">03 · The finishing touch</p><h2 className="mt-2 text-xl font-black tracking-tight">Set the tone.</h2><div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">{([["after", "After the job"], ["deposit", "Deposit first"], ["full", "Full upfront"]] as [Plan, string][]).map(([p, l]) => <button key={p} onClick={() => set("plan", p)} className={`rounded-2xl border-2 px-3 py-3 text-sm font-bold transition ${f.plan === p ? "border-orange bg-orange/10 text-ink" : "border-ink/10 text-ink/60"}`}>{l}</button>)}</div>{f.plan === "deposit" && <select className={input} value={f.pct} onChange={(e) => set("pct", +e.target.value)}>{[25, 50, 70].map((p) => <option key={p} value={p}>{p}% deposit</option>)}</select>}{f.plan !== "full" && <select className={input} value={f.terms} onChange={(e) => set("terms", e.target.value)}>{["on completion", "within 7 days", "within 14 days", "within 30 days"].map((t) => <option key={t}>{t}</option>)}</select>}<label className={label}>Personal note</label><textarea rows={3} className={input} value={f.note} onChange={(e) => set("note", e.target.value)} placeholder="A warm note makes a quote feel human."/><div className="mt-3 flex flex-wrap gap-2 text-xs"><button className="rounded-full border border-ink/15 px-3 py-2 font-bold" onClick={() => set("note", `Hi ${first}, thanks for the chat today. I've put together everything we discussed for ${job}. Happy to adjust anything.`)}>Friendly</button><button className="rounded-full border border-ink/15 px-3 py-2 font-bold" onClick={() => set("note", `Dear ${first}, thank you for the opportunity to quote for ${job}. Please get in touch with any questions.`)}>Professional</button><button className="rounded-full border border-ink/15 px-3 py-2 font-bold" onClick={() => set("note", `Hi ${first}, here's your quote for ${job}. Shout if you'd like changes.`)}>Short</button></div></section>
+    {err && <p className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{err}</p>}<div className="fixed inset-x-0 bottom-0 z-10 border-t border-ink/10 bg-paper/95 p-3 backdrop-blur sm:p-4"><div className="mx-auto flex max-w-2xl items-center gap-2"><div className="min-w-0 text-xs text-ink/55">Your quote<span className="block truncate text-lg font-black text-ink">{formatRand(total * 100)}</span></div><button disabled={pending || !valid} onClick={() => submit(false)} className="ml-auto rounded-2xl border-2 border-ink px-3 py-3 text-xs font-black text-ink disabled:opacity-40 sm:px-4 sm:text-sm">Save draft</button><button disabled={pending || !valid} onClick={() => submit(true)} className="rounded-2xl bg-orange px-4 py-3 text-xs font-black text-white shadow-lg shadow-orange/20 disabled:opacity-40 sm:px-5 sm:text-sm">{pending ? "Creating..." : "Create & send"}</button></div></div>
+  </main>;
 }
