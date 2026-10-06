@@ -59,6 +59,8 @@ export default async function Dashboard() {
         </div>
       </section>
 
+      {(overdueCount > 0 || invoiceCount > 0) && <section className="mt-6 rounded-[1.5rem] border border-orange/20 bg-orange/10 p-4 sm:p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-orange">Payment radar</p><h2 className="mt-1 text-lg font-black tracking-[-.04em]">Your next follow-ups are ready.</h2><p className="mt-1 text-sm text-ink/60">Stay on top of due invoices and unanswered quotes before they go cold.</p></div><Link href="/app/documents" className="w-fit rounded-full bg-ink px-4 py-2.5 text-sm font-bold text-lime transition hover:-translate-y-0.5">Review documents →</Link></div></section>}
+
       <section className="mt-8 grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
         <div className="rounded-[1.75rem] border border-ink/10 bg-white p-5 sm:p-7">
           <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-ink/45">Your workflow</p><h2 className="mt-2 text-2xl font-black tracking-[-.06em]">Make money, less admin.</h2></div><span className="hidden rounded-full bg-lime/40 px-3 py-1 text-xs font-bold text-ink sm:inline-flex">Simple by design</span></div>
