@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { createQuote } from "./actions";
 import { formatRand } from "@/lib/money";
+import { greetingName } from "@/lib/names";
 
 type Client = { id: string; name: string; whatsapp_number: string | null; address: string | null; preferred_payment: string | null };
 type Item = { description: string; default_price_cents: number };
@@ -20,8 +21,8 @@ export default function QuoteForm({ clients, items, vatRegistered }: { clients: 
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((p) => ({ ...p, [k]: v }));
   const sub = lines.reduce((a, l) => a + l.quantity * l.price, 0), vat = vatRegistered ? sub * 0.15 : 0, total = sub + vat;
   const valid = lines.filter((l) => l.description.trim() && l.price > 0).length;
-  const first = (clients.find((c) => c.id === clientId)?.name ?? nc.name).split(" ")[0] || "there";
-  const job = (f.title || "the job").toLowerCase();
+  const first = greetingName(clients.find((c) => c.id === clientId)?.name ?? nc.name);
+  const job = (f.title.trim() || "the job").toLowerCase();
   const tips: [boolean, string, string][] = [[valid > 0 && !f.description.trim(), "d", "Describe the job in 2 or 3 sentences. Clients say yes faster when they see you understood what they want."], [valid > 0 && !f.location.trim(), "l", "Add the job location so your client knows you have the right address."], [valid > 0 && !f.note.trim(), "n", "Add a short personal note to make this feel like you, not a template."]];
   const tip = tips.find((t) => t[0] && !gone.includes(t[1]));
   function pick(id: string) { setClientId(id); const c = clients.find((x) => x.id === id); if (c?.address && !f.location) set("location", c.address); if (["deposit", "after", "full"].includes(c?.preferred_payment ?? "")) set("plan", c?.preferred_payment as Plan); }

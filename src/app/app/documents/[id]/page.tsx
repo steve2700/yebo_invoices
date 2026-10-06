@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatRand } from "@/lib/money";
 import { waLink } from "@/lib/dates";
+import { greetingName } from "@/lib/names";
+import { appUrl } from "@/lib/url";
 import CopyButton from "../CopyButton";
-import PrintButton from "../PrintButton";
 import { convertToInvoice, emailDocument, markPaid, sendDraft } from "../actions";
 
 export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -16,10 +17,10 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const { data: events } = await sb.from("events").select("type,created_at").eq("document_id", id).order("created_at", { ascending: false });
   const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
 
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://yebo-invoices.vercel.app";
+  const base = appUrl();
   const link = `${base}/d/${d.public_token}`;
   const kind = d.type === "quote" ? "quote" : "invoice";
-  const msg = `Hi ${client?.name.split(" ")[0] ?? "there"}, here is your ${kind} ${d.number} from ${biz?.name}: ${link}`;
+  const msg = `Hi ${greetingName(client?.name)}, here is your ${kind} ${d.number} from ${biz?.name}: ${link}`;
 
   const btn = "rounded-xl px-4 py-2 font-bold";
   return (
@@ -40,7 +41,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         </form>
         <a href={waLink(client?.whatsapp_number ?? null, msg)} target="_blank" rel="noreferrer" className={`${btn} bg-yebo text-white`}>Send on WhatsApp</a>
         <CopyButton text={link} />
-        <PrintButton />
+        {d.status !== "draft" && <a href={`/d/${d.public_token}/pdf`} className={`${btn} border-2 border-neutral-300`}>Download PDF</a>}
         <a href={link} target="_blank" rel="noreferrer" className={`${btn} border-2 border-neutral-300`}>Open client view</a>
       </div>
 

@@ -3,6 +3,8 @@ import { revalidatePath } from "next/cache";
 import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/server";
 import { formatRand } from "@/lib/money";
+import { formatDate } from "@/lib/dates";
+import { appUrl } from "@/lib/url";
 
 type Line = { description: string; quantity: number; line_total_cents: number };
 
@@ -17,7 +19,7 @@ export default async function PublicDocument({ params }: { params: Promise<{ tok
   const isQuote = d.type === "quote";
   const canAnswer = isQuote && ["sent", "viewed"].includes(d.status);
   const color = b.brand_color;
-  const url = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://yebo-invoices.vercel.app"}/d/${token}`;
+  const url = `${appUrl()}/d/${token}`;
   const qr = await QRCode.toDataURL(url, { margin: 1, width: 220 });
   const hasBank = b.bank_account_holder && b.bank_account_number && b.bank_branch_code;
   const plan = d.payment_plan === "full" ? "Payment in full is needed to confirm the booking."
@@ -48,8 +50,8 @@ export default async function PublicDocument({ params }: { params: Promise<{ tok
           </div>
           <div className="text-right">
             <div className="text-lg font-extrabold" style={{ color }}>{isQuote ? "QUOTE" : b.vat_registered ? "TAX INVOICE" : "INVOICE"}</div>
-            <div className="text-xs text-neutral-500">{d.number}<br />Date: {d.issue_date}<br />
-              {isQuote ? `Valid until ${d.expiry_date}` : `Due: ${d.due_date}`}</div>
+            <div className="text-xs text-neutral-500">{d.number}<br />Date: {formatDate(d.issue_date)}<br />
+              {isQuote ? `Valid until ${formatDate(d.expiry_date)}` : `Due: ${formatDate(d.due_date)}`}</div>
           </div>
         </header>
 
@@ -95,6 +97,7 @@ export default async function PublicDocument({ params }: { params: Promise<{ tok
           </form>
         )}
         {isQuote && d.status === "accepted" && <p className="mt-6 rounded-xl bg-emerald-50 p-3 text-center font-bold text-emerald-800">Quote accepted. Thank you!</p>}
+      <a href={`/d/${token}/pdf`} className="mt-6 block text-center text-sm font-bold underline" style={{ color }}>Download PDF</a>
       </article>
     </main>
   );

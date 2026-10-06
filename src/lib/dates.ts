@@ -9,3 +9,7 @@ export const waLink = (phone: string | null, text: string) => {
   const n = digits.startsWith("0") ? "27" + digits.slice(1) : digits;
   return `https://wa.me/${n}?text=${encodeURIComponent(text)}`;
 };
+
+// "2026-10-06" -> "6 Oct 2026" (avoids the timezone shift of new Date("2026-10-06"))
+export const formatDate = (iso: string | null | undefined) =>
+  iso ? new Date(iso + "T00:00:00").toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }) : "";
