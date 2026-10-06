@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function LogoUpload({ current }: { current: string | null }) {
+export default function LogoUpload({ current, compact = false }: { current: string | null; compact?: boolean }) {
   const router = useRouter();
   const [msg, setMsg] = useState("");
   async function upload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -22,8 +22,11 @@ export default function LogoUpload({ current }: { current: string | null }) {
   }
   return (
     <div>
-      {current && <img src={current} alt="Your logo" className="mb-2 h-14 object-contain" />}
-      <input type="file" accept="image/*" onChange={upload} />
+      {current && <img src={current} alt="Your logo" className={compact ? "size-full object-contain" : "mb-2 h-14 object-contain"} />}
+      <label className={compact ? "relative block size-full cursor-pointer" : "block text-sm font-semibold text-yebo-deep/70"}>
+        {compact ? "Upload logo" : "Choose a logo file"}
+        <input type="file" accept="image/*" onChange={upload} className={compact ? "absolute inset-0 size-full cursor-pointer opacity-0" : "mt-2 block w-full text-sm"} />
+      </label>
       {msg && <p className="mt-1 text-sm text-neutral-600">{msg}</p>}
     </div>
   );
