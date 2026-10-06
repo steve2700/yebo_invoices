@@ -33,8 +33,8 @@ export default async function Settings({ searchParams }: { searchParams: Promise
       <h1 className="mt-2 text-2xl font-extrabold">Settings</h1>
       {sp.saved && <p className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Saved.</p>}
       {sp.error && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{sp.error}</p>}
-      <section className="mt-4 rounded-2xl bg-white p-5"><h2 className="mb-2 font-extrabold">Logo</h2><LogoUpload current={b.logo_url} /></section>
-      <form action={save} className="mt-4 space-y-3 rounded-2xl bg-white p-5 text-sm">
+      <section className="mt-4 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 p-5"><h2 className="mb-2 font-extrabold">Logo</h2><LogoUpload current={b.logo_url} /></section>
+      <form action={save} className="mt-4 space-y-3 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 p-5 text-sm">
         <h2 className="font-extrabold">Banking details (optional)</h2>
         <p className="text-neutral-500">Skip this and clients can still open your quote online. Double-check every digit.</p>
         <label className="block">Bank<select name="bank_name" defaultValue={b.bank_name ?? ""} className={box}>

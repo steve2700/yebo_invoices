@@ -1,3 +1,19 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+html { scroll-behavior: smooth; }
+::selection { background: #F2B21B; color: #0C3B2E; }
+:focus-visible { outline: 3px solid #F2B21B; outline-offset: 2px; }
+
+/* The one orchestrated moment on the landing page: the "Yebo!" stamp lands on the quote. */
+@keyframes stamp {
+  0% { transform: scale(2.2) rotate(-14deg); opacity: 0; }
+  60% { transform: scale(.94) rotate(-6deg); opacity: 1; }
+  100% { transform: scale(1) rotate(-6deg); opacity: 1; }
+}
+.stamp { animation: stamp .45s .7s cubic-bezier(.2,.8,.3,1) both; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .stamp { animation: none; transform: rotate(-6deg); }
+}

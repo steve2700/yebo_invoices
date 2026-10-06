@@ -70,7 +70,7 @@ export default function QuoteForm({ clients, items, vatRegistered }: { clients: 
           </div>
         </div>
       )}
-      <section className="mt-4 rounded-2xl bg-white p-5">
+      <section className="mt-4 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 p-5">
         <label className={lbl} style={{ marginTop: 0 }}>Client</label>
         <select className={box} value={clientId} onChange={(e) => pick(e.target.value)}>
           <option value="">Choose a client</option>
@@ -106,7 +106,7 @@ export default function QuoteForm({ clients, items, vatRegistered }: { clients: 
         </div>
       </section>
 
-      <section className="mt-4 rounded-2xl bg-white p-5">
+      <section className="mt-4 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 p-5">
         <div className="flex items-center justify-between">
           <h2 className="font-extrabold">Items and prices</h2>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.laborOnly} onChange={(e) => set("laborOnly", e.target.checked)} /> Labour only</label>
@@ -131,7 +131,7 @@ export default function QuoteForm({ clients, items, vatRegistered }: { clients: 
         </div>
       </section>
 
-      <section className="mt-4 rounded-2xl bg-white p-5">
+      <section className="mt-4 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 p-5">
         <h2 className="font-extrabold">How and when you get paid</h2>
         <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
           {([["after", "Pay after the job"], ["deposit", "Deposit first"], ["full", "Full upfront"]] as [Plan, string][]).map(([p, l]) => (

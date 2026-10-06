@@ -36,7 +36,7 @@ export default function Onboarding() {
     <main className="mx-auto max-w-md px-6 py-10">
       <h1 className="text-2xl font-extrabold">Set up your business</h1>
       <p className="text-sm text-neutral-600">Done once. Shown on every quote and invoice to build trust.</p>
-      <form action={createBusiness} className="mt-6 space-y-3 rounded-2xl bg-white p-5">
+      <form action={createBusiness} className="mt-6 space-y-3 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 p-5">
         <label className="block text-sm">Business name<input name="name" required className={field} /></label>
         <label className="block text-sm">Email<input name="email" type="email" className={field} /></label>
         <label className="block text-sm">Phone<input name="phone" className={field} /></label>

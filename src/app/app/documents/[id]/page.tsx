@@ -54,7 +54,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       </div>
 
       <h2 className="mt-8 font-extrabold">Activity</h2>
-      <ul className="mt-2 divide-y rounded-2xl bg-white text-sm">
+      <ul className="mt-2 divide-y rounded-2xl bg-white shadow-sm ring-1 ring-black/5 text-sm">
         {(events ?? []).map((e, i) => (
           <li key={i} className="flex justify-between p-3"><span>{e.type}</span>
             <span className="text-neutral-500">{new Date(e.created_at).toLocaleString("en-ZA")}</span></li>
