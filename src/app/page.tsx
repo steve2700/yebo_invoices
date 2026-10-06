@@ -1,156 +1,65 @@
 import Link from "next/link";
 import Logo from "@/components/Logo";
 
-const steps = [
-  ["Set up once", "Add your logo, registration and VAT status, and banking details if you like. Every quote then looks like it came from an established business."],
-  ["Quote in minutes", "Yebo remembers your clients and items, fills in what it can, and gives short tips while you describe the job."],
-  ["Send, then get the yes", "Share a link on WhatsApp. Your client opens it on their phone and accepts. You turn the accepted quote into an invoice in one tap."],
-];
-
-const features: [string, string, boolean?][] = [
-  ["Made for South Africa", "Rands, South African VAT rules, and banking details clients can trust. If you are not VAT registered, no VAT is charged and the document says so."],
-  ["Looks established from day one", "Your logo, address, registration number, website and VAT number sit on every document, with an optional workmanship guarantee."],
-  ["Document numbers that match your name", "Granite Carpentry gets GC-QT-2026-1 for quotes and GC-INV-2026-1 for invoices, without gaps."],
-  ["Send on WhatsApp", "One tap opens WhatsApp with the quote link ready to send. No attachments, no app for your client to install."],
-  ["Quote to invoice in one tap", "When a client accepts, create the invoice from the same quote. Nothing to retype."],
-  ["Your clients, remembered", "Autocomplete for clients, addresses and items. Clients who always pay after the job are set up that way automatically."],
-  ["Automatic follow-ups", "Gentle reminders if a quote goes quiet, and before an invoice is due.", true],
-  ["Pay online by scanning", "A QR code on every invoice that opens a secure payment page.", true],
+const features = [
+  ["01", "Quote faster", "Turn a rough idea into a polished quote in minutes, with your clients and items already remembered."],
+  ["02", "Look established", "Your logo, registration details, terms and guarantee arrive in one confident, professional document."],
+  ["03", "Get paid sooner", "Send by WhatsApp, get a clear yes, and turn accepted quotes into invoices without retyping."],
 ];
 
 export default function Home() {
   return (
-    <>
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+    <main className="min-h-screen overflow-hidden">
+      <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-5 py-6 sm:px-8 lg:px-12">
         <Logo />
-        <nav className="hidden gap-8 text-sm font-semibold text-yebo-deep/70 md:flex">
-          <a href="#how" className="hover:text-yebo-deep">How it works</a>
-          <a href="#features" className="hover:text-yebo-deep">Features</a>
-          <a href="#coach" className="hover:text-yebo-deep">Quote coach</a>
+        <nav className="hidden items-center gap-8 text-sm font-medium text-ink/60 md:flex">
+          <a href="#workflow" className="transition-colors hover:text-ink">How it works</a>
+          <a href="#features" className="transition-colors hover:text-ink">Features</a>
+          <a href="#coach" className="transition-colors hover:text-ink">Quote coach</a>
         </nav>
         <div className="flex items-center gap-3">
-          <Link href="/login" className="text-sm font-semibold">Sign in</Link>
-          <Link href="/login" className="rounded-full bg-yebo-deep px-5 py-2.5 text-sm font-bold text-white hover:bg-yebo">Start free</Link>
+          <Link href="/login" className="hidden text-sm font-semibold text-ink sm:block">Sign in</Link>
+          <Link href="/login" className="rounded-full bg-ink px-5 py-2.5 text-sm font-bold text-paper transition-transform hover:-translate-y-0.5">Start free <span aria-hidden="true">↗</span></Link>
         </div>
       </header>
 
-      {/* HERO */}
-      <section className="relative overflow-hidden">
-        <div className="pointer-events-none absolute -right-40 -top-40 h-[560px] w-[560px] rounded-full bg-[radial-gradient(circle,#cdeedd_0%,transparent_68%)]" />
-        <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-6 pb-24 pt-12 lg:grid-cols-[1.1fr_0.9fr] lg:pt-20">
-          <div>
-            <h1 className="text-5xl font-extrabold leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl">
-              Quotes clients say yes to.
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-yebo-deep/75">
-              Yebo helps South African small businesses send clear, professional quotes and invoices from their phone, and coaches you to win the job while you write it.
-            </p>
-            <div className="mt-9 flex flex-wrap items-center gap-4">
-              <Link href="/login" className="rounded-full bg-yebo px-7 py-4 text-base font-bold text-white shadow-lg shadow-yebo/25 hover:bg-yebo-deep">Create your first quote</Link>
-              <a href="#how" className="rounded-full border-2 border-yebo-deep/15 px-7 py-4 text-base font-bold hover:border-yebo-deep">See how it works</a>
-            </div>
-            <p className="mt-5 text-sm text-yebo-deep/60">Free while we launch. Works on any phone, no app to install.</p>
+      <section className="relative mx-auto grid max-w-7xl items-center gap-16 px-5 pb-24 pt-14 sm:px-8 lg:grid-cols-[.9fr_1.1fr] lg:px-12 lg:pb-36 lg:pt-20">
+        <div className="pointer-events-none absolute -left-40 -top-40 size-[30rem] rounded-full bg-lime/20 blur-3xl" />
+        <div className="relative z-10">
+          <p className="mb-7 flex items-center gap-3 text-xs font-bold uppercase tracking-[.22em] text-ink/50"><span className="size-2 rounded-full bg-lime" /> Invoicing, reimagined for SA</p>
+          <h1 className="max-w-2xl text-[clamp(3.6rem,8vw,7.4rem)] font-black leading-[.88] tracking-[-.07em] text-ink">Get the<br /><span className="text-orange">yes.</span><br />Then get paid.</h1>
+          <p className="mt-8 max-w-lg text-lg leading-relaxed text-ink/65 sm:text-xl">Beautiful quotes and invoices for the businesses that keep South Africa moving. From your phone, in minutes, without the admin.</p>
+          <div className="mt-9 flex flex-wrap items-center gap-4">
+            <Link href="/login" className="rounded-full bg-orange px-7 py-4 text-base font-bold text-white shadow-xl shadow-orange/20 transition-all hover:-translate-y-1 hover:bg-ink">Create your first quote <span aria-hidden="true">→</span></Link>
+            <a href="#workflow" className="text-sm font-bold text-ink underline decoration-ink/20 underline-offset-8 transition-colors hover:decoration-ink">See how it works</a>
           </div>
+          <p className="mt-6 text-xs font-medium uppercase tracking-[.16em] text-ink/40">Free while we launch · No app to install</p>
+        </div>
 
-          {/* the memorable thing: a real-looking quote with the Yebo stamp */}
-          <div className="relative mx-auto w-full max-w-sm rotate-2">
-            <div className="rounded-xl bg-white p-6 text-sm shadow-2xl shadow-yebo-deep/20" style={{ borderTop: "6px solid #B45309" }}>
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="grid h-9 w-9 place-items-center rounded-lg font-extrabold text-white" style={{ background: "#B45309" }}>GC</span>
-                  <b>Granite Carpentry</b>
-                </div>
-                <div className="text-right text-xs text-yebo-deep/60"><b className="block text-sm" style={{ color: "#B45309" }}>QUOTE</b>GC-QT-2026-1</div>
-              </div>
-              <p className="mt-1 text-xs text-yebo-deep/55">22 Workshop Rd, Kya Sand · Reg. 2019/123456/07</p>
-              <p className="mt-4">For <b>Thabo Mokoena</b>, kitchen cupboards</p>
-              <div className="mt-3 divide-y divide-yebo-deep/10">
-                {[["Build and install 6 cupboards", "R18 500"], ["Hinges, handles and fittings", "R2 400"], ["Remove and dispose of old units", "R1 200"]].map(([a, b]) => (
-                  <div key={a} className="flex justify-between py-2"><span>{a}</span><span>{b}</span></div>
-                ))}
-                <div className="flex justify-between py-2 text-xs text-yebo-deep/55"><span>VAT</span><span>Not applicable</span></div>
-              </div>
-              <div className="flex justify-between border-t-2 pt-2 text-lg font-extrabold" style={{ borderColor: "#B45309", color: "#B45309" }}><span>Total</span><span>R22 100</span></div>
-              <div className="mt-4 rounded-xl bg-yebo py-3 text-center font-bold text-white">Accept quote</div>
-              <p className="mt-3 text-center text-xs text-yebo-deep/55">12-month workmanship guarantee</p>
-            </div>
-            <div className="stamp absolute -right-4 -top-5 rounded-xl border-4 border-yebo-deep bg-yebo-sun px-4 py-2 text-xl font-extrabold text-yebo-deep">Yebo! Accepted</div>
-            <div className="absolute -bottom-5 -left-6 -rotate-3 rounded-xl bg-white px-4 py-2 text-xs font-semibold shadow-lg ring-1 ring-black/5">Thabo viewed your quote 2 hours ago</div>
+        <div className="relative z-10 lg:pt-8">
+          <div className="absolute -inset-8 rounded-[3rem] bg-lime/20 blur-2xl" />
+          <div className="relative rotate-2 rounded-[2rem] border border-ink/10 bg-white p-5 shadow-[0_30px_80px_rgba(20,25,20,.18)] sm:p-8">
+            <div className="flex items-start justify-between border-b border-ink/10 pb-6"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-orange">Yebo</p><h2 className="mt-2 text-2xl font-black tracking-tight">Granite Carpentry</h2><p className="mt-1 text-xs text-ink/45">22 Workshop Road · Johannesburg</p></div><div className="text-right"><p className="text-xs font-bold uppercase tracking-[.16em] text-ink/40">Quote</p><p className="mt-1 font-mono text-xs text-ink/60">GC-QT-2026-001</p></div></div>
+            <div className="flex items-end justify-between py-7"><div><p className="text-xs uppercase tracking-[.14em] text-ink/40">Prepared for</p><p className="mt-1 text-lg font-bold">Thabo Mokoena</p><p className="text-sm text-ink/55">Kitchen renovation</p></div><div className="rounded-full bg-lime/20 px-3 py-1.5 text-xs font-bold text-ink">Valid 14 days</div></div>
+            <div className="divide-y divide-ink/10 border-y border-ink/10 text-sm">{[["Build & install 6 cupboards", "R18 500"], ["Handles and fittings", "R2 400"], ["Remove old units", "R1 200"]].map(([name, price]) => <div key={name} className="flex justify-between py-4"><span>{name}</span><span className="font-semibold">{price}</span></div>)}</div>
+            <div className="flex items-end justify-between py-6"><span className="text-sm font-bold">Total</span><span className="text-4xl font-black tracking-tight text-orange">R22 100</span></div>
+            <div className="rounded-xl bg-ink py-4 text-center text-sm font-bold text-paper">Accept quote <span aria-hidden="true">↗</span></div>
+            <p className="mt-4 text-center text-xs text-ink/45">Includes a 12-month workmanship guarantee</p>
           </div>
+          <div className="stamp absolute -right-2 -top-7 rounded-xl border-2 border-ink bg-lime px-4 py-3 text-sm font-black text-ink shadow-lg sm:-right-8">Yebo! Accepted</div>
+          <div className="absolute -bottom-7 -left-2 rounded-xl border border-ink/10 bg-white px-4 py-3 text-xs font-semibold text-ink shadow-lg sm:-left-8"><span className="mr-2 inline-block size-2 rounded-full bg-lime" />Viewed 2 hours ago</div>
         </div>
       </section>
 
-      <p className="mx-auto max-w-6xl px-6 pb-16 text-center text-yebo-deep/60">
-        Built for plumbers, carpenters, electricians, photographers, caterers, tutors and everyone else who sends quotes from their phone.
-      </p>
+      <section id="workflow" className="border-y border-ink/10 bg-ink px-5 py-20 text-paper sm:px-8 lg:px-12 lg:py-28"><div className="mx-auto max-w-7xl"><div className="grid gap-10 lg:grid-cols-[.7fr_1.3fr]"><div><p className="text-xs font-bold uppercase tracking-[.2em] text-lime">The Yebo way</p><h2 className="mt-5 max-w-md text-4xl font-black leading-[.95] tracking-[-.04em] sm:text-5xl">Less admin.<br />More momentum.</h2></div><div className="grid gap-10 sm:grid-cols-3">{features.map(([number, title, body]) => <div key={number} className="border-t border-paper/20 pt-5"><p className="font-mono text-sm text-lime">{number}</p><h3 className="mt-10 text-xl font-bold">{title}</h3><p className="mt-3 text-sm leading-relaxed text-paper/60">{body}</p></div>)}</div></div></div></section>
 
-      {/* HOW IT WORKS: a real sequence, so numbered */}
-      <section id="how" className="mx-auto max-w-6xl px-6 py-20">
-        <h2 className="max-w-2xl text-4xl font-extrabold tracking-tight">Your first quote takes about three minutes.</h2>
-        <div className="mt-12 grid gap-10 md:grid-cols-3">
-          {steps.map(([t, d], i) => (
-            <div key={t} className="border-t-4 border-yebo-deep pt-5">
-              <div className="text-5xl font-extrabold text-yebo">{i + 1}</div>
-              <h3 className="mt-3 text-xl font-extrabold">{t}</h3>
-              <p className="mt-2 leading-relaxed text-yebo-deep/70">{d}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <section id="features" className="mx-auto grid max-w-7xl gap-14 px-5 py-24 sm:px-8 lg:grid-cols-[.7fr_1.3fr] lg:px-12 lg:py-36"><div><p className="text-xs font-bold uppercase tracking-[.2em] text-orange">Made for real work</p><h2 className="mt-5 max-w-md text-4xl font-black leading-[.95] tracking-[-.05em] sm:text-6xl">Your work is the hard part. Let Yebo handle the rest.</h2></div><div className="grid gap-0 border-t border-ink/15">{["South African VAT rules, built in.", "Send polished quotes straight to WhatsApp.", "Remember clients, addresses and items.", "Convert an accepted quote to an invoice."].map((item, i) => <div key={item} className="flex items-center justify-between border-b border-ink/15 py-6"><span className="text-lg font-bold sm:text-2xl">{item}</span><span className="font-mono text-xs text-orange">0{i + 1}</span></div>)}</div></section>
 
-      {/* FEATURES: rows, not identical cards */}
-      <section id="features" className="mx-auto grid max-w-6xl gap-12 px-6 py-20 lg:grid-cols-[0.8fr_1.2fr]">
-        <div className="lg:sticky lg:top-8 lg:self-start">
-          <h2 className="text-4xl font-extrabold tracking-tight">Everything a small business needs to look established.</h2>
-          <p className="mt-4 text-yebo-deep/70">Clients decide in seconds whether they trust you. Yebo puts the right details in front of them, so you do not have to think about it.</p>
-        </div>
-        <div className="divide-y divide-yebo-deep/10 border-y border-yebo-deep/10">
-          {features.map(([t, d, soon]) => (
-            <div key={t} className="py-5">
-              <div className="flex items-center gap-3">
-                <h3 className="text-lg font-extrabold">{t}</h3>
-                {soon && <span className="rounded-full bg-yebo-sun px-3 py-0.5 text-xs font-bold">Coming soon</span>}
-              </div>
-              <p className="mt-1 max-w-xl leading-relaxed text-yebo-deep/70">{d}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <section id="coach" className="mx-5 mb-20 overflow-hidden rounded-[2rem] bg-lime px-6 py-20 sm:mx-8 sm:px-12 lg:mx-auto lg:max-w-7xl lg:px-20"><div className="grid items-center gap-12 lg:grid-cols-2"><div><p className="text-xs font-bold uppercase tracking-[.2em] text-ink/55">A little help, right on time</p><h2 className="mt-5 max-w-xl text-4xl font-black leading-[.9] tracking-[-.05em] text-ink sm:text-6xl">A coach in every quote.</h2><p className="mt-6 max-w-lg text-lg leading-relaxed text-ink/65">Yebo spots the small things that win trust: a clear scope, a start date, a deposit for materials. One useful suggestion at a time.</p></div><div className="rounded-2xl bg-ink p-5 text-paper shadow-2xl"><div className="mb-6 flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-[.18em] text-paper/50">Quote coach</span><span className="size-2 rounded-full bg-lime" /></div>{[["Add what isn&apos;t included to avoid arguments later.", "Add it"], ["Big job with no deposit? Protect your materials.", "Ask for 50%"], ["A personal note can make the difference.", "Use friendly"]].map(([text, action]) => <div key={text} className="flex items-center justify-between gap-4 border-t border-paper/15 py-5"><p className="text-sm font-medium">{text}</p><button className="shrink-0 rounded-full bg-lime px-3 py-2 text-xs font-bold text-ink">{action}</button></div>)}</div></div></section>
 
-      {/* COACH */}
-      <section id="coach" className="bg-yebo-deep text-white">
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-6 py-24 lg:grid-cols-2">
-          <div>
-            <h2 className="text-4xl font-extrabold tracking-tight">A coach in every quote.</h2>
-            <p className="mt-5 max-w-lg text-lg leading-relaxed text-white/75">
-              Most quotes are lost to small things: a vague description, no start date, no mention of what is not included. Yebo spots them while you write and suggests the fix, one tip at a time. Every tip can be dismissed, and you can switch them off.
-            </p>
-          </div>
-          <div className="space-y-4">
-            {[["Say what is not included to avoid arguments later.", "Add it"], ["Big job with no deposit. Ask for a deposit to cover materials?", "Ask for 50%"], ["Add a short personal note. Friendly, Professional or Short.", "Use friendly"]].map(([t, a]) => (
-              <div key={t} className="rounded-xl border-l-4 border-yebo-sun bg-white p-4 text-yebo-deep">
-                <p className="font-semibold">{t}</p>
-                <span className="mt-2 inline-block text-sm font-bold text-yebo">{a}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <section className="px-5 py-24 text-center sm:px-8"><p className="text-xs font-bold uppercase tracking-[.2em] text-orange">Ready when you are</p><h2 className="mx-auto mt-5 max-w-3xl text-5xl font-black leading-[.9] tracking-[-.06em] sm:text-7xl">Make your next quote your best one.</h2><Link href="/login" className="mt-10 inline-block rounded-full bg-ink px-8 py-4 text-base font-bold text-paper transition-transform hover:-translate-y-1">Get started free <span aria-hidden="true">↗</span></Link></section>
 
-      {/* CTA */}
-      <section className="mx-auto max-w-4xl px-6 py-28 text-center">
-        <h2 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Send your first quote today.</h2>
-        <p className="mt-4 text-lg text-yebo-deep/70">Free while we launch. Sign in with Google or an email link and you are ready in minutes.</p>
-        <Link href="/login" className="mt-9 inline-block rounded-full bg-yebo px-9 py-4 text-lg font-bold text-white shadow-lg shadow-yebo/25 hover:bg-yebo-deep">Get started</Link>
-      </section>
-
-      <footer className="border-t border-yebo-deep/10">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-8 text-sm text-yebo-deep/60">
-          <Logo />
-          <span>Made in South Africa for small business.</span>
-          <Link href="/login" className="font-semibold text-yebo-deep">Sign in</Link>
-        </div>
-      </footer>
-    </>
+      <footer className="border-t border-ink/10"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-8 text-sm text-ink/50 sm:px-8 lg:px-12"><Logo /><span>Made in South Africa for small business.</span><Link href="/login" className="font-bold text-ink">Sign in</Link></div></footer>
+    </main>
   );
 }
