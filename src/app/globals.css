@@ -2,18 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
-html { scroll-behavior: smooth; }
-::selection { background: #F2B21B; color: #0C3B2E; }
-:focus-visible { outline: 3px solid #F2B21B; outline-offset: 2px; }
+:root {
+  --paper: 45 33% 96%;
+  --ink: 155 31% 13%;
+  --lime: 76 77% 69%;
+  --orange: 17 82% 57%;
+}
 
-/* The one orchestrated moment on the landing page: the "Yebo!" stamp lands on the quote. */
+html { scroll-behavior: smooth; }
+body { background: hsl(var(--paper)); }
+::selection { background: hsl(var(--lime)); color: hsl(var(--ink)); }
+:focus-visible { outline: 3px solid hsl(var(--orange)); outline-offset: 3px; }
+
 @keyframes stamp {
   0% { transform: scale(2.2) rotate(-14deg); opacity: 0; }
   60% { transform: scale(.94) rotate(-6deg); opacity: 1; }
   100% { transform: scale(1) rotate(-6deg); opacity: 1; }
 }
-.stamp { animation: stamp .45s .7s cubic-bezier(.2,.8,.3,1) both; }
+.stamp { animation: stamp .55s .7s cubic-bezier(.2,.8,.3,1) both; }
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .stamp { animation: none; transform: rotate(-6deg); }
 }
+
+@layer utilities {
+  .bg-paper { background-color: hsl(var(--paper)); }
+  .bg-ink { background-color: hsl(var(--ink)); }
+  .bg-lime { background-color: hsl(var(--lime)); }
+  .bg-orange { background-color: hsl(var(--orange)); }
+  .text-paper { color: hsl(var(--paper)); }
+  .text-ink { color: hsl(var(--ink)); }
+  .text-lime { color: hsl(var(--lime)); }
+  .text-orange { color: hsl(var(--orange)); }
+  .border-ink { border-color: hsl(var(--ink)); }
+}
+
+.font-sans { font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif; }
+button, a { -webkit-tap-highlight-color: transparent; }

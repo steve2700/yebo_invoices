@@ -18,10 +18,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 px-5 py-3">
           <Logo href="/app" />
           <nav className="flex items-center gap-1">
-            <Link href="/app/documents" className={link}>Documents</Link>
-            <Link href="/app/settings" className={link}>Settings</Link>
-            <Link href="/app/quotes/new" className="ml-1 rounded-full bg-yebo px-4 py-1.5 text-sm font-bold text-white hover:bg-yebo-deep">New quote</Link>
-            <form action={signOut}><button className={link}>Sign out</button></form>
+            <Link href="/app/documents" className={`${link} hidden sm:inline-flex`}>Documents</Link>
+            <Link href="/app/settings" className={`${link} hidden sm:inline-flex`}>Settings</Link>
+            <Link href="/app/quotes/new" className="ml-1 rounded-full bg-yebo px-3 py-2 text-xs font-bold text-white hover:bg-yebo-deep sm:px-4 sm:py-1.5 sm:text-sm">New quote</Link>
+            <form action={signOut} className="hidden sm:block"><button className={link}>Sign out</button></form>
           </nav>
         </div>
       </header>
