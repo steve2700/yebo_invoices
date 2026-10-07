@@ -7,6 +7,7 @@ import { greetingName } from "@/lib/names";
 type Client = { id: string; name: string; whatsapp_number: string | null; address: string | null; preferred_payment: string | null };
 type Item = { description: string; default_price_cents: number };
 type Plan = "after" | "deposit" | "full";
+type MessageTone = "friendly" | "professional" | "short";
 type Line = { description: string; quantity: number; price: number };
 type Fields = {
   title: string;
@@ -43,6 +44,9 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
   });
   const [lines, setLines] = useState<Line[]>([{ description: "", quantity: 1, price: 0 }]);
   const [error, setError] = useState("");
+  const [noteTone, setNoteTone] = useState<MessageTone>("friendly");
+  const [draftingNote, setDraftingNote] = useState<MessageTone | null>(null);
+  const [noteError, setNoteError] = useState("");
   const [pending, start] = useTransition();
   const setField = <K extends keyof Fields>(key: K, value: Fields[K]) => setFields((current) => ({ ...current, [key]: value }));
 
@@ -95,7 +99,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
     setField("description", fields.description ? `${fields.description.trimEnd()}\n${text}` : text);
   }
 
-  function createNote(style: "friendly" | "professional" | "short") {
+  function createNote(style: MessageTone) {
     const kind = isInvoice ? "invoice" : "quote";
     const messages = {
       friendly: isInvoice
@@ -107,10 +111,40 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         : "Thanks for considering us. Let me know if you’d like any changes.",
     };
     setField("note", messages[style]);
+    setNoteError("");
+  }
+
+  async function draftNote(style: MessageTone) {
+    setDraftingNote(style);
+    setNoteError("");
+    try {
+      const response = await fetch("/api/ai-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "intro_note",
+          style,
+          documentType: docType,
+          firstName,
+          jobTitle: fields.title,
+          description: fields.description,
+          items: lines.map((line) => line.description).filter(Boolean).slice(0, 5),
+        }),
+      });
+      const result = await response.json() as { message?: unknown; error?: unknown };
+      if (!response.ok || typeof result.message !== "string" || !result.message.trim()) {
+        throw new Error(typeof result.error === "string" ? result.error : "Could not draft this note.");
+      }
+      setField("note", result.message);
+    } catch (draftError) {
+      setNoteError(draftError instanceof Error ? draftError.message : "Could not draft this note. Please try again.");
+    } finally {
+      setDraftingNote(null);
+    }
   }
 
   function submit(send: boolean) {
-    if (!canSubmit) return;
+    if (!canSubmit || draftingNote) return;
     setError("");
     start(async () => {
       const result = await createQuote({
@@ -294,11 +328,39 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
             )}
             <label className={label} htmlFor="personal-note">Personal note</label>
             <textarea id="personal-note" rows={3} className={input} value={fields.note} onChange={(event) => setField("note", event.target.value)} placeholder={isInvoice ? "Optional: add a thank-you or payment reminder." : "Optional: add a warm note for your client."} />
-            <div className="mt-3 flex flex-wrap gap-2 text-xs">
-              <button type="button" className="min-h-10 rounded-full border border-ink/15 px-3 py-2 font-bold" onClick={() => createNote("friendly")}>Friendly</button>
-              <button type="button" className="min-h-10 rounded-full border border-ink/15 px-3 py-2 font-bold" onClick={() => createNote("professional")}>Professional</button>
-              <button type="button" className="min-h-10 rounded-full border border-ink/15 px-3 py-2 font-bold" onClick={() => createNote("short")}>Short</button>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <label className="sr-only" htmlFor="note-tone">Personal note tone</label>
+              <select
+                id="note-tone"
+                value={noteTone}
+                disabled={draftingNote !== null}
+                onChange={(event) => setNoteTone(event.target.value as MessageTone)}
+                className="min-h-10 rounded-full border border-ink/15 bg-paper px-3 text-xs font-bold text-ink outline-none focus:border-orange disabled:opacity-50"
+              >
+                <option value="friendly">Friendly tone</option>
+                <option value="professional">Professional tone</option>
+                <option value="short">Short tone</option>
+              </select>
+              <button
+                type="button"
+                disabled={draftingNote !== null}
+                onClick={() => void draftNote(noteTone)}
+                className="min-h-10 rounded-full bg-orange px-4 py-2 text-xs font-black text-white transition hover:brightness-95 disabled:opacity-50"
+              >
+                {draftingNote ? "Drafting..." : "Draft with AI"}
+              </button>
+              <button
+                type="button"
+                disabled={draftingNote !== null}
+                onClick={() => createNote(noteTone)}
+                className="min-h-10 rounded-full border border-ink/15 px-3 py-2 text-xs font-bold text-ink disabled:opacity-50"
+              >
+                Use quick template
+              </button>
             </div>
+            {draftingNote && <p role="status" className="mt-2 text-xs text-ink/55">Writing your {draftingNote} note...</p>}
+            {noteError && <p role="alert" className="mt-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">{noteError}</p>}
+            <p className="mt-2 text-xs text-ink/50">AI notes are editable. Review the wording before you share.</p>
           </section>
         </div>
       </details>
@@ -313,10 +375,10 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
               {isInvoice ? "Invoice total" : "Quote total"}
               <span className="block truncate text-lg font-black text-ink">{formatRand(totalCents)}</span>
             </div>
-            <button type="button" disabled={pending || !canSubmit} onClick={() => submit(false)} className="ml-auto min-h-11 rounded-2xl border-2 border-ink px-3 py-3 text-xs font-black text-ink disabled:opacity-40 sm:px-4 sm:text-sm">
+            <button type="button" disabled={pending || draftingNote !== null || !canSubmit} onClick={() => submit(false)} className="ml-auto min-h-11 rounded-2xl border-2 border-ink px-3 py-3 text-xs font-black text-ink disabled:opacity-40 sm:px-4 sm:text-sm">
               Save draft
             </button>
-            <button type="button" disabled={pending || !canSubmit} onClick={() => submit(true)} className="min-h-11 rounded-2xl bg-orange px-4 py-3 text-xs font-black text-white shadow-lg shadow-orange/20 disabled:opacity-40 sm:px-5 sm:text-sm">
+            <button type="button" disabled={pending || draftingNote !== null || !canSubmit} onClick={() => submit(true)} className="min-h-11 rounded-2xl bg-orange px-4 py-3 text-xs font-black text-white shadow-lg shadow-orange/20 disabled:opacity-40 sm:px-5 sm:text-sm">
               {pending ? "Creating..." : isInvoice ? "Send invoice" : "Create & send"}
             </button>
           </div>
