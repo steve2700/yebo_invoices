@@ -26,18 +26,6 @@ body { background: hsl(var(--paper)); }
   .stamp { animation: none; transform: rotate(-6deg); }
 }
 
-@layer utilities {
-  .bg-paper { background-color: hsl(var(--paper)); }
-  .bg-ink { background-color: hsl(var(--ink)); }
-  .bg-lime { background-color: hsl(var(--lime)); }
-  .bg-orange { background-color: hsl(var(--orange)); }
-  .text-paper { color: hsl(var(--paper)); }
-  .text-ink { color: hsl(var(--ink)); }
-  .text-lime { color: hsl(var(--lime)); }
-  .text-orange { color: hsl(var(--orange)); }
-  .border-ink { border-color: hsl(var(--ink)); }
-}
-
 .font-sans { font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif; }
 button, a { -webkit-tap-highlight-color: transparent; }
 

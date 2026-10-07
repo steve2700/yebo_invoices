@@ -8,6 +8,7 @@ export type DashboardActionItem = {
   number: string;
   clientName: string;
   amountCents: number;
+  dueDate: string | null;
   detail: string;
   badge: string;
   kind: "overdue" | "invoice" | "ready" | "waiting";
@@ -18,7 +19,6 @@ type DashboardViewProps = {
   greeting: string;
   today: string;
   displayDate: string;
-  monthLabel: string;
   collectedCents: number;
   outstandingCents: number;
   overdueCents: number;
@@ -66,14 +66,12 @@ function MetricCard({
   detail,
   featured = false,
   alert = false,
-  monthLabel,
 }: {
   label: string;
   value: string;
   detail: string;
   featured?: boolean;
   alert?: boolean;
-  monthLabel?: string;
 }) {
   return (
     <article
@@ -84,12 +82,10 @@ function MetricCard({
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className={`text-[11px] font-bold uppercase tracking-[0.13em] ${featured ? "text-paper/65" : "text-ink/50"}`}>
+        <p className={`font-bold uppercase ${featured ? "text-[10px] tracking-[0.12em] text-paper/65" : "text-[11px] tracking-[0.13em] text-ink/50"}`}>
           {label}
         </p>
-        {featured ? (
-          <span className="rounded-full bg-lime/15 px-2.5 py-1 text-[10px] font-bold text-lime">{monthLabel}</span>
-        ) : (
+        {!featured && (
           <span className={`size-2 rounded-full ${alert ? "bg-orange" : "bg-yebo/70"}`} aria-hidden="true" />
         )}
       </div>
@@ -155,7 +151,6 @@ export default function DashboardView({
   greeting,
   today,
   displayDate,
-  monthLabel,
   collectedCents,
   outstandingCents,
   overdueCents,
@@ -166,7 +161,7 @@ export default function DashboardView({
   actionItems,
 }: DashboardViewProps) {
   return (
-    <main className="min-h-full bg-paper px-4 pb-32 pt-6 text-ink sm:px-6 sm:pb-10 sm:pt-8 lg:px-8 lg:pt-10">
+    <main className="min-h-full bg-paper px-4 pb-10 pt-6 text-ink sm:px-6 sm:pt-8 lg:px-8 lg:pt-10">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 sm:gap-8">
         <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0">
@@ -203,7 +198,6 @@ export default function DashboardView({
             value={formatRand(collectedCents)}
             detail="Payments received so far"
             featured
-            monthLabel={monthLabel}
           />
           <MetricCard
             label="Outstanding"
@@ -213,7 +207,7 @@ export default function DashboardView({
           <MetricCard
             label="Overdue"
             value={formatRand(overdueCents)}
-            detail={overdueInvoiceCount ? `${overdueInvoiceCount} invoice${overdueInvoiceCount === 1 ? " needs" : "s need"} follow-up` : "You're all caught up"}
+            detail={overdueInvoiceCount ? `${overdueInvoiceCount} invoice${overdueInvoiceCount === 1 ? "" : "s"} past due` : "You're all caught up"}
             alert={overdueInvoiceCount > 0}
           />
         </section>

@@ -52,11 +52,6 @@ export default async function Dashboard() {
     month: "long",
     year: "numeric",
   }).format(now);
-  const monthLabel = new Intl.DateTimeFormat("en-ZA", {
-    timeZone: SOUTH_AFRICA_TIMEZONE,
-    month: "long",
-  }).format(now);
-
   const [{ data: documentData }, { data: conversionData }, { data: monthPayments }] = await Promise.all([
     supabase
       .from("documents")
@@ -118,6 +113,7 @@ export default async function Dashboard() {
         number: document.number,
         clientName: clientName(document),
         amountCents: balanceDue(document),
+        dueDate: document.due_date,
         detail: document.due_date ? `Due ${formatDate(document.due_date)}` : "No due date set",
         badge: overdue ? "Overdue" : "Payment due",
         kind: overdue ? "overdue" : "invoice",
@@ -129,6 +125,7 @@ export default async function Dashboard() {
       number: document.number,
       clientName: clientName(document),
       amountCents: Number(document.total_cents),
+      dueDate: null,
       detail: "Your client accepted this quote",
       badge: "Ready to invoice",
       kind: "ready",
@@ -139,13 +136,19 @@ export default async function Dashboard() {
       number: document.number,
       clientName: clientName(document),
       amountCents: Number(document.total_cents),
+      dueDate: null,
       detail: document.status === "viewed" ? "Seen by your client" : "Shared with your client",
       badge: "Awaiting reply",
       kind: "waiting",
     })),
   ].sort((first, second) => {
     const priority = { overdue: 0, ready: 1, invoice: 2, waiting: 3 };
-    return priority[first.kind] - priority[second.kind];
+    const priorityDifference = priority[first.kind] - priority[second.kind];
+    if (priorityDifference !== 0) return priorityDifference;
+    if (first.dueDate && second.dueDate) return first.dueDate.localeCompare(second.dueDate);
+    if (first.dueDate) return -1;
+    if (second.dueDate) return 1;
+    return 0;
   }).slice(0, 6);
 
   return (
@@ -154,7 +157,6 @@ export default async function Dashboard() {
       greeting={greeting}
       today={today}
       displayDate={displayDate}
-      monthLabel={monthLabel}
       collectedCents={paidThisMonth}
       outstandingCents={outstandingCents}
       overdueCents={overdueCents}
