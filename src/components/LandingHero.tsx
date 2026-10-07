@@ -5,35 +5,35 @@ export default function LandingHero() {
   return (
     <section className="relative overflow-hidden bg-yebo-chalk">
       <div aria-hidden="true" className="pointer-events-none absolute -left-48 -top-40 size-[32rem] rounded-full bg-yebo-sun/15 blur-3xl" />
-      <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-5 py-14 sm:px-8 sm:py-20 md:grid-cols-[.92fr_1.08fr] lg:gap-16 lg:px-12 lg:py-24">
+      <div className="relative mx-auto grid max-w-7xl items-center gap-6 px-4 py-8 sm:gap-8 sm:px-8 sm:py-20 md:grid-cols-[.92fr_1.08fr] lg:gap-16 lg:px-12 lg:py-24">
         <div className="relative z-10">
-          <p className="inline-flex items-center gap-2 rounded-full border border-yebo-deep/10 bg-white/70 px-3.5 py-2 text-[11px] font-extrabold uppercase tracking-[.16em] text-yebo-deep/70">
-            <span aria-hidden="true" className="size-2 rounded-full bg-yebo" />
-            Quotes and invoices for South African small business
+          <p className="inline-flex items-center gap-2 rounded-full border border-yebo-deep/10 bg-white/70 px-3 py-1.5 text-[9px] font-extrabold uppercase leading-4 tracking-[.1em] text-yebo-deep/70 sm:px-3.5 sm:py-2 sm:text-[11px] sm:tracking-[.16em]">
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-yebo" />
+            For South African small businesses
           </p>
-          <h1 className="mt-7 max-w-2xl text-[clamp(3.45rem,7.3vw,6.3rem)] font-extrabold leading-[.91] tracking-[-.075em] text-yebo-deep md:text-[clamp(2.3rem,5.5vw,4.5rem)] lg:text-[clamp(3.35rem,7vw,6.3rem)]">
+          <h1 className="mt-5 max-w-2xl text-[clamp(2.6rem,8vw,6.3rem)] font-extrabold leading-[.91] tracking-[-.075em] text-yebo-deep sm:text-[clamp(3rem,7vw,4.5rem)] lg:text-[clamp(3.35rem,7vw,6.3rem)]">
             Quote clearly.<br />Get the <span className="text-yebo">yes.</span>
           </h1>
-          <p className="mt-7 max-w-xl text-base leading-7 text-yebo-deep/70 sm:text-lg sm:leading-8">
-            Create a professional quote, share a clear client link, then turn accepted work into an invoice — all from your phone.
+          <p className="mt-4 max-w-xl text-sm leading-5 text-yebo-deep/70 sm:mt-7 sm:text-lg sm:leading-8">
+            Create a clear quote, share one easy client link, then turn accepted work into an invoice — all from your phone.
           </p>
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            <Link className="inline-flex min-h-13 items-center justify-center rounded-full bg-yebo px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-yebo/15 transition hover:-translate-y-0.5 hover:bg-yebo-deep" href="/login">
+          <div className="mt-5 flex flex-col items-stretch gap-1.5 sm:mt-8 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+            <Link className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-yebo px-6 py-3 text-sm font-bold text-white shadow-lg shadow-yebo/15 transition hover:-translate-y-0.5 hover:bg-yebo-deep sm:min-h-13 sm:w-auto sm:py-3.5" href="/login">
               Create your first quote <span aria-hidden="true" className="ml-2">→</span>
             </Link>
-            <Link className="inline-flex min-h-12 items-center px-2 text-sm font-bold text-yebo-deep underline decoration-yebo-deep/25 underline-offset-4 transition hover:decoration-yebo-deep" href="#workflow">
+            <Link className="inline-flex min-h-10 items-center justify-center px-2 text-sm font-bold text-yebo-deep underline decoration-yebo-deep/25 underline-offset-4 transition hover:decoration-yebo-deep sm:min-h-12" href="#workflow">
               See the flow
             </Link>
           </div>
-          <p className="mt-6 text-xs font-semibold text-yebo-deep/50">
+          <p className="mt-6 hidden text-xs font-semibold text-yebo-deep/50 sm:block">
             Share by link, email or WhatsApp · Prices in rands · VAT when registered
           </p>
         </div>
 
-        <figure className="relative isolate aspect-[1.08/1] min-h-[350px] overflow-hidden rounded-[2rem] bg-yebo-deep shadow-[0_28px_80px_rgba(12,59,46,.18)] sm:aspect-[1.25/1] lg:aspect-[1.04/1]">
+        <figure className="relative isolate aspect-[1.08/1] min-h-[240px] overflow-hidden rounded-[2rem] bg-yebo-deep shadow-[0_28px_80px_rgba(12,59,46,.18)] sm:aspect-[1.25/1] sm:min-h-[350px] lg:aspect-[1.04/1]">
           <Image
-            src="/images/yebo-fieldwork.png"
-            alt="A South African carpenter checking a quote on her phone in a kitchen workshop"
+            src="/images/yebo-hero-workshop.png"
+            alt="A South African cabinetmaker checking a quote on her phone in her workshop"
             fill
             priority
             sizes="(max-width: 1024px) 100vw, 56vw"

@@ -14,8 +14,8 @@ export default function ProductStorySection() {
       <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 sm:px-8 lg:grid-cols-[1.03fr_.97fr] lg:gap-16 lg:px-12">
         <figure className="relative isolate aspect-[1.12/1] overflow-hidden rounded-[2rem] bg-yebo-deep shadow-[0_24px_70px_rgba(12,59,46,.15)] sm:aspect-[1.28/1]">
           <Image
-            src="/images/yebo-client-handoff.png"
-            alt="A South African contractor and homeowner reviewing a project estimate in a finished kitchen"
+            src="/images/yebo-quote-handoff.png"
+            alt="A South African craftsperson and homeowner reviewing a quote together in a finished kitchen"
             fill
             sizes="(max-width: 1024px) 100vw, 50vw"
             className="object-cover"
