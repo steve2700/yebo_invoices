@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatRand } from "@/lib/money";
-import { waLink } from "@/lib/dates";
+import { formatDate, waLink } from "@/lib/dates";
 import { greetingName } from "@/lib/names";
 import { appUrl } from "@/lib/url";
 import CopyButton from "../CopyButton";
@@ -13,14 +13,28 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const sb = await createClient();
   const { data: d } = await sb.from("documents").select("*,clients(name,whatsapp_number)").eq("id", id).single();
   if (!d) notFound();
-  const { data: biz } = await sb.from("businesses").select("name").single();
-  const { data: events } = await sb.from("events").select("type,created_at").eq("document_id", id).order("created_at", { ascending: false });
+  const [{ data: biz }, { data: events }, { data: payments }] = await Promise.all([
+    sb.from("businesses").select("name").single(),
+    sb.from("events").select("type,created_at").eq("document_id", id).order("created_at", { ascending: false }),
+    sb.from("payments").select("amount_cents").eq("document_id", id),
+  ]);
   const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
 
   const base = appUrl();
   const link = `${base}/d/${d.public_token}`;
   const kind = d.type === "quote" ? "quote" : "invoice";
   const msg = `Hi ${greetingName(client?.name)}, here is your ${kind} ${d.number} from ${biz?.name}: ${link}`;
+  const amountPaid = (payments ?? []).reduce((total, payment) => total + Number(payment.amount_cents), 0);
+  const balanceDue = Math.max(Number(d.total_cents) - amountPaid, 0);
+  const canSendPaymentReminder = d.type === "invoice" && d.status !== "draft" && d.status !== "paid" && balanceDue > 0;
+  const reminderMsg = [
+    `Hi ${greetingName(client?.name)},`,
+    `A friendly reminder from ${biz?.name ?? "our team"} that invoice ${d.number} has an outstanding balance of ${formatRand(balanceDue)}.`,
+    d.due_date ? `Due date: ${formatDate(d.due_date)}.` : null,
+    `Please use ${d.number} as your payment reference.`,
+    "If you have already paid, thank you. Please disregard this reminder.",
+    `View invoice: ${link}`,
+  ].filter(Boolean).join("\n\n");
 
   const btn = "rounded-xl px-4 py-2 font-bold";
   return (
@@ -49,6 +63,21 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         {d.type === "quote" && d.status === "accepted" && (
           <form action={convertToInvoice}><input type="hidden" name="id" value={d.id} />
             <button className={`${btn} bg-neutral-900 text-white`}>Create invoice from this quote</button></form>
+        )}
+        {canSendPaymentReminder && (
+          <div>
+            <a
+              href={waLink(client?.whatsapp_number ?? null, reminderMsg)}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Send WhatsApp payment reminder for invoice ${d.number}, ${formatRand(balanceDue)} outstanding`}
+              className={`${btn} inline-flex items-center gap-2 bg-lime text-ink shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2`}
+            >
+              <span>Send payment reminder</span>
+              <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold text-ink/70">{formatRand(balanceDue)} due</span>
+            </a>
+            <p className="mt-1 px-1 text-xs text-neutral-500">Opens a prefilled WhatsApp message for you to review and send.</p>
+          </div>
         )}
         {d.type === "invoice" && d.status !== "paid" && d.status !== "draft" && (
           <>
