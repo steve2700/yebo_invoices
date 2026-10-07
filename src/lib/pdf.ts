@@ -28,7 +28,225 @@ function wrap(text: string, font: PDFFont, size: number, max: number): string[] 
   return out;
 }
 
+async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub, link: string): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const brand = hex(b.brand_color);
+  const ink = rgb(0.05, 0.14, 0.11);
+  const mute = rgb(0.4, 0.45, 0.43);
+  const rule = rgb(0.86, 0.89, 0.87);
+  const panel = rgb(0.95, 0.97, 0.96);
+  const onBrand = readableOn(b.brand_color) === "#ffffff" ? rgb(1, 1, 1) : ink;
+  const W = 595, H = 842, M = 48, R = W - M;
+  let page = pdf.addPage([W, H]);
+  let y = H - 42;
+
+  const topBand = () => page.drawRectangle({ x: 0, y: H - 6, width: W, height: 6, color: brand });
+  topBand();
+  const nextPage = () => { page = pdf.addPage([W, H]); topBand(); y = H - 46; };
+  const need = (height: number) => { if (y - height < 48) nextPage(); };
+  const put = (text: string, x: number, size = 10, face = font, color = ink, atY = y) =>
+    page.drawText(clean(text), { x, y: atY, size, font: face, color });
+  const putRight = (text: string, right: number, size = 10, face = font, color = ink, atY = y) => {
+    const value = clean(text);
+    page.drawText(value, { x: right - face.widthOfTextAtSize(value, size), y: atY, size, font: face, color });
+  };
+  const paragraph = (text: string, size = 10, face = font, color = ink, maxWidth = R - M, gap = 14) => {
+    for (const row of wrap(text, face, size, maxWidth)) {
+      need(gap + 4);
+      put(row, M, size, face, color);
+      y -= gap;
+    }
+  };
+  const heading = (text: string) => {
+    need(34);
+    put(text.toUpperCase(), M, 8.5, bold, brand);
+    y -= 13;
+    page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 0.7, color: rule });
+    y -= 14;
+  };
+
+  const top = y;
+  const nameX = b.logo_url ? M + 58 : M;
+  let businessY = top - 14;
+  if (b.logo_url) {
+    try {
+      const response = await fetch(b.logo_url);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const contentType = response.headers.get("content-type") ?? "";
+      const image = contentType.includes("png") ? await pdf.embedPng(bytes) : contentType.includes("jp") ? await pdf.embedJpg(bytes) : null;
+      if (image) {
+        const scale = Math.min(46 / image.height, 46 / image.width);
+        page.drawImage(image, { x: M, y: top - 48, width: image.width * scale, height: image.height * scale });
+      }
+    } catch { /* logo is optional */ }
+  }
+  put(String(b.name ?? ""), nameX, 16, bold, ink, businessY);
+  businessY -= 17;
+  const businessDetails = [
+    b.address,
+    [b.email, b.phone, b.website].filter(Boolean).join("  |  "),
+    `${b.company_reg ? `Reg. no: ${b.company_reg}` : "Sole proprietor"}${b.vat_registered ? `  |  VAT no: ${b.vat_number}` : "  |  Not VAT registered"}`,
+  ].filter(Boolean) as string[];
+  for (const detail of businessDetails) {
+    for (const row of wrap(detail, font, 8, 270)) {
+      put(row, nameX, 8, font, mute, businessY);
+      businessY -= 11;
+    }
+  }
+
+  putRight("PROJECT QUOTE", R, 18, bold, brand, top - 14);
+  putRight(String(d.number), R, 10, bold, ink, top - 34);
+  putRight(`Prepared ${formatDate(d.issue_date)}`, R, 8.5, font, mute, top - 49);
+  putRight(`Valid through ${formatDate(d.expiry_date)}`, R, 8.5, font, mute, top - 62);
+  y = Math.min(businessY, top - 74) - 14;
+  page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 1.5, color: brand });
+  y -= 20;
+
+  const projectTitle = String(d.title || "Project quotation");
+  const titleRows = wrap(projectTitle, bold, 17, 274);
+  const heroHeight = Math.max(112, titleRows.length * 19 + 72);
+  need(heroHeight + 12);
+  const heroTop = y;
+  const summaryWidth = R - M;
+  const termsX = R - 166;
+  page.drawRectangle({ x: M, y: heroTop - heroHeight, width: summaryWidth, height: heroHeight, color: panel });
+  page.drawRectangle({ x: M, y: heroTop - heroHeight, width: 4, height: heroHeight, color: brand });
+  page.drawRectangle({ x: termsX, y: heroTop - heroHeight, width: R - termsX, height: heroHeight, color: brand });
+  put("PROJECT SUMMARY", M + 17, 8, bold, mute, heroTop - 19);
+  titleRows.forEach((row, index) => put(row, M + 17, 17, bold, ink, heroTop - 43 - index * 19));
+  put("Prepared for", M + 17, 8, font, mute, heroTop - heroHeight + 30);
+  put(String(c.name ?? ""), M + 17, 10, bold, ink, heroTop - heroHeight + 15);
+
+  put("ESTIMATED TOTAL", termsX + 13, 7.5, bold, onBrand, heroTop - 20);
+  const total = formatRand(d.total_cents);
+  const amountSize = Math.min(20, Math.max(13, 142 / bold.widthOfTextAtSize(clean(total), 1)));
+  putRight(total, R - 12, amountSize, bold, onBrand, heroTop - 52);
+  put("Valid through", termsX + 13, 7.5, font, onBrand, heroTop - 74);
+  put(String(formatDate(d.expiry_date)), termsX + 13, 9, bold, onBrand, heroTop - 88);
+  y = heroTop - heroHeight - 20;
+
+  const jobDetails = [
+    d.location ? ["PROJECT LOCATION", String(d.location)] as const : null,
+    d.job_date_tbd || d.job_date ? ["SCHEDULE", d.job_date_tbd ? "To be agreed" : formatDate(d.job_date)] as const : null,
+  ].filter(Boolean) as [string, string][];
+  if (jobDetails.length) {
+    const detailsHeight = 48;
+    need(detailsHeight + 8);
+    const columnWidth = summaryWidth / jobDetails.length;
+    page.drawRectangle({ x: M, y: y - detailsHeight, width: summaryWidth, height: detailsHeight, color: rgb(0.98, 0.985, 0.98) });
+    jobDetails.forEach(([label, value], index) => {
+      const x = M + index * columnWidth;
+      if (index > 0) page.drawLine({ start: { x, y: y - detailsHeight + 7 }, end: { x, y: y - 3 }, thickness: 0.7, color: rule });
+      put(label, x + 12, 7.5, bold, mute, y - 15);
+      wrap(value, font, 9, columnWidth - 26).forEach((row, rowIndex) => put(row, x + 12, 9, font, ink, y - 31 - rowIndex * 12));
+    });
+    y -= detailsHeight + 17;
+  }
+
+  if (d.description) {
+    heading("Scope of work");
+    paragraph(String(d.description), 9.5, font, ink, summaryWidth, 13);
+    y -= 7;
+  }
+  if (d.labour_only) {
+    need(22);
+    put("Labour only — materials are not included.", M, 9, bold, mute);
+    y -= 20;
+  }
+  if (d.note) {
+    const noteRows = wrap(String(d.note), font, 9, summaryWidth - 34);
+    const noteHeight = Math.max(42, noteRows.length * 13 + 22);
+    need(noteHeight + 10);
+    page.drawRectangle({ x: M, y: y - noteHeight, width: summaryWidth, height: noteHeight, color: panel });
+    page.drawRectangle({ x: M, y: y - noteHeight, width: 3, height: noteHeight, color: brand });
+    put("A NOTE FOR YOU", M + 14, 7.5, bold, brand, y - 15);
+    noteRows.forEach((row, index) => put(row, M + 14, 9, font, ink, y - 30 - index * 13));
+    y -= noteHeight + 15;
+  }
+
+  heading("Investment breakdown");
+  const descriptionX = M + 2;
+  const qtyRight = 350;
+  const unitRight = 448;
+  put("DESCRIPTION", descriptionX, 7.5, bold, mute);
+  putRight("QTY", qtyRight, 7.5, bold, mute);
+  putRight("UNIT PRICE", unitRight, 7.5, bold, mute);
+  putRight("AMOUNT", R, 7.5, bold, mute);
+  y -= 9;
+  page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 0.8, color: rule });
+  y -= 15;
+
+  for (const item of lines ?? []) {
+    const itemRows = wrap(String(item.description ?? ""), font, 9.5, 235);
+    const rowHeight = Math.max(29, itemRows.length * 13 + 12);
+    need(rowHeight + 5);
+    itemRows.forEach((row, index) => put(row, descriptionX, 9.5, index === 0 ? bold : font, ink, y - index * 13));
+    putRight(String(Number(item.quantity)), qtyRight, 9, font, ink, y);
+    putRight(formatRand(item.unit_price_cents), unitRight, 9, font, ink, y);
+    putRight(formatRand(item.line_total_cents), R, 9, bold, ink, y);
+    y -= rowHeight;
+    page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 0.5, color: rule });
+    y -= 8;
+  }
+
+  const totalsX = R - 220;
+  const totalsWidth = R - totalsX;
+  const totalsHeight = 91;
+  need(totalsHeight + 14);
+  const totalsTop = y;
+  page.drawRectangle({ x: totalsX, y: totalsTop - totalsHeight, width: totalsWidth, height: totalsHeight, color: rgb(0.985, 0.99, 0.985), borderColor: rule, borderWidth: 0.7 });
+  put("Subtotal", totalsX + 12, 8.5, font, mute, totalsTop - 18);
+  putRight(formatRand(d.subtotal_cents), R - 12, 8.5, font, ink, totalsTop - 18);
+  put("VAT", totalsX + 12, 8.5, font, mute, totalsTop - 36);
+  putRight(b.vat_registered ? formatRand(d.vat_cents) : "Not applicable", R - 12, 8.5, font, ink, totalsTop - 36);
+  page.drawLine({ start: { x: totalsX + 12, y: totalsTop - 48 }, end: { x: R - 12, y: totalsTop - 48 }, thickness: 0.6, color: rule });
+  page.drawRectangle({ x: totalsX + 1, y: totalsTop - 82, width: totalsWidth - 2, height: 33, color: brand });
+  put("TOTAL", totalsX + 12, 10, bold, onBrand, totalsTop - 70);
+  putRight(formatRand(d.total_cents), R - 12, 12, bold, onBrand, totalsTop - 71);
+  y = totalsTop - totalsHeight - 16;
+
+  const paymentPlan = d.payment_plan === "full"
+    ? "Payment in full is needed to confirm the booking."
+    : d.payment_plan === "deposit"
+      ? `A ${d.deposit_percent}% deposit (${formatRand(Math.round((d.total_cents * d.deposit_percent) / 100))}) confirms the booking. The balance is due ${d.payment_terms}.`
+      : `No deposit is needed. Full payment is due ${d.payment_terms}.`;
+  const paymentRows = wrap(paymentPlan, font, 9, 300);
+  const nextStepHeight = Math.max(80, paymentRows.length * 13 + 34);
+  need(nextStepHeight);
+  const nextStepTop = y;
+  const actionX = R - 172;
+  const qrX = R - 66;
+  page.drawRectangle({ x: M, y: nextStepTop - nextStepHeight, width: summaryWidth, height: nextStepHeight, color: panel });
+  page.drawRectangle({ x: M, y: nextStepTop - nextStepHeight, width: 3, height: nextStepHeight, color: brand });
+  page.drawLine({ start: { x: actionX, y: nextStepTop - nextStepHeight + 8 }, end: { x: actionX, y: nextStepTop - 8 }, thickness: 0.7, color: rule });
+  put("PAYMENT & BOOKING", M + 14, 7.5, bold, brand, nextStepTop - 17);
+  paymentRows.forEach((row, index) => put(row, M + 14, 9, font, ink, nextStepTop - 32 - index * 13));
+  put("REVIEW ONLINE", actionX + 12, 7, bold, brand, nextStepTop - 22);
+  put("Scan to respond", actionX + 12, 7, font, mute, nextStepTop - 35);
+  try {
+    const qrData = await QRCode.toDataURL(link, { margin: 1, width: 160 });
+    const qr = await pdf.embedPng(Buffer.from(qrData.split(",")[1], "base64"));
+    page.drawImage(qr, { x: qrX, y: nextStepTop - nextStepHeight + 12, width: 52, height: 52 });
+  } catch { /* QR is optional */ }
+  y -= nextStepHeight + 10;
+
+  const hasBank = b.bank_account_holder && b.bank_account_number && b.bank_branch_code;
+  if (hasBank && d.status === "accepted") {
+    need(53);
+    put("PAY BY EFT", M, 8, bold, brand);
+    y -= 14;
+    paragraph(`${b.bank_account_holder}  |  ${b.bank_name ?? ""}  |  ${b.bank_account_type ?? ""}`, 8.5, font, ink, summaryWidth, 12);
+    paragraph(`Account: ${b.bank_account_number}  |  Branch: ${b.bank_branch_code}  |  Reference: ${d.number}`, 8.5, font, ink, summaryWidth, 12);
+    y -= 8;
+  }
+
+  return pdf.save();
+}
+
 export async function buildDocumentPdf({ document: d, lines, business: b, client: c }: Pub, link: string): Promise<Uint8Array> {
+  if (d.type === "quote") return buildQuotePdf({ document: d, lines, business: b, client: c }, link);
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);

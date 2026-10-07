@@ -62,11 +62,17 @@ export default async function PublicDocument({ params }: { params: Promise<{ tok
             </div>
             <a href={`/d/${token}/pdf`} className="shrink-0 rounded-full px-3.5 py-2 text-xs font-bold" style={soft}>Download PDF</a>
           </div>
-          <p className="mt-7 text-sm opacity-80">{label} for <b>{c.name}</b></p>
-          <p className="mt-1 text-5xl font-black tracking-tight sm:text-6xl">{formatRand(d.total_cents)}</p>
-          <p className="mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold" style={soft}>
-            {isQuote ? `Valid until ${formatDate(d.expiry_date)}` : `Due ${formatDate(d.due_date)}`}
-          </p>
+          <div className="mt-7 border-t border-current/20 pt-5">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-75">{isQuote ? "Prepared for" : "Invoice for"} {c.name}</p>
+            <h1 className="mt-2 max-w-2xl text-3xl font-black leading-tight tracking-tight sm:text-4xl">{d.title || (isQuote ? "A clear plan for your project" : label)}</h1>
+            <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">{isQuote ? "Estimated total" : "Amount due"}</p>
+                <p className="mt-1 text-4xl font-black tracking-tight sm:text-5xl">{formatRand(d.total_cents)}</p>
+              </div>
+              <p className="rounded-full px-3 py-1.5 text-xs font-bold" style={soft}>{isQuote ? `Valid until ${formatDate(d.expiry_date)}` : `Due ${formatDate(d.due_date)}`}</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -77,37 +83,38 @@ export default async function PublicDocument({ params }: { params: Promise<{ tok
           {d.status === "paid" && <p className="mb-5 rounded-2xl bg-lime p-3 text-center font-black">Paid. Thank you!</p>}
           {expired && <p className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">This quote has expired. Please contact {b.name} for an updated one.</p>}
 
-          {(d.title || d.location || d.job_date || d.job_date_tbd) && (
-            <section>
-              {d.title && <h1 className="text-2xl font-black tracking-tight">{d.title}</h1>}
-              <dl className="mt-2 text-sm">
+          {(d.location || d.job_date || d.job_date_tbd) && (
+            <section className="rounded-2xl border border-ink/10 bg-paper/60 p-4">
+              <h2 className="text-[10px] font-bold uppercase tracking-[.14em] text-ink/45">{isQuote ? "Project details" : "Job details"}</h2>
+              <dl className="mt-1 text-sm">
                 {d.location && <Row k="Where" v={d.location} />}
                 {(d.job_date || d.job_date_tbd) && <Row k="When" v={d.job_date_tbd ? "To be agreed" : formatDate(d.job_date)} />}
               </dl>
             </section>
           )}
           {d.note && <p className="mt-4 border-l-4 pl-4 text-sm leading-relaxed text-ink/80" style={{ borderColor: color }}>{d.note}</p>}
-          {d.description && (<section className="mt-5"><h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">What you will get</h2><p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed">{d.description}</p></section>)}
+          {d.description && (<section className="mt-6"><h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">{isQuote ? "What is included" : "What you will get"}</h2><p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink/80">{d.description}</p></section>)}
           {d.labour_only && <p className="mt-3 inline-block rounded-full bg-ink/5 px-3 py-1 text-xs font-bold">No materials needed for this job</p>}
 
           <section className="mt-6">
-            <h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">Price</h2>
-            <ul className="mt-1 divide-y divide-ink/10">
+            <h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">{isQuote ? "Investment breakdown" : "Invoice breakdown"}</h2>
+            <ul className="mt-2 divide-y divide-ink/10">
               {(lines as Line[]).map((l, i) => (
-                <li key={i} className="flex items-start justify-between gap-4 py-3 text-sm">
-                  <span>{l.description}{Number(l.quantity) !== 1 && <span className="block text-xs text-ink/50">{Number(l.quantity)} x {formatRand(l.unit_price_cents)}</span>}</span>
+                <li key={i} className="flex items-start justify-between gap-4 py-4 text-sm">
+                  <span className="font-semibold">{l.description}{Number(l.quantity) !== 1 && <span className="mt-1 block text-xs font-normal text-ink/50">Qty {Number(l.quantity)} × {formatRand(l.unit_price_cents)}</span>}</span>
                   <b className="shrink-0">{formatRand(l.line_total_cents)}</b>
                 </li>
               ))}
             </ul>
-            <div className="mt-1 border-t-2 border-ink/10 pt-2 text-sm">
-              <div className="flex justify-between py-1 text-ink/60"><span>VAT</span><span>{b.vat_registered ? formatRand(d.vat_cents) : "Not applicable"}</span></div>
-              <div className="flex justify-between py-1 text-lg font-black"><span>Total</span><span style={{ color }}>{formatRand(d.total_cents)}</span></div>
+            <div className="mt-1 border-t border-ink/10 pt-3 text-sm">
+              <div className="flex justify-between py-1 text-ink/55"><span>Subtotal</span><span>{formatRand(d.subtotal_cents)}</span></div>
+              <div className="flex justify-between py-1 text-ink/55"><span>VAT</span><span>{b.vat_registered ? formatRand(d.vat_cents) : "Not applicable"}</span></div>
+              <div className="mt-2 flex justify-between rounded-xl px-3 py-3 text-lg font-black" style={{ background: `${color}12` }}><span>Total</span><span style={{ color }}>{formatRand(d.total_cents)}</span></div>
             </div>
           </section>
 
           <section className="mt-5 rounded-2xl p-4 text-sm" style={{ background: `${color}1A` }}>
-            <b className="block">How payment works</b><span className="mt-0.5 block leading-relaxed">{plan}</span>
+            <b className="block">{isQuote ? "Payment & booking terms" : "How payment works"}</b><span className="mt-0.5 block leading-relaxed">{plan}</span>
           </section>
 
           {showBank && (
