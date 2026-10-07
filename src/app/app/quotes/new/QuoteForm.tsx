@@ -3,12 +3,13 @@ import { useState, useTransition } from "react";
 import { createQuote } from "./actions";
 import { formatRand } from "@/lib/money";
 import { greetingName } from "@/lib/names";
+import VoiceQuoteAssistant, { type VoiceQuoteDraft } from "./VoiceQuoteAssistant";
 
 type Client = { id: string; name: string; whatsapp_number: string | null; address: string | null; preferred_payment: string | null };
 type Item = { description: string; default_price_cents: number };
 type Plan = "after" | "deposit" | "full";
 type MessageTone = "friendly" | "professional" | "short";
-type Line = { description: string; quantity: number; price: number };
+type Line = { description: string; quantity: number; price: number; pricingMode?: "unit" | "line_total" };
 type Fields = {
   title: string;
   location: string;
@@ -25,6 +26,15 @@ type Fields = {
 const input = "mt-2 w-full rounded-2xl border border-ink/10 bg-paper/60 px-4 py-3 text-sm outline-none transition focus:border-orange focus:bg-white";
 const label = "mt-5 block text-xs font-black uppercase tracking-[0.16em] text-ink/55";
 const plans: [Plan, string][] = [["after", "After the job"], ["deposit", "Deposit first"], ["full", "Full upfront"]];
+
+function getLineTotalCents(line: Line) {
+  const amountCents = Math.round(line.price * 100);
+  return line.pricingMode === "line_total" ? amountCents : Math.round(amountCents * line.quantity);
+}
+
+function normalizeClientName(name: string) {
+  return name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
 
 export default function QuoteForm({ clients, items, vatRegistered, docType = "quote" }: { clients: Client[]; items: Item[]; vatRegistered: boolean; docType?: "quote" | "invoice" }) {
   const isInvoice = docType === "invoice";
@@ -47,13 +57,14 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
   const [noteTone, setNoteTone] = useState<MessageTone>("friendly");
   const [draftingNote, setDraftingNote] = useState<MessageTone | null>(null);
   const [noteError, setNoteError] = useState("");
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const [pending, start] = useTransition();
   const setField = <K extends keyof Fields>(key: K, value: Fields[K]) => setFields((current) => ({ ...current, [key]: value }));
 
-  const validLines = lines.filter((line) => line.description.trim() && line.price > 0).length;
+  const validLines = lines.filter((line) => line.description.trim() && line.price > 0 && line.quantity > 0).length;
   const hasClient = clientId === "new" ? Boolean(newClient.name.trim()) : Boolean(clientId);
   const canSubmit = validLines > 0 && hasClient;
-  const subtotalCents = lines.reduce((sum, line) => sum + Math.round(line.price * 100) * line.quantity, 0);
+  const subtotalCents = lines.reduce((sum, line) => sum + getLineTotalCents(line), 0);
   const vatCents = vatRegistered ? Math.round((subtotalCents * 15) / 100) : 0;
   const totalCents = subtotalCents + vatCents;
   const clientName = clients.find((client) => client.id === clientId)?.name ?? newClient.name;
@@ -83,6 +94,28 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
     }
   }
 
+  function applyVoiceDraft(draft: VoiceQuoteDraft) {
+    if (draft.clientName) {
+      const matchedClient = clients.find((client) => normalizeClientName(client.name) === normalizeClientName(draft.clientName!));
+      if (matchedClient) {
+        pickClient(matchedClient.id);
+      } else {
+        setClientId("new");
+        setNewClient({ name: draft.clientName, whatsapp: "", email: "", address: "" });
+      }
+    }
+    if (draft.title) setField("title", draft.title);
+    if (draft.location) setField("location", draft.location);
+    if (draft.description) setField("description", draft.description);
+    setLines(draft.items.map((item) => ({
+      description: item.description,
+      quantity: Math.round(item.quantity * 100) / 100,
+      price: item.amountRand === null ? 0 : Math.round(item.amountRand * 100) / 100,
+      pricingMode: item.amountRand !== null && item.priceBasis !== "unit_rate" ? "line_total" : "unit",
+    })));
+    setError("");
+  }
+
   function updateLine(index: number, patch: Partial<Line>) {
     setLines((current) => current.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line));
   }
@@ -91,7 +124,9 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
     const savedItem = items.find((item) => item.description === description);
     updateLine(index, {
       description,
-      ...(savedItem && !lines[index].price ? { price: savedItem.default_price_cents / 100 } : {}),
+      ...(savedItem && (!lines[index].price || lines[index].pricingMode === "line_total")
+        ? { price: savedItem.default_price_cents / 100, pricingMode: "unit" }
+        : {}),
     });
   }
 
@@ -144,7 +179,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
   }
 
   function submit(send: boolean) {
-    if (!canSubmit || draftingNote) return;
+    if (!canSubmit || draftingNote || voiceBusy) return;
     setError("");
     start(async () => {
       const result = await createQuote({
@@ -177,6 +212,8 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
           {isInvoice ? "NEW INVOICE" : "NEW QUOTE"}
         </div>
       </header>
+
+      {!isInvoice && <VoiceQuoteAssistant onApply={applyVoiceDraft} onBusyChange={setVoiceBusy} />}
 
       <section className="rounded-[2rem] bg-white p-5 shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5 sm:p-7">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-orange">01 · Start here</p>
@@ -218,15 +255,18 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
             <div className="mt-2 grid grid-cols-[4.25rem_minmax(0,1fr)_5.25rem] items-end gap-2">
               <div>
                 <label className="mb-1 block text-center text-[10px] font-bold text-paper/60" htmlFor={`quantity-${index}`}>Qty</label>
-                <input id={`quantity-${index}`} type="number" min={1} step={1} inputMode="numeric" className="w-full rounded-xl border-0 bg-white px-2 py-3 text-center text-sm text-ink" value={line.quantity} onChange={(event) => updateLine(index, { quantity: Math.max(1, Number(event.target.value) || 1) })} />
+                <input id={`quantity-${index}`} type="number" min={0.01} step="0.01" inputMode="decimal" className="w-full rounded-xl border-0 bg-white px-2 py-3 text-center text-sm text-ink" value={line.quantity} onChange={(event) => {
+                  const quantity = Math.max(0.01, Number(event.target.value) || 0.01);
+                  updateLine(index, { quantity: Math.round(quantity * 100) / 100 });
+                }} />
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-bold text-paper/60" htmlFor={`price-${index}`}>Price (R)</label>
+                <label className="mb-1 block text-[10px] font-bold text-paper/60" htmlFor={`price-${index}`}>{line.pricingMode === "line_total" ? "Line total (R)" : "Price per unit (R)"}</label>
                 <input id={`price-${index}`} type="number" min={0} step="0.01" inputMode="decimal" className="w-full min-w-0 rounded-xl border-0 bg-white px-3 py-3 text-sm text-ink" value={line.price || ""} onChange={(event) => updateLine(index, { price: Math.max(0, Number(event.target.value) || 0) })} />
               </div>
               <div>
                 <span className="mb-1 block text-right text-[10px] font-bold text-paper/60">Total</span>
-                <span className="block min-w-0 text-right text-sm font-black text-lime">{formatRand(Math.round(line.price * 100) * line.quantity)}</span>
+                <span className="block min-w-0 text-right text-sm font-black text-lime">{formatRand(getLineTotalCents(line))}</span>
               </div>
             </div>
             {lines.length > 1 && (
@@ -375,10 +415,10 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
               {isInvoice ? "Invoice total" : "Quote total"}
               <span className="block truncate text-lg font-black text-ink">{formatRand(totalCents)}</span>
             </div>
-            <button type="button" disabled={pending || draftingNote !== null || !canSubmit} onClick={() => submit(false)} className="ml-auto min-h-11 rounded-2xl border-2 border-ink px-3 py-3 text-xs font-black text-ink disabled:opacity-40 sm:px-4 sm:text-sm">
+            <button type="button" disabled={pending || draftingNote !== null || voiceBusy || !canSubmit} onClick={() => submit(false)} className="ml-auto min-h-11 rounded-2xl border-2 border-ink px-3 py-3 text-xs font-black text-ink disabled:opacity-40 sm:px-4 sm:text-sm">
               Save draft
             </button>
-            <button type="button" disabled={pending || draftingNote !== null || !canSubmit} onClick={() => submit(true)} className="min-h-11 rounded-2xl bg-orange px-4 py-3 text-xs font-black text-white shadow-lg shadow-orange/20 disabled:opacity-40 sm:px-5 sm:text-sm">
+            <button type="button" disabled={pending || draftingNote !== null || voiceBusy || !canSubmit} onClick={() => submit(true)} className="min-h-11 rounded-2xl bg-orange px-4 py-3 text-xs font-black text-white shadow-lg shadow-orange/20 disabled:opacity-40 sm:px-5 sm:text-sm">
               {pending ? "Creating..." : isInvoice ? "Send invoice" : "Create & send"}
             </button>
           </div>

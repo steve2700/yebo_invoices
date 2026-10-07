@@ -8,7 +8,7 @@ export type NewQuote = {
   newClient: { name: string; whatsapp: string; email: string; address: string } | null;
   title: string; location: string; description: string; jobDate: string; jobDateTbd: boolean;
   laborOnly: boolean; plan: "after" | "deposit" | "full"; pct: number; terms: string; note: string;
-  items: { description: string; quantity: number; price: number }[];
+  items: { description: string; quantity: number; price: number; pricingMode?: "unit" | "line_total" }[];
   send: boolean;
   docType?: "quote" | "invoice";
 };
@@ -39,11 +39,14 @@ export async function createQuote(input: NewQuote): Promise<{ error: string } | 
     if (!clientId) return { error: "Choose a client." };
 
     const lines = input.items
-      .filter((i) => i.description.trim() && i.price > 0)
+      .filter((i) => i.description.trim() && Number.isFinite(i.quantity) && i.quantity >= 0.01 && i.quantity <= 100_000 && Number.isFinite(i.price) && i.price > 0)
       .map((i, idx) => {
-        const unit = Math.round(i.price * 100);
-        return { description: i.description.trim(), quantity: i.quantity, unit_price_cents: unit,
-          line_total_cents: Math.round(i.quantity * unit), sort_order: idx };
+        const amountCents = Math.round(i.price * 100);
+        const quantity = Math.round(i.quantity * 100) / 100;
+        const unit = i.pricingMode === "line_total" ? Math.round(amountCents / quantity) : amountCents;
+        const lineTotal = i.pricingMode === "line_total" ? amountCents : Math.round(quantity * unit);
+        return { description: i.description.trim(), quantity, unit_price_cents: unit,
+          line_total_cents: lineTotal, sort_order: idx };
       });
     if (!lines.length) return { error: "Add at least one item with a price." };
 
