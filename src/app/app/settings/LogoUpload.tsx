@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { dominantColor } from "@/lib/color";
 
 export default function LogoUpload({ current, compact = false }: { current: string | null; compact?: boolean }) {
   const router = useRouter();
@@ -16,8 +17,9 @@ export default function LogoUpload({ current, compact = false }: { current: stri
     const { error } = await sb.storage.from("logos").upload(path, file, { upsert: true });
     if (error) return setMsg(error.message);
     const { data } = sb.storage.from("logos").getPublicUrl(path);
-    const { error: uErr } = await sb.from("businesses").update({ logo_url: data.publicUrl }).eq("owner_id", user.id);
-    setMsg(uErr ? uErr.message : "Logo saved.");
+    const colour = await dominantColor(file); // match the quote colour to the logo
+    const { error: uErr } = await sb.from("businesses").update({ logo_url: data.publicUrl, ...(colour ? { brand_color: colour } : {}) }).eq("owner_id", user.id);
+    setMsg(uErr ? uErr.message : "Logo saved." + (colour ? " We matched your quote colour to it. You can change it in Settings." : ""));
     router.refresh();
   }
   return (

@@ -1,77 +1,90 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatRand } from "@/lib/money";
+import { formatDate } from "@/lib/dates";
 
-function Metric({ label, value, note, tone = "default" }: { label: string; value: number; note: string; tone?: "default" | "warning" }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-3 rounded-[1.35rem] border border-ink/10 bg-white p-4 shadow-[0_12px_30px_-24px_rgba(17,45,35,.45)] sm:p-5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-[.14em] text-ink/50">{label}</span>
-        <span className={`size-2 rounded-full ${tone === "warning" ? "bg-orange" : "bg-lime"}`} />
-      </div>
-      <strong className={`text-[clamp(1.45rem,6vw,2rem)] leading-none tracking-[-.06em] ${tone === "warning" ? "text-orange" : "text-ink"}`}>{formatRand(value)}</strong>
-      <span className="text-xs text-ink/50">{note}</span>
-    </div>
-  );
-}
+type Doc = {
+  id: string; type: string; number: string; status: string; total_cents: number; due_date: string | null;
+  clients: { name: string } | { name: string }[] | null;
+};
+const OPEN = ["sent", "viewed", "partially_paid"];
+const chip = { orange: "bg-orange text-white", lime: "bg-lime text-ink", ink: "bg-ink/5 text-ink/60" } as const;
 
 export default async function Dashboard() {
-  const supabase = await createClient();
-  const { data: business } = await supabase.from("businesses").select("id,name").maybeSingle();
+  const sb = await createClient();
+  const { data: business } = await sb.from("businesses").select("id,name").maybeSingle();
   if (!business) redirect("/app/onboarding");
 
   const today = new Date().toISOString().slice(0, 10);
-  const { data: open } = await supabase.from("documents").select("total_cents,due_date,status").eq("type", "invoice").in("status", ["sent", "viewed", "partially_paid"]);
-  const unpaid = (open ?? []).reduce((total, document) => total + document.total_cents, 0);
-  const overdue = (open ?? []).filter((document) => document.due_date && document.due_date < today).reduce((total, document) => total + document.total_cents, 0);
+  const { data } = await sb.from("documents")
+    .select("id,type,number,status,total_cents,due_date,clients(name)")
+    .in("status", ["sent", "viewed", "accepted", "partially_paid"]).order("created_at", { ascending: false }).limit(60);
+  const docs = (data ?? []) as unknown as Doc[];
+  const { data: conv } = await sb.from("documents").select("source_quote_id").not("source_quote_id", "is", null);
+  const converted = new Set((conv ?? []).map((c) => c.source_quote_id));
 
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  const { data: payments } = await supabase.from("payments").select("amount_cents").gte("paid_at", monthStart.toISOString());
-  const paid = (payments ?? []).reduce((total, payment) => total + payment.amount_cents, 0);
-  const invoiceCount = open?.length ?? 0;
-  const overdueCount = open?.filter((document) => document.due_date && document.due_date < today).length ?? 0;
+  const open = docs.filter((d) => d.type === "invoice" && OPEN.includes(d.status));
+  const late = open.filter((d) => d.due_date && d.due_date < today);
+  const sum = (l: Doc[]) => l.reduce((a, d) => a + d.total_cents, 0);
+
+  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+  const { data: pays } = await sb.from("payments").select("amount_cents").gte("paid_at", monthStart.toISOString());
+  const paid = (pays ?? []).reduce((a, p) => a + p.amount_cents, 0);
+
+  const name = (d: Doc) => (Array.isArray(d.clients) ? d.clients[0] : d.clients)?.name ?? "Client";
+  type Item = { d: Doc; p: number; tag: string; tone: keyof typeof chip };
+  const rows: Item[] = docs.flatMap((d): Item[] => {
+    if (d.type === "invoice" && OPEN.includes(d.status)) {
+      const od = !!d.due_date && d.due_date < today;
+      return [{ d, p: od ? 0 : 2, tag: od ? "Overdue" : `Due ${formatDate(d.due_date)}`, tone: od ? "orange" : "ink"}];
+    }
+    if (d.type === "quote" && d.status === "accepted" && !converted.has(d.id)) return [{ d, p: 1, tag: "Accepted: invoice it", tone: "lime"}];
+    if (d.type === "quote" && (d.status === "sent" || d.status === "viewed"))
+      return [{ d, p: 3, tag: d.status === "viewed" ? "Viewed, no reply" : "Waiting for reply", tone: "ink"}];
+    return [];
+  }).sort((a, b) => a.p - b.p).slice(0, 8);
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 sm:px-6 sm:pt-10 lg:px-8">
-      <section className="relative overflow-hidden rounded-[1.75rem] bg-ink px-5 py-6 text-paper shadow-[0_20px_55px_-28px_rgba(17,45,35,.65)] sm:px-8 sm:py-8">
-        <div className="absolute -right-12 -top-16 size-44 rounded-full border-[24px] border-lime/20" />
-        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex flex-col gap-3">
-            <span className="text-xs font-bold uppercase tracking-[.2em] text-lime">{business.name}</span>
-            <h1 className="max-w-xl text-3xl font-black leading-[.95] tracking-[-.07em] sm:text-5xl">Keep your cash flow moving.</h1>
-            <p className="max-w-md text-sm leading-6 text-paper/65">Your financial cockpit is ready. See what needs attention and send your next quote in seconds.</p>
+    <main className="mx-auto flex h-full w-full max-w-6xl flex-col gap-3 overflow-y-auto px-4 pb-3 pt-3 sm:gap-4 sm:px-6 sm:pb-6 sm:pt-5 lg:grid lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)] lg:gap-6 lg:overflow-hidden">
+      <section className="flex shrink-0 flex-col gap-3 lg:justify-center lg:gap-4">
+        <p className="text-sm text-ink/60">Sawubona, <b className="text-ink">{business.name}</b></p>
+        <div className="relative overflow-hidden rounded-3xl bg-ink p-5 text-paper shadow-[0_20px_45px_-24px_rgba(17,45,35,.7)] sm:p-6">
+          <div className="absolute -right-10 -top-12 size-36 rounded-full border-[20px] border-lime/15" />
+          <p className="relative text-xs font-bold uppercase tracking-[.14em] text-lime">Collected this month</p>
+          <p className="relative mt-1 text-4xl font-black tracking-tight sm:text-5xl">{formatRand(paid)}</p>
+          <div className="relative mt-4 grid grid-cols-2 divide-x divide-paper/15 border-t border-paper/15 pt-3">
+            <div><span className="text-xs text-paper/60">Outstanding</span><b className="block text-lg">{formatRand(sum(open))}</b><span className="text-xs text-paper/50">{open.length} open invoice{open.length === 1 ? "" : "s"}</span></div>
+            <div className="pl-4"><span className="text-xs text-paper/60">Overdue</span><b className={`block text-lg ${late.length ? "text-orange" : ""}`}>{formatRand(sum(late))}</b><span className="text-xs text-paper/50">{late.length ? `${late.length} need chasing` : "All caught up"}</span></div>
           </div>
-          <Link href="/app/quotes/new" className="inline-flex min-h-12 items-center justify-center rounded-full bg-lime px-5 text-sm font-black text-ink transition-transform hover:-translate-y-0.5">Create a quote <span className="ml-2 text-lg">↗</span></Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Link href="/app/quotes/new" className="flex min-h-12 items-center justify-center rounded-2xl bg-lime px-4 font-black text-ink active:scale-[.98]">+ New quote</Link>
+          <Link href="/app/quotes/new?type=invoice" className="flex min-h-12 items-center justify-center rounded-2xl border-2 border-ink/15 bg-white px-4 font-bold text-ink active:scale-[.98]">+ New invoice</Link>
         </div>
       </section>
 
-      <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-        <Metric label="Collected" value={paid} note="This month" />
-        <Metric label="Outstanding" value={unpaid} note={`${invoiceCount} open invoice${invoiceCount === 1 ? "" : "s"}`} />
-        <Metric label="Overdue" value={overdue} note={overdueCount ? `${overdueCount} need attention` : "You are all caught up"} tone={overdue ? "warning" : "default"} />
-        <div className="col-span-2 flex flex-col justify-between gap-4 rounded-[1.35rem] border border-ink/10 bg-lime p-4 shadow-[0_12px_30px_-24px_rgba(17,45,35,.45)] sm:col-span-1 sm:p-5">
-          <span className="text-[11px] font-bold uppercase tracking-[.14em] text-ink/60">Quick start</span>
-          <div className="flex items-end justify-between gap-3"><strong className="text-xl leading-none tracking-[-.05em]">Send an invoice</strong><Link aria-label="Send an invoice" href="/app/documents" className="flex size-9 items-center justify-center rounded-full bg-ink text-lg text-lime transition-transform hover:scale-105">→</Link></div>
-        </div>
-      </section>
-
-      {(overdueCount > 0 || invoiceCount > 0) && <section className="mt-6 rounded-[1.5rem] border border-orange/20 bg-orange/10 p-4 sm:p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-orange">Payment radar</p><h2 className="mt-1 text-lg font-black tracking-[-.04em]">Your next follow-ups are ready.</h2><p className="mt-1 text-sm text-ink/60">Stay on top of due invoices and unanswered quotes before they go cold.</p></div><Link href="/app/documents" className="w-fit rounded-full bg-ink px-4 py-2.5 text-sm font-bold text-lime transition hover:-translate-y-0.5">Review documents →</Link></div></section>}
-
-      <section className="mt-8 grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
-        <div className="rounded-[1.75rem] border border-ink/10 bg-white p-5 sm:p-7">
-          <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-ink/45">Your workflow</p><h2 className="mt-2 text-2xl font-black tracking-[-.06em]">Make money, less admin.</h2></div><span className="hidden rounded-full bg-lime/40 px-3 py-1 text-xs font-bold text-ink sm:inline-flex">Simple by design</span></div>
-          <div className="mt-6 flex flex-col gap-3">
-            <Link href="/app/quotes/new" className="group flex items-center gap-4 rounded-2xl border border-ink/10 p-4 transition-colors hover:border-ink/30"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-ink text-lg text-lime">01</span><span className="flex min-w-0 flex-1 flex-col gap-1"><strong className="text-sm">Draft a quote</strong><span className="truncate text-xs text-ink/50">Win the work before you do the work.</span></span><span className="text-xl text-ink/30 transition-transform group-hover:translate-x-1">→</span></Link>
-            <Link href="/app/documents" className="group flex items-center gap-4 rounded-2xl border border-ink/10 p-4 transition-colors hover:border-ink/30"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-lime text-sm font-black text-ink">02</span><span className="flex min-w-0 flex-1 flex-col gap-1"><strong className="text-sm">Track every document</strong><span className="truncate text-xs text-ink/50">Quotes, invoices and payments in one place.</span></span><span className="text-xl text-ink/30 transition-transform group-hover:translate-x-1">→</span></Link>
+      <section className="flex min-h-48 flex-1 flex-col rounded-3xl bg-white p-4 shadow-sm ring-1 ring-ink/10 sm:p-5 lg:min-h-0">
+        <div className="flex items-baseline justify-between"><h1 className="text-lg font-black tracking-tight">Needs your attention</h1><span className="text-xs text-ink/45">{rows.length ? `${rows.length} item${rows.length === 1 ? "" : "s"}` : ""}</span></div>
+        {rows.length ? (
+          <ul className="mt-3 flex-1 space-y-2 overflow-y-auto">
+            {rows.map(({ d, tag, tone }) => (
+              <li key={d.id}>
+                <Link href={`/app/documents/${d.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-ink/10 p-3 active:bg-ink/5">
+                  <span className="min-w-0"><b className="block truncate text-sm">{d.number}</b><span className="block truncate text-xs text-ink/55">{name(d)}</span></span>
+                  <span className="shrink-0 text-right"><b className="block text-sm">{formatRand(d.total_cents)}</b><span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${chip[tone]}`}>{tag}</span></span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+            <p className="text-lg font-black">All caught up.</p>
+            <p className="max-w-[16rem] text-sm text-ink/55">Nothing is waiting on you. Send a quote to get the next job moving.</p>
+            <Link href="/app/quotes/new" className="rounded-full bg-ink px-5 py-2.5 text-sm font-bold text-lime">Create a quote</Link>
           </div>
-        </div>
-        <aside className="relative flex min-h-[18rem] flex-col justify-between gap-6 overflow-hidden rounded-[1.75rem] bg-orange p-5 text-ink sm:p-7"><div className="relative z-10"><p className="text-xs font-bold uppercase tracking-[.16em] text-ink/60">At a glance</p><h2 className="mt-2 max-w-[12rem] text-2xl font-black tracking-[-.06em]">Nothing hidden.</h2><p className="mt-3 max-w-xs text-sm leading-6 text-ink/75">Yebo keeps the important number close and the busywork out of your way.</p></div><Image src="/yebo-dashboard-art.png" alt="Abstract layered invoice artwork" width={240} height={300} className="pointer-events-none absolute -bottom-16 -right-10 w-44 rotate-6 opacity-80 mix-blend-multiply sm:w-52" /><Link href="/app/settings" className="relative z-10 w-fit rounded-full border-2 border-ink px-4 py-2 text-sm font-bold transition-colors hover:bg-ink hover:text-orange">Tune your setup →</Link></aside>
+        )}
       </section>
     </main>
   );
 }
- 

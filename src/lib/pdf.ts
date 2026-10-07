@@ -2,6 +2,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import QRCode from "qrcode";
 import { formatRand } from "./money";
 import { formatDate } from "./dates";
+import { readableOn } from "./color";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Pub = { document: any; lines: any[]; business: any; client: any };
@@ -118,11 +119,13 @@ export async function buildDocumentPdf({ document: d, lines, business: b, client
   need(80);
   put("Subtotal", 360); putRight(formatRand(d.subtotal_cents), R); y -= 16;
   put("VAT", 360); putRight(b.vat_registered ? formatRand(d.vat_cents) : "Not applicable", R); y -= 8;
-  page.drawLine({ start: { x: 360, y }, end: { x: R, y }, thickness: 1.5, color: brand }); y -= 20;
-  put("Total", 360, 14, bold, brand); putRight(formatRand(d.total_cents), R, 14, bold, brand); y -= 30;
+  y -= 4;
+  page.drawRectangle({ x: 340, y: y - 30, width: R - 340, height: 36, color: brand });
+  const onBrand = readableOn(b.brand_color) === "#ffffff" ? rgb(1, 1, 1) : ink;
+  put("Total", 352, 13, bold, onBrand, y - 17); putRight(formatRand(d.total_cents), R - 12, 15, bold, onBrand, y - 18); y -= 54;
 
   // ---- payment plan ----
-  const plan = d.payment_plan === "full" ? "Payment in full is needed to confirm the booking."
+  const plan = !isQuote ? `Please pay ${formatRand(d.total_cents)} by ${formatDate(d.due_date)}. Use ${d.number} as your payment reference.` : d.payment_plan === "full" ? "Payment in full is needed to confirm the booking."
     : d.payment_plan === "deposit"
       ? `A ${d.deposit_percent}% deposit (${formatRand(Math.round((d.total_cents * d.deposit_percent) / 100))}) confirms the booking. Balance due ${d.payment_terms}.`
       : `No deposit. Full payment due ${d.payment_terms}.`;

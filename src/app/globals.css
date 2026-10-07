@@ -40,3 +40,7 @@ body { background: hsl(var(--paper)); }
 
 .font-sans { font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif; }
 button, a { -webkit-tap-highlight-color: transparent; }
+
+/* bottom tab bar height on phones (0 on larger screens) */
+:root { --tab-h: calc(4rem + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 640px) { :root { --tab-h: 0px; } }

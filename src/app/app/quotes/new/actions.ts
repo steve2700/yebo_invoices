@@ -10,6 +10,7 @@ export type NewQuote = {
   laborOnly: boolean; plan: "after" | "deposit" | "full"; pct: number; terms: string; note: string;
   items: { description: string; quantity: number; price: number }[];
   send: boolean;
+  docType?: "quote" | "invoice";
 };
 
 export async function createQuote(input: NewQuote): Promise<{ error: string } | void> {
@@ -20,6 +21,9 @@ export async function createQuote(input: NewQuote): Promise<{ error: string } | 
   try {
     const { data: biz } = await sb.from("businesses").select("*").single();
     if (!biz) return { error: "Set up your business first." };
+
+    const docType = input.docType === "invoice" ? "invoice" : "quote";
+    const termDays = /\d+/.test(input.terms) ? parseInt(input.terms.match(/\d+/)![0], 10) : 0; // "on completion" = due now
 
     let clientId = input.clientId;
     if (input.newClient) {
@@ -48,19 +52,21 @@ export async function createQuote(input: NewQuote): Promise<{ error: string } | 
     const vatPercent = biz.vat_registered ? 15 : 0;
     const vat = Math.round((subtotal * vatPercent) / 100);
 
-    const { data: n, error: nErr } = await sb.rpc("next_document_number", { p_business: biz.id, p_type: "quote" });
+    const { data: n, error: nErr } = await sb.rpc("next_document_number", { p_business: biz.id, p_type: docType });
     if (nErr) throw nErr;
 
     const { data: doc, error } = await sb.from("documents").insert({
-      business_id: biz.id, client_id: clientId, type: "quote",
+      business_id: biz.id, client_id: clientId, type: docType,
       seq: n[0].doc_seq, number: n[0].doc_number,
       status: input.send ? "sent" : "draft",
       title: input.title || null, description: input.description || null, location: input.location || null,
       job_date: input.jobDate || null, job_date_tbd: input.jobDateTbd, labour_only: input.laborOnly,
-      expiry_date: addDays(biz.default_expiry_days), vat_percent: vatPercent,
+      expiry_date: docType === "quote" ? addDays(biz.default_expiry_days) : null,
+      due_date: docType === "invoice" ? addDays(termDays) : null, vat_percent: vatPercent,
       subtotal_cents: subtotal, vat_cents: vat, total_cents: subtotal + vat,
-      payment_plan: input.plan, deposit_percent: input.plan === "deposit" ? input.pct : null,
-      payment_terms: input.plan === "full" ? null : input.terms, note: input.note || null,
+      payment_plan: docType === "invoice" ? "after" : input.plan,
+      deposit_percent: docType === "quote" && input.plan === "deposit" ? input.pct : null,
+      payment_terms: docType === "quote" && input.plan === "full" ? null : input.terms, note: input.note || null,
     }).select("id").single();
     if (error) throw error;
     docId = doc.id;
