@@ -5,6 +5,7 @@ import { formatDate } from "@/lib/dates";
 import { formatRand } from "@/lib/money";
 import { greetingName } from "@/lib/names";
 import { appUrl } from "@/lib/url";
+import { aiSetupHint } from "@/lib/ai-hint";
 
 const MODEL = "google/gemini-3.8-flash";
 const MAX_BODY_LENGTH = 12_000;
@@ -176,7 +177,8 @@ export async function POST(request: Request) {
     if (input.kind === "intro") return await draftDocumentIntro(supabase, input);
     if (input.kind === "reminder") return await draftPaymentReminder(supabase, input);
     return errorResponse("Choose a valid message type.", 400);
-  } catch {
-    return errorResponse("AI drafting is temporarily unavailable. Please try again or use the standard message.", 502);
+  } catch (error) {
+    console.error("[ai-message] drafting failed:", error);
+    return errorResponse(aiSetupHint() ?? "AI drafting is temporarily unavailable. Please try again or use the standard message.", 502);
   }
 }

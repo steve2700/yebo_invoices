@@ -7,7 +7,8 @@ import { greetingName } from "@/lib/names";
 import { appUrl } from "@/lib/url";
 import CopyButton from "../CopyButton";
 import AiMessageComposer from "../AiMessageComposer";
-import { convertToInvoice, emailDocument, markPaid, sendDraft } from "../actions";
+import { convertToInvoice, deleteDraft, duplicateDocument, emailDocument, markPaid, sendDraft } from "../actions";
+import ConfirmForm from "../ConfirmForm";
 
 export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -85,6 +86,14 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           </>
         )}
       </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-2 print:hidden">
+        {d.status === "draft" && <Link href={`/app/documents/${d.id}/edit`} className={`${btn} border-2 border-neutral-300`}>Edit</Link>}
+        <form action={duplicateDocument}><input type="hidden" name="id" value={d.id} />
+          <button className={`${btn} border-2 border-neutral-300`}>Duplicate</button></form>
+        {d.status === "draft" && <ConfirmForm action={deleteDraft} id={d.id} message="Delete this draft? This cannot be undone." label="Delete draft" className={`${btn} text-red-600 hover:bg-red-50`} />}
+      </div>
+      {d.status !== "draft" && <p className="mt-2 text-xs text-neutral-500 print:hidden">Sent documents are locked so your client's copy never changes. To fix a mistake, tap Duplicate, correct the copy and send that instead.</p>}
 
       <h2 className="mt-8 font-extrabold">Activity</h2>
       <ul className="mt-2 divide-y rounded-2xl bg-white shadow-sm ring-1 ring-black/5 text-sm">

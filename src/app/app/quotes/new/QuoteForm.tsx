@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { createQuote } from "./actions";
+import { createQuote, updateDraft } from "./actions";
 import { formatRand } from "@/lib/money";
 import { greetingName } from "@/lib/names";
 import VoiceQuoteAssistant, { type VoiceQuoteDraft } from "./VoiceQuoteAssistant";
@@ -36,11 +36,13 @@ function normalizeClientName(name: string) {
   return name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-export default function QuoteForm({ clients, items, vatRegistered, docType = "quote" }: { clients: Client[]; items: Item[]; vatRegistered: boolean; docType?: "quote" | "invoice" }) {
+type Initial = { clientId: string; f: Fields; lines: Line[] };
+
+export default function QuoteForm({ clients, items, vatRegistered, docType = "quote", documentId, initial }: { clients: Client[]; items: Item[]; vatRegistered: boolean; docType?: "quote" | "invoice"; documentId?: string; initial?: Initial }) {
   const isInvoice = docType === "invoice";
-  const [clientId, setClientId] = useState(clients.length ? "" : "new");
+  const [clientId, setClientId] = useState(initial?.clientId ?? (clients.length ? "" : "new"));
   const [newClient, setNewClient] = useState({ name: "", whatsapp: "", email: "", address: "" });
-  const [fields, setFields] = useState<Fields>({
+  const [fields, setFields] = useState<Fields>(initial?.f ?? {
     title: "",
     location: "",
     description: "",
@@ -52,7 +54,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
     terms: isInvoice ? "within 7 days" : "on completion",
     note: "",
   });
-  const [lines, setLines] = useState<Line[]>([{ description: "", quantity: 1, price: 0 }]);
+  const [lines, setLines] = useState<Line[]>(initial?.lines ?? [{ description: "", quantity: 1, price: 0 }]);
   const [error, setError] = useState("");
   const [noteTone, setNoteTone] = useState<MessageTone>("friendly");
   const [draftingNote, setDraftingNote] = useState<MessageTone | null>(null);
@@ -182,14 +184,15 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
     if (!canSubmit || draftingNote || voiceBusy) return;
     setError("");
     start(async () => {
-      const result = await createQuote({
+      const payload = {
         clientId: clientId === "new" ? "" : clientId,
         newClient: clientId === "new" ? newClient : null,
         ...fields,
         docType,
         items: lines,
         send,
-      });
+      };
+      const result = documentId ? await updateDraft({ id: documentId, ...payload }) : await createQuote(payload);
       if (result?.error) setError(result.error);
     });
   }
@@ -198,9 +201,9 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
     <main className="mx-auto max-w-2xl px-4 pb-36 pt-5 sm:px-6 sm:pt-10">
       <header className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-orange">New {docType}</p>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-orange">{documentId ? `Editing ${docType} draft` : `New ${docType}`}</p>
           <h1 className="mt-2 text-4xl font-black tracking-[-0.06em] text-ink">
-            {isInvoice ? "Get paid, fast." : "Make it an easy yes."}
+            {documentId ? "Edit your draft." : isInvoice ? "Get paid, fast." : "Make it an easy yes."}
           </h1>
           <p className="mt-2 max-w-md text-sm leading-6 text-ink/60">
             {isInvoice
@@ -213,7 +216,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         </div>
       </header>
 
-      {!isInvoice && <VoiceQuoteAssistant onApply={applyVoiceDraft} onBusyChange={setVoiceBusy} />}
+      {!isInvoice && !documentId && <VoiceQuoteAssistant onApply={applyVoiceDraft} onBusyChange={setVoiceBusy} />}
 
       <section className="rounded-[2rem] bg-white p-5 shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5 sm:p-7">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-orange">01 · Start here</p>
@@ -416,10 +419,10 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
               <span className="block truncate text-lg font-black text-ink">{formatRand(totalCents)}</span>
             </div>
             <button type="button" disabled={pending || draftingNote !== null || voiceBusy || !canSubmit} onClick={() => submit(false)} className="ml-auto min-h-11 rounded-2xl border-2 border-ink px-3 py-3 text-xs font-black text-ink disabled:opacity-40 sm:px-4 sm:text-sm">
-              Save draft
+              {documentId ? "Save changes" : "Save draft"}
             </button>
             <button type="button" disabled={pending || draftingNote !== null || voiceBusy || !canSubmit} onClick={() => submit(true)} className="min-h-11 rounded-2xl bg-orange px-4 py-3 text-xs font-black text-white shadow-lg shadow-orange/20 disabled:opacity-40 sm:px-5 sm:text-sm">
-              {pending ? "Creating..." : isInvoice ? "Send invoice" : "Create & send"}
+              {pending ? "Saving..." : isInvoice ? "Send invoice" : documentId ? "Save & send" : "Create & send"}
             </button>
           </div>
         </div>

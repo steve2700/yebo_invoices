@@ -2,6 +2,7 @@ import { generateText, gateway, Output, transcribe } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { aiSetupHint } from "@/lib/ai-hint";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -92,8 +93,9 @@ export async function POST(request: Request) {
       maxRetries: 1,
     });
     transcript = transcription.text.trim().slice(0, 5_000);
-  } catch {
-    return errorResponse("We couldn’t transcribe that voice note. Try a clearer recording or upload another audio format.", 502);
+  } catch (error) {
+    console.error("[voice-quote] transcription failed:", error);
+    return errorResponse(aiSetupHint() ?? "We couldn’t transcribe that voice note. Try a clearer recording or upload another audio format.", 502);
   }
   if (!transcript) return errorResponse("We couldn’t hear clear speech. Try a quieter recording.", 422);
 
@@ -120,7 +122,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ transcript, draft: output });
-  } catch {
-    return errorResponse("The quote draft could not be built right now. Please try again.", 502);
+  } catch (error) {
+    console.error("[voice-quote] draft failed:", error);
+    return errorResponse(aiSetupHint() ?? "The quote draft could not be built right now. Please try again.", 502);
   }
 }

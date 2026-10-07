@@ -84,3 +84,40 @@ export async function convertToInvoice(fd: FormData) {
   await sb.from("events").insert({ document_id: inv.id, type: "sent" });
   redirect(`/app/documents/${inv.id}`);
 }
+
+export async function duplicateDocument(fd: FormData) {
+  const id = String(fd.get("id"));
+  const sb = await createClient();
+  const { data: d } = await sb.from("documents").select("*").eq("id", id).single();
+  const { data: biz } = await sb.from("businesses").select("id,vat_registered,default_expiry_days").single();
+  if (!d || !biz) redirect("/app/documents");
+  const { data: src } = await sb.from("document_lines").select("description,quantity,unit_price_cents,sort_order").eq("document_id", id).order("sort_order");
+  const { data: n, error: nErr } = await sb.rpc("next_document_number", { p_business: biz.id, p_type: d.type });
+  if (nErr) throw nErr;
+
+  // totals are recalculated, so a copy always follows the business's current VAT status
+  const rows = (src ?? []).map((l) => ({ ...l, line_total_cents: Math.round(Number(l.quantity) * l.unit_price_cents) }));
+  const subtotal = rows.reduce((a, l) => a + l.line_total_cents, 0);
+  const vatPercent = biz.vat_registered ? 15 : 0;
+  const vat = Math.round((subtotal * vatPercent) / 100);
+  const termDays = /\d+/.test(d.payment_terms ?? "") ? parseInt(String(d.payment_terms).match(/\d+/)![0], 10) : 0;
+
+  const { data: copy, error } = await sb.from("documents").insert({
+    business_id: d.business_id, client_id: d.client_id, type: d.type, seq: n[0].doc_seq, number: n[0].doc_number, status: "draft",
+    title: d.title, description: d.description, location: d.location, job_date: null, job_date_tbd: d.job_date_tbd, labour_only: d.labour_only,
+    expiry_date: d.type === "quote" ? addDays(biz.default_expiry_days) : null,
+    due_date: d.type === "invoice" ? addDays(termDays) : null,
+    vat_percent: vatPercent, subtotal_cents: subtotal, vat_cents: vat, total_cents: subtotal + vat,
+    payment_plan: d.payment_plan, deposit_percent: d.deposit_percent, payment_terms: d.payment_terms, note: d.note,
+  }).select("id").single();
+  if (error) throw error;
+  await sb.from("document_lines").insert(rows.map((l) => ({ ...l, document_id: copy.id })));
+  redirect(`/app/documents/${copy.id}/edit`);
+}
+
+export async function deleteDraft(fd: FormData) {
+  const id = String(fd.get("id"));
+  const sb = await createClient();
+  await sb.from("documents").delete().eq("id", id).eq("status", "draft"); // sent documents can never be deleted
+  redirect("/app/documents");
+}

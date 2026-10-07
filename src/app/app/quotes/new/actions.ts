@@ -89,3 +89,67 @@ export async function createQuote(input: NewQuote): Promise<{ error: string } | 
   }
   redirect(`/app/documents/${docId}`);
 }
+
+export async function updateDraft(input: NewQuote & { id: string }): Promise<{ error: string } | void> {
+  const sb = await createClient();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) redirect("/login");
+  try {
+    const { data: biz } = await sb.from("businesses").select("*").single();
+    if (!biz) return { error: "Set up your business first." };
+    const { data: existing } = await sb.from("documents").select("id,type,status").eq("id", input.id).single();
+    if (!existing || existing.status !== "draft") return { error: "Only drafts can be edited." };
+    const docType = existing.type as "quote" | "invoice";
+    const termDays = /\d+/.test(input.terms) ? parseInt(input.terms.match(/\d+/)![0], 10) : 0;
+
+    let clientId = input.clientId;
+    if (input.newClient) {
+      const c = input.newClient;
+      if (!c.name.trim()) return { error: "Enter the client's name." };
+      const { data, error } = await sb.from("clients").insert({
+        business_id: biz.id, name: c.name.trim(), whatsapp_number: c.whatsapp || null,
+        email: c.email || null, address: c.address || null,
+      }).select("id").single();
+      if (error) throw error;
+      clientId = data.id;
+    }
+    if (!clientId) return { error: "Choose a client." };
+
+    const lines = input.items
+      .filter((i) => i.description.trim() && Number.isFinite(i.quantity) && i.quantity >= 0.01 && i.quantity <= 100_000 && Number.isFinite(i.price) && i.price > 0)
+      .map((i, idx) => {
+        const amountCents = Math.round(i.price * 100);
+        const quantity = Math.round(i.quantity * 100) / 100;
+        const unit = i.pricingMode === "line_total" ? Math.round(amountCents / quantity) : amountCents;
+        const lineTotal = i.pricingMode === "line_total" ? amountCents : Math.round(quantity * unit);
+        return { description: i.description.trim(), quantity, unit_price_cents: unit,
+          line_total_cents: lineTotal, sort_order: idx };
+      });
+    if (!lines.length) return { error: "Add at least one item with a price." };
+
+    const subtotal = lines.reduce((a, l) => a + l.line_total_cents, 0);
+    const vatPercent = biz.vat_registered ? 15 : 0;
+    const vat = Math.round((subtotal * vatPercent) / 100);
+
+    const { error } = await sb.from("documents").update({
+      client_id: clientId, status: input.send ? "sent" : "draft",
+      title: input.title || null, description: input.description || null, location: input.location || null,
+      job_date: input.jobDate || null, job_date_tbd: input.jobDateTbd, labour_only: input.laborOnly,
+      expiry_date: docType === "quote" ? addDays(biz.default_expiry_days) : null,
+      due_date: docType === "invoice" ? addDays(termDays) : null, vat_percent: vatPercent,
+      subtotal_cents: subtotal, vat_cents: vat, total_cents: subtotal + vat,
+      payment_plan: docType === "invoice" ? "after" : input.plan,
+      deposit_percent: docType === "quote" && input.plan === "deposit" ? input.pct : null,
+      payment_terms: docType === "quote" && input.plan === "full" ? null : input.terms, note: input.note || null,
+    }).eq("id", input.id).eq("status", "draft");
+    if (error) throw error;
+
+    await sb.from("document_lines").delete().eq("document_id", input.id);
+    const { error: lErr } = await sb.from("document_lines").insert(lines.map((l) => ({ ...l, document_id: input.id })));
+    if (lErr) throw lErr;
+    if (input.send) await sb.from("events").insert({ document_id: input.id, type: "sent" });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Something went wrong. Please try again." };
+  }
+  redirect(`/app/documents/${input.id}`);
+}
