@@ -55,8 +55,8 @@ export default async function PublicDocument({ params }: { params: Promise<{ tok
         <div className="mx-auto max-w-2xl">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-white p-1.5 text-xl font-black" style={{ color }}>
-                {b.logo_url ? <img src={b.logo_url} alt="" className="size-full object-contain" /> : String(b.name)[0]}
+              <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white p-2 text-xl font-black shadow-sm" style={{ color }}>
+                {b.logo_url ? <img src={b.logo_url} alt="" className="block max-h-full max-w-full object-contain" /> : String(b.name)[0]}
               </span>
               <div className="min-w-0"><p className="truncate text-lg font-black leading-tight">{b.name}</p><p className="text-xs opacity-80">{label} {d.number}</p></div>
             </div>
