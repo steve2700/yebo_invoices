@@ -2,10 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatRand } from "@/lib/money";
-import { formatDate, waLink } from "@/lib/dates";
+import { formatDate } from "@/lib/dates";
 import { greetingName } from "@/lib/names";
 import { appUrl } from "@/lib/url";
 import CopyButton from "../CopyButton";
+import AiMessageComposer from "../AiMessageComposer";
 import { convertToInvoice, emailDocument, markPaid, sendDraft } from "../actions";
 
 export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -53,7 +54,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           <input type="hidden" name="id" value={d.id} />
           <button className={`${btn} border-2 border-yebo text-yebo`} disabled={!client?.email}>Email document</button>
         </form>
-        <a href={waLink(client?.whatsapp_number ?? null, msg)} target="_blank" rel="noreferrer" className={`${btn} bg-yebo text-white`}>Send on WhatsApp</a>
+        <AiMessageComposer mode="intro" documentId={d.id} whatsappNumber={client?.whatsapp_number ?? null} fallbackMessage={msg} />
         <CopyButton text={link} />
         {d.status !== "draft" && <a href={`/d/${d.public_token}/pdf`} className={`${btn} border-2 border-neutral-300`}>Download PDF</a>}
         <a href={link} target="_blank" rel="noreferrer" className={`${btn} border-2 border-neutral-300`}>Open client view</a>
@@ -66,17 +67,13 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         )}
         {canSendPaymentReminder && (
           <div>
-            <a
-              href={waLink(client?.whatsapp_number ?? null, reminderMsg)}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`Send WhatsApp payment reminder for invoice ${d.number}, ${formatRand(balanceDue)} outstanding`}
-              className={`${btn} inline-flex items-center gap-2 bg-lime text-ink shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2`}
-            >
-              <span>Send payment reminder</span>
-              <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold text-ink/70">{formatRand(balanceDue)} due</span>
-            </a>
-            <p className="mt-1 px-1 text-xs text-neutral-500">Opens a prefilled WhatsApp message for you to review and send.</p>
+            <AiMessageComposer
+              mode="reminder"
+              documentId={d.id}
+              whatsappNumber={client?.whatsapp_number ?? null}
+              fallbackMessage={reminderMsg}
+              balanceLabel={formatRand(balanceDue)}
+            />
           </div>
         )}
         {d.type === "invoice" && d.status !== "paid" && d.status !== "draft" && (
