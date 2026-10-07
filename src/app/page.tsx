@@ -23,8 +23,8 @@ export const metadata: Metadata = {
     url: appUrl(),
     images: [
       {
-        url: "/images/yebo-fieldwork.png",
-        alt: "A South African small-business owner preparing a quote on her phone.",
+        url: "/images/yebo-hero-workshop.png",
+        alt: "A South African cabinetmaker checking a quote on her phone in her workshop.",
       },
     ],
   },
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Yebo Invoices | Clear quotes, faster invoicing",
     description,
-    images: ["/images/yebo-fieldwork.png"],
+    images: ["/images/yebo-hero-workshop.png"],
   },
 };
 
