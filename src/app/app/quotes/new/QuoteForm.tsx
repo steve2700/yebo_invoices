@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { createQuote, updateDraft } from "./actions";
 import { formatRand } from "@/lib/money";
 import { greetingName } from "@/lib/names";
@@ -36,6 +36,25 @@ function normalizeClientName(name: string) {
   return name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+type Tip = { id: string; message: string; actionLabel?: string; onAction?: () => void };
+
+const TIPS_KEY = "yebo:dismissed-tips";
+const DEPOSIT_TIP_CENTS = 1_000_000; // R10 000: suggest a deposit at or above this quote total
+const BIG_LINE_TIP_CENTS = 500_000; // R5 000: suggest splitting a single line at or above this amount
+
+type TidySuggestion = { title: string; location: string; description: string; items: string[] };
+type TidyChange = { key: string; label: string; before: string; after: string };
+
+function isTidySuggestion(value: unknown): value is TidySuggestion {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.title === "string"
+    && typeof candidate.location === "string"
+    && typeof candidate.description === "string"
+    && Array.isArray(candidate.items)
+    && candidate.items.every((item) => typeof item === "string");
+}
+
 type Initial = { clientId: string; f: Fields; lines: Line[] };
 
 export default function QuoteForm({ clients, items, vatRegistered, docType = "quote", documentId, initial }: { clients: Client[]; items: Item[]; vatRegistered: boolean; docType?: "quote" | "invoice"; documentId?: string; initial?: Initial }) {
@@ -60,6 +79,15 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
   const [draftingNote, setDraftingNote] = useState<MessageTone | null>(null);
   const [noteError, setNoteError] = useState("");
   const [voiceBusy, setVoiceBusy] = useState(false);
+  const [dismissedTips, setDismissedTips] = useState<string[]>([]);
+  const [hiddenTips, setHiddenTips] = useState<string[]>([]);
+  const [voiceApplied, setVoiceApplied] = useState(false);
+  const [descTidying, setDescTidying] = useState(false);
+  const [descTidyError, setDescTidyError] = useState("");
+  const [descSuggestion, setDescSuggestion] = useState<string | null>(null);
+  const [tidying, setTidying] = useState(false);
+  const [tidyError, setTidyError] = useState("");
+  const [tidySuggestion, setTidySuggestion] = useState<TidySuggestion | null>(null);
   const [pending, start] = useTransition();
   const setField = <K extends keyof Fields>(key: K, value: Fields[K]) => setFields((current) => ({ ...current, [key]: value }));
 
@@ -86,6 +114,160 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
       : validLines === 0
         ? "Add an item with a price to continue."
         : "";
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(TIPS_KEY);
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) setDismissedTips(parsed.filter((id): id is string => typeof id === "string"));
+    } catch {
+      // Storage can be unavailable (private mode); tips still work for this visit.
+    }
+  }, []);
+
+  const firstLineText = lines.find((line) => line.description.trim())?.description.trim() ?? "";
+  const tips: Tip[] = [];
+  if (voiceApplied) {
+    tips.push({ id: "voice-check", message: "Voice drafts can mishear numbers. Check every price and quantity before you send." });
+  }
+  if (!isInvoice && subtotalCents >= DEPOSIT_TIP_CENTS && fields.plan === "after") {
+    tips.push({
+      id: "deposit",
+      message: "Jobs this size often ask for a deposit. It covers your materials and shows the client is committed.",
+      actionLabel: "Switch to deposit first",
+      onAction: () => setField("plan", "deposit"),
+    });
+  }
+  if (validLines === 1 && lines.some((line) => getLineTotalCents(line) >= BIG_LINE_TIP_CENTS)) {
+    tips.push({ id: "split-line", message: "Break this into materials, labour and travel. Clients trust a quote they can see the detail of." });
+  }
+  if (isInvoice && validLines > 0 && fields.terms === "on completion") {
+    tips.push({
+      id: "invoice-due",
+      message: "Give this invoice a clear deadline. Invoices with a due date get paid sooner.",
+      actionLabel: "Set to within 7 days",
+      onAction: () => setField("terms", "within 7 days"),
+    });
+  }
+  if (validLines > 0 && !fields.title.trim() && firstLineText) {
+    tips.push({
+      id: "job-name",
+      message: "Give the job a name so your client recognises it at a glance.",
+      actionLabel: `Use “${firstLineText.length > 28 ? `${firstLineText.slice(0, 28)}…` : firstLineText}”`,
+      onAction: () => setField("title", firstLineText),
+    });
+  }
+  if (validLines > 0 && !fields.description.trim()) {
+    tips.push({
+      id: "job-description",
+      message: "A short description helps your client see exactly what they are paying for, and it builds trust.",
+      actionLabel: "Write it now",
+      onAction: () => document.getElementById("work-description")?.focus(),
+    });
+  }
+  if (!isInvoice && validLines > 0 && !fields.jobDate && !fields.jobDateTbd) {
+    tips.push({
+      id: "job-date",
+      message: "Clients answer faster when they know when you can start. Add a job date, or mark it as to be agreed.",
+      actionLabel: "Date to be agreed",
+      onAction: () => setField("jobDateTbd", true),
+    });
+  }
+  const activeTip = tips.find((tip) => !dismissedTips.includes(tip.id) && !hiddenTips.includes(tip.id));
+
+  function dismissTip(id: string, forever: boolean) {
+    if (!forever) {
+      setHiddenTips((current) => [...current, id]);
+      return;
+    }
+    const next = Array.from(new Set([...dismissedTips, id]));
+    setDismissedTips(next);
+    try {
+      window.localStorage.setItem(TIPS_KEY, JSON.stringify(next));
+    } catch {
+      // Ignore storage errors; the tip stays hidden for this visit.
+    }
+  }
+
+  const hasTidyText = lines.some((line) => line.description.trim()) || Boolean(fields.title.trim() || fields.location.trim() || fields.description.trim());
+  const tidyChanges: TidyChange[] = tidySuggestion
+    ? [
+        ...lines.map((line, index) => ({ key: `item-${index}`, label: `Item ${index + 1}`, before: line.description, after: tidySuggestion.items[index] ?? line.description })),
+        { key: "title", label: "Job name", before: fields.title, after: tidySuggestion.title },
+        { key: "location", label: "Location", before: fields.location, after: tidySuggestion.location },
+        { key: "description", label: "What you’ll do", before: fields.description, after: tidySuggestion.description },
+      ].filter((change) => change.before.trim() && change.after.trim() && change.before.trim() !== change.after.trim())
+    : [];
+
+  async function tidyUp() {
+    setTidying(true);
+    setTidyError("");
+    setTidySuggestion(null);
+    try {
+      const response = await fetch("/api/tidy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: fields.title,
+          location: fields.location,
+          description: fields.description,
+          items: lines.slice(0, 20).map((line) => line.description),
+        }),
+      });
+      const result = await response.json().catch(() => null) as { tidy?: unknown; error?: unknown } | null;
+      if (!response.ok || !result || !isTidySuggestion(result.tidy)) {
+        throw new Error(typeof result?.error === "string" ? result.error : "Could not tidy your wording. Please try again.");
+      }
+      setTidySuggestion(result.tidy);
+    } catch (caught) {
+      setTidyError(caught instanceof Error ? caught.message : "Could not tidy your wording. Please try again.");
+    } finally {
+      setTidying(false);
+    }
+  }
+
+  async function tidyDescription() {
+    setDescTidying(true);
+    setDescTidyError("");
+    setDescSuggestion(null);
+    try {
+      const response = await fetch("/api/tidy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "", location: "", description: fields.description, items: [] }),
+      });
+      const result = await response.json().catch(() => null) as { tidy?: unknown; error?: unknown } | null;
+      if (!response.ok || !result || !isTidySuggestion(result.tidy)) {
+        throw new Error(typeof result?.error === "string" ? result.error : "Could not tidy your description. Please try again.");
+      }
+      setDescSuggestion(result.tidy.description);
+    } catch (caught) {
+      setDescTidyError(caught instanceof Error ? caught.message : "Could not tidy your description. Please try again.");
+    } finally {
+      setDescTidying(false);
+    }
+  }
+
+  function applyDescriptionTidy() {
+    if (descSuggestion?.trim()) setField("description", descSuggestion);
+    setDescSuggestion(null);
+  }
+
+  function applyTidy() {
+    if (!tidySuggestion) return;
+    const suggestion = tidySuggestion;
+    setLines((current) => current.map((line, index) => {
+      const after = suggestion.items[index]?.trim();
+      return after && line.description.trim() ? { ...line, description: after } : line;
+    }));
+    setFields((current) => ({
+      ...current,
+      title: current.title.trim() && suggestion.title.trim() ? suggestion.title : current.title,
+      location: current.location.trim() && suggestion.location.trim() ? suggestion.location : current.location,
+      description: current.description.trim() && suggestion.description.trim() ? suggestion.description : current.description,
+    }));
+    setTidySuggestion(null);
+  }
 
   function pickClient(id: string) {
     setClientId(id);
@@ -115,6 +297,8 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
       price: item.amountRand === null ? 0 : Math.round(item.amountRand * 100) / 100,
       pricingMode: item.amountRand !== null && item.priceBasis !== "unit_rate" ? "line_total" : "unit",
     })));
+    setVoiceApplied(true);
+    setHiddenTips((current) => current.filter((id) => id !== "voice-check"));
     setError("");
   }
 
@@ -181,7 +365,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
   }
 
   function submit(send: boolean) {
-    if (!canSubmit || draftingNote || voiceBusy) return;
+    if (!canSubmit || draftingNote || voiceBusy || tidying || descTidying) return;
     setError("");
     start(async () => {
       const payload = {
@@ -254,7 +438,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         {lines.map((line, index) => (
           <div key={index} className="mt-4 rounded-2xl bg-white/10 p-3">
             <label className="sr-only" htmlFor={`item-${index}`}>Item or service {index + 1}</label>
-            <input id={`item-${index}`} list="saved-items" className="w-full rounded-xl border-0 bg-white px-3 py-3 text-sm text-ink outline-none focus:ring-2 focus:ring-orange" placeholder="Item or service" value={line.description} onChange={(event) => updateDescription(index, event.target.value)} />
+            <input id={`item-${index}`} list="saved-items" spellCheck lang="en-ZA" autoCapitalize="sentences" className="w-full rounded-xl border-0 bg-white px-3 py-3 text-sm text-ink outline-none focus:ring-2 focus:ring-orange" placeholder="Item or service" value={line.description} onChange={(event) => updateDescription(index, event.target.value)} />
             <div className="mt-2 grid grid-cols-[4.25rem_minmax(0,1fr)_5.25rem] items-end gap-2">
               <div>
                 <label className="mb-1 block text-center text-[10px] font-bold text-paper/60" htmlFor={`quantity-${index}`}>Qty</label>
@@ -282,12 +466,116 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         <button type="button" className="mt-4 min-h-11 rounded-full border border-lime/40 px-4 py-2 text-sm font-bold text-lime transition hover:bg-white/10" onClick={() => setLines((current) => [...current, { description: "", quantity: 1, price: 0 }])}>
           + Add another item
         </button>
+
+        <div className="mt-4">
+          <button
+            type="button"
+            disabled={tidying || !hasTidyText}
+            onClick={() => void tidyUp()}
+            className="min-h-11 rounded-full bg-lime px-4 py-2 text-sm font-black text-ink transition hover:brightness-95 disabled:opacity-40"
+          >
+            {tidying ? "Tidying…" : "✨ Tidy up my wording"}
+          </button>
+          <p className="mt-2 text-xs leading-5 text-paper/60">Fixes spelling and makes your items and description neat. You choose whether to use it.</p>
+          {tidyError && <p role="alert" className="mt-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">{tidyError}</p>}
+          {tidySuggestion && tidyChanges.length === 0 && (
+            <p role="status" className="mt-2 rounded-xl bg-white/10 p-3 text-sm text-paper">Your wording already looks tidy. Nothing to change.</p>
+          )}
+          {tidySuggestion && tidyChanges.length > 0 && (
+            <div role="region" aria-label="Suggested wording changes" className="mt-3 rounded-2xl bg-white p-4 text-ink">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange">Review before applying</p>
+              <ul className="mt-2 divide-y divide-ink/10">
+                {tidyChanges.map((change) => (
+                  <li key={change.key} className="py-3 text-sm">
+                    <p className="text-xs font-bold text-ink/50">{change.label}</p>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-ink/50 line-through decoration-ink/30">{change.before}</p>
+                    <p className="mt-1 whitespace-pre-wrap break-words font-semibold text-ink">{change.after}</p>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" onClick={applyTidy} className="min-h-11 rounded-2xl bg-ink px-4 py-2 text-sm font-black text-lime">Use these changes</button>
+                <button type="button" onClick={() => setTidySuggestion(null)} className="min-h-11 rounded-2xl border border-ink/15 px-4 py-2 text-sm font-bold text-ink">Keep mine</button>
+              </div>
+            </div>
+          )}
+        </div>
         <div className="mt-6 border-t border-white/15 pt-4 text-sm">
           <div className="flex justify-between py-1 text-paper/65"><span>Subtotal</span><span>{formatRand(subtotalCents)}</span></div>
           <div className="flex justify-between py-1 text-paper/65"><span>VAT</span><span>{vatRegistered ? formatRand(vatCents) : "Not applicable"}</span></div>
           <div className="flex justify-between py-1 text-lg font-black"><span>Total</span><span className="text-lime">{formatRand(totalCents)}</span></div>
         </div>
       </section>
+
+      <section className="mt-5 rounded-[2rem] bg-white p-5 shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5 sm:p-7">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-orange">Optional · Helps your client say yes</p>
+            <h2 className="mt-2 text-xl font-black tracking-tight">Describe the work</h2>
+            <p className="mt-1 text-xs leading-5 text-ink/55">Your client sees this as “{isInvoice ? "What you will get" : "What is included"}”.</p>
+          </div>
+          <span className="shrink-0 rounded-full bg-paper px-3 py-1.5 text-xs font-bold text-ink/55">Optional</span>
+        </div>
+        <label className="sr-only" htmlFor="work-description">What you&apos;ll do</label>
+        <textarea
+          id="work-description"
+          rows={4}
+          spellCheck
+          lang="en-ZA"
+          autoCapitalize="sentences"
+          className={input}
+          value={fields.description}
+          onChange={(event) => { setField("description", event.target.value); setDescSuggestion(null); }}
+          placeholder="e.g. Supply and install new light fittings in the kitchen. Remove the old ones and test everything."
+        />
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          <button type="button" className="min-h-10 rounded-full border border-ink/15 px-3 py-2 font-bold" onClick={() => appendDescription("Not included: extra repairs found once work starts.")}>+ What&apos;s not included</button>
+          <button type="button" className="min-h-10 rounded-full border border-ink/15 px-3 py-2 font-bold" onClick={() => appendDescription("Access: someone needs to be on site to let us in.")}>+ Access needed</button>
+          <button
+            type="button"
+            disabled={descTidying || !fields.description.trim()}
+            onClick={() => void tidyDescription()}
+            className="min-h-10 rounded-full bg-lime px-4 py-2 font-black text-ink transition hover:brightness-95 disabled:opacity-40"
+          >
+            {descTidying ? "Tidying…" : "✨ Tidy this"}
+          </button>
+        </div>
+        {descTidyError && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{descTidyError}</p>}
+        {descSuggestion !== null && descSuggestion.trim() === fields.description.trim() && (
+          <p role="status" className="mt-3 rounded-xl bg-paper p-3 text-sm text-ink/70">Your description already looks tidy. Nothing to change.</p>
+        )}
+        {descSuggestion !== null && descSuggestion.trim() !== fields.description.trim() && (
+          <div role="region" aria-label="Suggested description" className="mt-3 rounded-2xl border border-ink/10 bg-paper/60 p-4">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange">Review before applying</p>
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm text-ink/50 line-through decoration-ink/30">{fields.description}</p>
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm font-semibold text-ink">{descSuggestion}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={applyDescriptionTidy} className="min-h-11 rounded-2xl bg-ink px-4 py-2 text-sm font-black text-lime">Use this</button>
+              <button type="button" onClick={() => setDescSuggestion(null)} className="min-h-11 rounded-2xl border border-ink/15 px-4 py-2 text-sm font-bold text-ink">Keep mine</button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {activeTip && (
+        <aside role="note" aria-label="Tip" className="mt-5 rounded-[1.5rem] border border-lime/60 bg-lime/15 p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange">Tip</p>
+          <p className="mt-1 text-sm leading-5 text-ink">{activeTip.message}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {activeTip.actionLabel && activeTip.onAction && (
+              <button type="button" onClick={activeTip.onAction} className="min-h-10 rounded-full bg-ink px-4 py-2 text-xs font-black text-lime">
+                {activeTip.actionLabel}
+              </button>
+            )}
+            <button type="button" onClick={() => dismissTip(activeTip.id, false)} className="min-h-10 rounded-full border border-ink/15 px-3 py-2 text-xs font-bold text-ink">
+              Not now
+            </button>
+            <button type="button" onClick={() => dismissTip(activeTip.id, true)} className="min-h-10 px-2 text-xs font-semibold text-ink/55 underline underline-offset-2">
+              Don&apos;t show again
+            </button>
+          </div>
+        </aside>
+      )}
 
       <details className="group mt-5 overflow-hidden rounded-[2rem] bg-white shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5">
         <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange sm:px-7">
@@ -305,11 +593,11 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
           <section>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-orange">Job details</p>
             <label className={label} htmlFor="job-title">Job or project name</label>
-            <input id="job-title" className={input} placeholder="e.g. Kitchen cupboards" value={fields.title} onChange={(event) => setField("title", event.target.value)} />
+            <input id="job-title" spellCheck lang="en-ZA" autoCapitalize="sentences" className={input} placeholder="e.g. Kitchen cupboards" value={fields.title} onChange={(event) => setField("title", event.target.value)} />
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div>
                 <label className={label} htmlFor="job-location">Location</label>
-                <input id="job-location" className={input} placeholder="Where is the work happening?" value={fields.location} onChange={(event) => setField("location", event.target.value)} />
+                <input id="job-location" spellCheck lang="en-ZA" autoCapitalize="words" className={input} placeholder="Where is the work happening?" value={fields.location} onChange={(event) => setField("location", event.target.value)} />
               </div>
               <div>
                 <label className={label} htmlFor="job-date">Job date</label>
@@ -320,12 +608,6 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
               <input type="checkbox" checked={fields.jobDateTbd} onChange={(event) => setField("jobDateTbd", event.target.checked)} />
               Date to be agreed
             </label>
-            <label className={label} htmlFor="work-description">What you&apos;ll do</label>
-            <textarea id="work-description" rows={3} className={input} value={fields.description} onChange={(event) => setField("description", event.target.value)} placeholder="Describe the work, if you’d like to add more detail." />
-            <div className="mt-3 flex flex-wrap gap-2 text-xs">
-              <button type="button" className="min-h-10 rounded-full border border-ink/15 px-3 py-2 font-bold" onClick={() => appendDescription("Not included: extra repairs found once work starts.")}>+ What&apos;s not included</button>
-              <button type="button" className="min-h-10 rounded-full border border-ink/15 px-3 py-2 font-bold" onClick={() => appendDescription("Access: someone needs to be on site to let us in.")}>+ Access needed</button>
-            </div>
             <label className="mt-4 flex min-h-10 items-center gap-2 text-sm text-ink/70">
               <input type="checkbox" checked={fields.laborOnly} onChange={(event) => setField("laborOnly", event.target.checked)} />
               Labour only
@@ -370,7 +652,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
               </>
             )}
             <label className={label} htmlFor="personal-note">Personal note</label>
-            <textarea id="personal-note" rows={3} className={input} value={fields.note} onChange={(event) => setField("note", event.target.value)} placeholder={isInvoice ? "Optional: add a thank-you or payment reminder." : "Optional: add a warm note for your client."} />
+            <textarea id="personal-note" rows={3} spellCheck lang="en-ZA" autoCapitalize="sentences" className={input} value={fields.note} onChange={(event) => setField("note", event.target.value)} placeholder={isInvoice ? "Optional: add a thank-you or payment reminder." : "Optional: add a warm note for your client."} />
             <div className="mt-3 flex flex-wrap gap-2">
               <label className="sr-only" htmlFor="note-tone">Personal note tone</label>
               <select
@@ -418,10 +700,10 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
               {isInvoice ? "Invoice total" : "Quote total"}
               <span className="block truncate text-lg font-black text-ink">{formatRand(totalCents)}</span>
             </div>
-            <button type="button" disabled={pending || draftingNote !== null || voiceBusy || !canSubmit} onClick={() => submit(false)} className="ml-auto min-h-11 rounded-2xl border-2 border-ink px-3 py-3 text-xs font-black text-ink disabled:opacity-40 sm:px-4 sm:text-sm">
+            <button type="button" disabled={pending || draftingNote !== null || voiceBusy || tidying || descTidying || !canSubmit} onClick={() => submit(false)} className="ml-auto min-h-11 rounded-2xl border-2 border-ink px-3 py-3 text-xs font-black text-ink disabled:opacity-40 sm:px-4 sm:text-sm">
               {documentId ? "Save changes" : "Save draft"}
             </button>
-            <button type="button" disabled={pending || draftingNote !== null || voiceBusy || !canSubmit} onClick={() => submit(true)} className="min-h-11 rounded-2xl bg-orange px-4 py-3 text-xs font-black text-white shadow-lg shadow-orange/20 disabled:opacity-40 sm:px-5 sm:text-sm">
+            <button type="button" disabled={pending || draftingNote !== null || voiceBusy || tidying || descTidying || !canSubmit} onClick={() => submit(true)} className="min-h-11 rounded-2xl bg-orange px-4 py-3 text-xs font-black text-white shadow-lg shadow-orange/20 disabled:opacity-40 sm:px-5 sm:text-sm">
               {pending ? "Saving..." : isInvoice ? "Send invoice" : documentId ? "Save & send" : "Create & send"}
             </button>
           </div>

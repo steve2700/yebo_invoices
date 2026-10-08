@@ -7,8 +7,48 @@ import { readableOn } from "./color";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Pub = { document: any; lines: any[]; business: any; client: any };
 
-// Standard PDF fonts only support Latin-1, so replace anything else
-const clean = (s: unknown) => String(s ?? "").replace(/\r/g, "").replace(/[^\n\x20-\x7E\xA0-\xFF]/g, "?");
+// Standard PDF fonts only support Latin-1. Instead of turning every other character into "?",
+// swap common typographic characters (curly quotes, dashes, ellipsis) for plain equivalents,
+// strip accents where possible and drop emoji.
+const CHAR_MAP: Record<string, string> = {
+  "\u2018": "'",
+  "\u2019": "'",
+  "\u201A": ",",
+  "\u201B": "'",
+  "\u201C": '"',
+  "\u201D": '"',
+  "\u201E": '"',
+  "\u2010": "-",
+  "\u2011": "-",
+  "\u2012": "-",
+  "\u2013": "-",
+  "\u2014": "-",
+  "\u2015": "-",
+  "\u2026": "...",
+  "\u2022": "-",
+  "\u00A0": " ",
+  "\u2009": " ",
+  "\u202F": " ",
+  "\u20AC": "EUR",
+};
+
+function toLatin1(ch: string): string {
+  if (ch === "\n") return ch;
+  const code = ch.codePointAt(0) ?? 0;
+  if (code < 0x20 || code === 0x7f) return " ";
+  if ((code >= 0x20 && code <= 0x7e) || (code >= 0xa1 && code <= 0xff)) return ch;
+  if (CHAR_MAP[ch] !== undefined) return CHAR_MAP[ch];
+  // Emoji, symbols, variation selectors and joiners: drop them.
+  if (code >= 0x1f000 || (code >= 0x2600 && code <= 0x27bf) || code === 0xfe0f || code === 0x200d || code === 0x200b) return "";
+  // Letters with accents outside Latin-1: keep the base letter.
+  const base = ch.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (base !== ch && /^[\x20-\x7E]+$/.test(base)) return base;
+  return "?";
+}
+
+const clean = (s: unknown) =>
+  Array.from(String(s ?? "").replace(/\r/g, "").normalize("NFC")).map(toLatin1).join("");
+
 const hex = (h: string) => {
   const m = /^#?([0-9a-f]{6})$/i.exec(h ?? "");
   const n = m ? parseInt(m[1], 16) : 0x0f8a5f;
@@ -146,13 +186,13 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
   }
 
   if (d.description) {
-    heading("Scope of work");
+    heading("What is included");
     paragraph(String(d.description), 9.5, font, ink, summaryWidth, 13);
     y -= 7;
   }
   if (d.labour_only) {
     need(22);
-    put("Labour only — materials are not included.", M, 9, bold, mute);
+    put("Labour only - materials are not included.", M, 9, bold, mute);
     y -= 20;
   }
   if (d.note) {
@@ -313,7 +353,7 @@ export async function buildDocumentPdf({ document: d, lines, business: b, client
   y = Math.min(ly, ry) - 12;
 
   if (d.note) { para(d.note, 10, font, ink); y -= 6; }
-  if (d.description) { need(30); put("Scope of work", M, 8.5, font, mute); y -= 14; para(d.description); y -= 6; }
+  if (d.description) { need(30); put("What you will get", M, 8.5, font, mute); y -= 14; para(d.description); y -= 6; }
   if (d.labour_only) { para("No materials are required for this job.", 10, bold, ink); y -= 6; }
 
   // ---- items ----
