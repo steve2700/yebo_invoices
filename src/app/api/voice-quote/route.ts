@@ -1,16 +1,16 @@
-import { generateText, gateway, Output, transcribe } from "ai";
+import { groq } from "@ai-sdk/groq";
+import { generateText, Output } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { aiSetupHint } from "@/lib/ai-hint";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 const MAX_REQUEST_BYTES = MAX_AUDIO_BYTES + 256 * 1024;
-const TRANSCRIPTION_MODEL = "google/gemini-3.5-transcribe";
-const QUOTE_MODEL = "google/gemini-3.8-flash";
+const QUOTE_MODEL = groq("llama-3.3-70b-versatile");
+
 const AUDIO_MIME_TYPES = new Set([
   "audio/aac",
   "audio/amr",
@@ -87,16 +87,31 @@ export async function POST(request: Request) {
 
   let transcript: string;
   try {
-    const transcription = await transcribe({
-      model: gateway.transcriptionModel(TRANSCRIPTION_MODEL),
-      audio: new Uint8Array(await audioFile.arrayBuffer()),
-      maxRetries: 1,
+    // Groq transcription call using Whisper Large v3 Turbo (Free)
+    const groqFormData = new FormData();
+    groqFormData.append("file", audioFile);
+    groqFormData.append("model", "whisper-large-v3-turbo");
+
+    const groqRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: groqFormData,
     });
-    transcript = transcription.text.trim().slice(0, 5_000);
+
+    if (!groqRes.ok) {
+      const errText = await groqRes.text();
+      throw new Error(`Groq transcription failed: ${errText}`);
+    }
+
+    const data = await groqRes.json();
+    transcript = (data.text || "").trim().slice(0, 5_000);
   } catch (error) {
     console.error("[voice-quote] transcription failed:", error);
-    return errorResponse(aiSetupHint() ?? "We couldn’t transcribe that voice note. Try a clearer recording or upload another audio format.", 502);
+    return errorResponse("We couldn’t transcribe that voice note. Try a clearer recording or upload another audio format.", 500);
   }
+
   if (!transcript) return errorResponse("We couldn’t hear clear speech. Try a quieter recording.", 422);
 
   try {
@@ -113,7 +128,8 @@ export async function POST(request: Request) {
         "Do not include VAT, payment terms, or totals unless explicitly spoken as line items. Do not save, send, or submit anything.",
       ].join(" "),
       prompt: `Extract an editable quote draft from this transcript. Transcript: ${JSON.stringify(transcript)}`,
-      maxOutputTokens: 1_000,
+      maxTokens: 1_000,
+      temperature: 0,
     });
 
     if (!output || output.items.length === 0) {
@@ -121,8 +137,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ transcript, draft: output });
-  } catch (error) {
+  } catch (error: any) {
     console.error("[voice-quote] draft failed:", error);
-    return errorResponse(aiSetupHint() ?? "The quote draft could not be built right now. Please try again.", 502);
+    return errorResponse("The quote draft could not be built right now. Please try again.", 500);
   }
 }

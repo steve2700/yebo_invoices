@@ -1,3 +1,4 @@
+import { groq } from "@ai-sdk/groq";
 import { generateText } from "ai";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -5,9 +6,10 @@ import { formatDate } from "@/lib/dates";
 import { formatRand } from "@/lib/money";
 import { greetingName } from "@/lib/names";
 import { appUrl } from "@/lib/url";
-import { aiSetupHint } from "@/lib/ai-hint";
 
-const MODEL = "google/gemini-3.8-flash";
+export const maxDuration = 30;
+
+const MODEL = groq("llama-3.1-8b-instant");
 const MAX_BODY_LENGTH = 12_000;
 const MESSAGE_TONES = ["friendly", "professional", "short"] as const;
 type MessageTone = (typeof MESSAGE_TONES)[number];
@@ -36,7 +38,8 @@ async function generateBody(system: string, prompt: string) {
     model: MODEL,
     system,
     prompt,
-    maxOutputTokens: 120,
+    maxTokens: 120,
+    temperature: 0.5,
   });
   const text = cleanGeneratedText(result.text);
   if (!text || text.length > 600) throw new Error("Invalid generated message");
@@ -176,8 +179,11 @@ export async function POST(request: Request) {
     if (input.kind === "intro") return await draftDocumentIntro(supabase, input);
     if (input.kind === "reminder") return await draftPaymentReminder(supabase, input);
     return errorResponse("Choose a valid message type.", 400);
-  } catch (error) {
+  } catch (error: any) {
     console.error("[ai-message] drafting failed:", error);
-    return errorResponse(aiSetupHint() ?? "AI drafting is temporarily unavailable. Please try again or use the standard message.", 502);
+    return errorResponse(
+      error?.message || "AI drafting is temporarily unavailable. Please try again or use the standard message.",
+      500
+    );
   }
 }
