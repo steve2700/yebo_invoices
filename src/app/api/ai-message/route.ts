@@ -9,7 +9,7 @@ import { appUrl } from "@/lib/url";
 
 export const maxDuration = 30;
 
-const MODEL = groq("llama-3.1-8b-instant");
+const MODEL = groq("openai/gpt-oss-20b");
 const MAX_BODY_LENGTH = 12_000;
 const MESSAGE_TONES = ["friendly", "professional", "short"] as const;
 type MessageTone = (typeof MESSAGE_TONES)[number];
@@ -38,8 +38,13 @@ async function generateBody(system: string, prompt: string) {
     model: MODEL,
     system,
     prompt,
-    maxOutputTokens: 120,
+    // gpt-oss is a reasoning model: reasoning tokens count against this limit,
+    // so it needs headroom. The 600-character check below still caps the message.
+    maxOutputTokens: 1024,
     temperature: 0.5,
+    providerOptions: {
+      groq: { reasoningEffort: "low" },
+    },
   });
   const text = cleanGeneratedText(result.text);
   if (!text || text.length > 600) throw new Error("Invalid generated message");
@@ -179,11 +184,12 @@ export async function POST(request: Request) {
     if (input.kind === "intro") return await draftDocumentIntro(supabase, input);
     if (input.kind === "reminder") return await draftPaymentReminder(supabase, input);
     return errorResponse("Choose a valid message type.", 400);
-  } catch (error: any) {
+  } catch (error) {
+    // Log the real error server-side; never show provider errors to the user.
     console.error("[ai-message] drafting failed:", error);
     return errorResponse(
-      error?.message || "AI drafting is temporarily unavailable. Please try again or use the standard message.",
-      500
+      "AI drafting is temporarily unavailable. Please try again or use the standard message.",
+      500,
     );
   }
 }
