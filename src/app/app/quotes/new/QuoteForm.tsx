@@ -216,7 +216,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         </div>
       </header>
 
-      {!isInvoice && !documentId && <VoiceQuoteAssistant onApply={applyVoiceDraft} onBusyChange={setVoiceBusy} />}
+      {!documentId && <VoiceQuoteAssistant docType={docType} onApply={applyVoiceDraft} onBusyChange={setVoiceBusy} />}
 
       <section className="rounded-[2rem] bg-white p-5 shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5 sm:p-7">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-orange">01 · Start here</p>

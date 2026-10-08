@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { formatRand } from "@/lib/money";
 
 export type VoiceQuoteDraft = {
+  documentType?: "quote" | "invoice" | null;
   clientName: string | null;
   title: string | null;
   location: string | null;
@@ -20,6 +21,7 @@ type Status = "idle" | "requesting" | "recording" | "processing";
 type Props = {
   onApply: (draft: VoiceQuoteDraft) => void;
   onBusyChange: (busy: boolean) => void;
+  docType?: "quote" | "invoice";
 };
 
 const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
@@ -40,7 +42,11 @@ function isVoiceQuoteDraft(value: unknown): value is VoiceQuoteDraft {
   }) && (candidate.clientName === null || typeof candidate.clientName === "string")
     && (candidate.title === null || typeof candidate.title === "string")
     && (candidate.location === null || typeof candidate.location === "string")
-    && (candidate.description === null || typeof candidate.description === "string");
+    && (candidate.description === null || typeof candidate.description === "string")
+    && (candidate.documentType === undefined
+      || candidate.documentType === null
+      || candidate.documentType === "quote"
+      || candidate.documentType === "invoice");
 }
 
 function formatDuration(seconds: number) {
@@ -56,7 +62,9 @@ function fileExtension(mediaType: string) {
   return "webm";
 }
 
-export default function VoiceQuoteAssistant({ onApply, onBusyChange }: Props) {
+export default function VoiceQuoteAssistant({ onApply, onBusyChange, docType = "quote" }: Props) {
+  const noun = docType === "invoice" ? "invoice" : "quote";
+  const Noun = docType === "invoice" ? "Invoice" : "Quote";
   const [status, setStatus] = useState<Status>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [transcript, setTranscript] = useState("");
@@ -116,7 +124,7 @@ export default function VoiceQuoteAssistant({ onApply, onBusyChange }: Props) {
         draft?: unknown;
       } | null;
       if (!response.ok) {
-        throw new Error(typeof result?.error === "string" ? result.error : "Could not turn that voice note into a quote.");
+        throw new Error(typeof result?.error === "string" ? result.error : `Could not turn that voice note into ${noun === "invoice" ? "an" : "a"} ${noun}.`);
       }
       if (!result || typeof result.transcript !== "string" || !isVoiceQuoteDraft(result.draft)) {
         throw new Error("The voice note could not be understood. Try saying the client, work, quantity and price clearly.");
@@ -204,6 +212,7 @@ export default function VoiceQuoteAssistant({ onApply, onBusyChange }: Props) {
   }
 
   const busy = status !== "idle";
+  const spokenTypeMismatch = draft?.documentType && draft.documentType !== docType ? draft.documentType : null;
 
   return (
     <section aria-labelledby="voice-quote-title" className="mb-5 rounded-[2rem] border border-lime/60 bg-lime/10 p-5 ring-1 ring-ink/5 sm:p-6">
@@ -216,7 +225,7 @@ export default function VoiceQuoteAssistant({ onApply, onBusyChange }: Props) {
         </div>
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-orange">Quick start · Voice assistant</p>
-          <h2 id="voice-quote-title" className="mt-1 text-lg font-black tracking-tight text-ink">Speak your quote</h2>
+          <h2 id="voice-quote-title" className="mt-1 text-lg font-black tracking-tight text-ink">Speak your {noun}</h2>
           <p className="mt-1 text-sm leading-5 text-ink/65">Say the client, the work, quantities and prices. We&apos;ll turn it into an editable draft.</p>
         </div>
       </div>
@@ -260,7 +269,7 @@ export default function VoiceQuoteAssistant({ onApply, onBusyChange }: Props) {
 
       {status === "requesting" && <p role="status" aria-live="polite" className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-sm font-semibold text-ink">Waiting for microphone permission…</p>}
       {status === "recording" && <p role="status" aria-live="polite" className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-sm font-semibold text-ink">Recording · {formatDuration(elapsed)}. Tap stop when you&apos;re done.</p>}
-      {status === "processing" && <p role="status" aria-live="polite" className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-sm font-semibold text-ink">Transcribing audio and building your quote draft…</p>}
+      {status === "processing" && <p role="status" aria-live="polite" className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-sm font-semibold text-ink">Transcribing audio and building your {noun} draft…</p>}
       {error && <p role="alert" className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {draft && (
@@ -268,10 +277,16 @@ export default function VoiceQuoteAssistant({ onApply, onBusyChange }: Props) {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange">Review before applying</p>
-              <h3 className="mt-1 font-black text-ink">Quote draft detected</h3>
+              <h3 className="mt-1 font-black text-ink">{Noun} draft detected</h3>
             </div>
             <span className="rounded-full bg-lime/50 px-3 py-1.5 text-xs font-bold text-ink">{draft.items.length} {draft.items.length === 1 ? "item" : "items"}</span>
           </div>
+
+          {spokenTypeMismatch && (
+            <p role="note" className="mt-3 rounded-xl bg-orange/10 px-3 py-2 text-xs font-semibold text-ink/80">
+              You said &ldquo;{spokenTypeMismatch}&rdquo;, but you&apos;re creating {noun === "invoice" ? "an" : "a"} {noun}. It will be saved as {noun === "invoice" ? "an" : "a"} {noun}.
+            </p>
+          )}
 
           <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
             {draft.clientName && <div><dt className="text-xs font-bold text-ink/50">Client</dt><dd className="font-semibold text-ink">{draft.clientName}</dd></div>}
