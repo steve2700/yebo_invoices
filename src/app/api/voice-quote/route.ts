@@ -114,7 +114,6 @@ export async function POST(request: Request) {
       ].join(" "),
       prompt: `Extract an editable quote draft from this transcript. Transcript: ${JSON.stringify(transcript)}`,
       maxOutputTokens: 1_000,
-      temperature: 0,
     });
 
     if (!output || output.items.length === 0) {

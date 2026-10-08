@@ -37,7 +37,6 @@ async function generateBody(system: string, prompt: string) {
     system,
     prompt,
     maxOutputTokens: 120,
-    temperature: 0.5,
   });
   const text = cleanGeneratedText(result.text);
   if (!text || text.length > 600) throw new Error("Invalid generated message");
