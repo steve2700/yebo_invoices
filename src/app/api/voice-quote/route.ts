@@ -87,7 +87,6 @@ export async function POST(request: Request) {
 
   let transcript: string;
   try {
-    // Groq transcription call using Whisper Large v3 Turbo (Free)
     const groqFormData = new FormData();
     groqFormData.append("file", audioFile);
     groqFormData.append("model", "whisper-large-v3-turbo");
@@ -128,7 +127,7 @@ export async function POST(request: Request) {
         "Do not include VAT, payment terms, or totals unless explicitly spoken as line items. Do not save, send, or submit anything.",
       ].join(" "),
       prompt: `Extract an editable quote draft from this transcript. Transcript: ${JSON.stringify(transcript)}`,
-      maxTokens: 1_000,
+      maxOutputTokens: 1_000,
       temperature: 0,
     });
 

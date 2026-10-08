@@ -38,7 +38,7 @@ async function generateBody(system: string, prompt: string) {
     model: MODEL,
     system,
     prompt,
-    maxTokens: 120,
+    maxOutputTokens: 120,
     temperature: 0.5,
   });
   const text = cleanGeneratedText(result.text);
