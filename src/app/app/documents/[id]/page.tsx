@@ -13,7 +13,7 @@ import ConfirmForm from "../ConfirmForm";
 export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const sb = await createClient();
-  const { data: d } = await sb.from("documents").select("*,clients(name,whatsapp_number)").eq("id", id).single();
+  const { data: d } = await sb.from("documents").select("*,clients(name,email,whatsapp_number)").eq("id", id).single();
   if (!d) notFound();
   const [{ data: biz }, { data: events }, { data: payments }] = await Promise.all([
     sb.from("businesses").select("name").single(),
@@ -29,6 +29,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const amountPaid = (payments ?? []).reduce((total, payment) => total + Number(payment.amount_cents), 0);
   const balanceDue = Math.max(Number(d.total_cents) - amountPaid, 0);
   const canSendPaymentReminder = d.type === "invoice" && d.status !== "draft" && d.status !== "paid" && balanceDue > 0;
+  const canSendQuoteFollowup = d.type === "quote" && (d.status === "sent" || d.status === "viewed");
   const reminderMsg = [
     `Hi ${greetingName(client?.name)},`,
     `A friendly reminder from ${biz?.name ?? "our team"} that invoice ${d.number} has an outstanding balance of ${formatRand(balanceDue)}.`,
@@ -37,6 +38,11 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     "If you have already paid, thank you. Please disregard this reminder.",
     `View invoice: ${link}`,
   ].filter(Boolean).join("\n\n");
+  const quoteFollowupMsg = [
+    `Hi ${greetingName(client?.name)},`,
+    `Just checking in on quote ${d.number} from ${biz?.name ?? "our team"} for ${formatRand(d.total_cents)}. Let us know if you have any questions or would like anything changed.`,
+    `View quote: ${link}`,
+  ].join("\n\n");
 
   const btn = "rounded-xl px-4 py-2 font-bold";
   return (
@@ -66,15 +72,24 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           <form action={convertToInvoice}><input type="hidden" name="id" value={d.id} />
             <button className={`${btn} bg-neutral-900 text-white`}>Create invoice from this quote</button></form>
         )}
-        {canSendPaymentReminder && (
-          <div>
-            <AiMessageComposer
-              mode="reminder"
-              documentId={d.id}
-              whatsappNumber={client?.whatsapp_number ?? null}
-              fallbackMessage={reminderMsg}
-              balanceLabel={formatRand(balanceDue)}
-            />
+        {(canSendPaymentReminder || canSendQuoteFollowup) && (
+          <div id="remind" className="scroll-mt-24">
+            {canSendPaymentReminder ? (
+              <AiMessageComposer
+                mode="reminder"
+                documentId={d.id}
+                whatsappNumber={client?.whatsapp_number ?? null}
+                fallbackMessage={reminderMsg}
+                balanceLabel={formatRand(balanceDue)}
+              />
+            ) : (
+              <AiMessageComposer
+                mode="quote_followup"
+                documentId={d.id}
+                whatsappNumber={client?.whatsapp_number ?? null}
+                fallbackMessage={quoteFollowupMsg}
+              />
+            )}
           </div>
         )}
         {d.type === "invoice" && d.status !== "paid" && d.status !== "draft" && (

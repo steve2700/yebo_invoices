@@ -13,12 +13,24 @@ type DocumentRow = {
   clients: { name: string } | { name: string }[] | null;
 };
 
+// One row from the followups_due() database function (see 0002_followups.sql).
+type Followup = {
+  document_id: string;
+  kind: "quote_followup" | "invoice_due_soon" | "invoice_overdue";
+  days_waiting: number;
+  reminders_sent: number;
+};
+
 const OPEN_STATUSES = ["sent", "viewed", "partially_paid"];
 const SOUTH_AFRICA_TIMEZONE = "Africa/Johannesburg";
 
 function clientName(document: DocumentRow) {
   const client = Array.isArray(document.clients) ? document.clients[0] : document.clients;
   return client?.name ?? "Client";
+}
+
+function dayCount(days: number) {
+  return `${days} day${days === 1 ? "" : "s"}`;
 }
 
 export default async function Dashboard() {
@@ -52,7 +64,7 @@ export default async function Dashboard() {
     month: "long",
     year: "numeric",
   }).format(now);
-  const [{ data: documentData }, { data: conversionData }, { data: monthPayments }] = await Promise.all([
+  const [{ data: documentData }, { data: conversionData }, { data: monthPayments }, { data: followupData, error: followupError }] = await Promise.all([
     supabase
       .from("documents")
       .select("id,type,number,status,total_cents,due_date,clients(name)")
@@ -64,7 +76,15 @@ export default async function Dashboard() {
       .select("amount_cents")
       .gte("paid_at", monthStart.toISOString())
       .lt("paid_at", nextMonthStart.toISOString()),
+    supabase.rpc("followups_due"),
   ]);
+
+  // If the 0002 migration has not been run yet, followups_due() errors. In that case we fall back
+  // to offering a reminder on every overdue invoice instead of hiding the buttons.
+  const followupsAvailable = !followupError;
+  const followups = new Map<string, Followup>(
+    followupsAvailable ? ((followupData ?? []) as Followup[]).map((followup) => [followup.document_id, followup]) : [],
+  );
 
   const documents = (documentData ?? []) as unknown as DocumentRow[];
   const convertedQuoteIds = new Set((conversionData ?? []).map((document) => document.source_quote_id));
@@ -107,6 +127,11 @@ export default async function Dashboard() {
   const actionItems: DashboardActionItem[] = [
     ...openInvoices.map((document): DashboardActionItem => {
       const overdue = !!document.due_date && document.due_date < today;
+      const followup = followups.get(document.id);
+      const dueText = document.due_date ? `Due ${formatDate(document.due_date)}` : "No due date set";
+      const detail = followup?.kind === "invoice_overdue" && followup.days_waiting > 0
+        ? `${dueText} · ${dayCount(followup.days_waiting)} overdue`
+        : dueText;
       return {
         id: document.id,
         type: "invoice",
@@ -114,9 +139,11 @@ export default async function Dashboard() {
         clientName: clientName(document),
         amountCents: balanceDue(document),
         dueDate: document.due_date,
-        detail: document.due_date ? `Due ${formatDate(document.due_date)}` : "No due date set",
+        detail,
         badge: overdue ? "Overdue" : "Payment due",
         kind: overdue ? "overdue" : "invoice",
+        // Offer a reminder only when one is due (not nudged in the last 3 days, fewer than 3 sent).
+        canRemind: followupsAvailable ? followups.has(document.id) : overdue,
       };
     }),
     ...readyQuotes.map((document): DashboardActionItem => ({
@@ -129,18 +156,26 @@ export default async function Dashboard() {
       detail: "Your client accepted this quote",
       badge: "Ready to invoice",
       kind: "ready",
+      canRemind: false,
     })),
-    ...waitingQuotes.map((document): DashboardActionItem => ({
-      id: document.id,
-      type: "quote",
-      number: document.number,
-      clientName: clientName(document),
-      amountCents: Number(document.total_cents),
-      dueDate: null,
-      detail: document.status === "viewed" ? "Seen by your client" : "Shared with your client",
-      badge: "Awaiting reply",
-      kind: "waiting",
-    })),
+    ...waitingQuotes.map((document): DashboardActionItem => {
+      const followup = followups.get(document.id);
+      const seen = document.status === "viewed" ? "Seen by your client" : "Shared with your client";
+      return {
+        id: document.id,
+        type: "quote",
+        number: document.number,
+        clientName: clientName(document),
+        amountCents: Number(document.total_cents),
+        dueDate: null,
+        detail: followup && followup.days_waiting > 0 ? `${seen} · no reply after ${dayCount(followup.days_waiting)}` : seen,
+        badge: "Awaiting reply",
+        kind: "waiting",
+        // Shown when followups_due() says this quote has waited 3+ days with no recent nudge.
+        // The quote page renders the follow-up composer under the same #remind anchor.
+        canRemind: followup?.kind === "quote_followup",
+      };
+    }),
   ].sort((first, second) => {
     const priority = { overdue: 0, ready: 1, invoice: 2, waiting: 3 };
     const priorityDifference = priority[first.kind] - priority[second.kind];

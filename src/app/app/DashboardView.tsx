@@ -12,6 +12,8 @@ export type DashboardActionItem = {
   detail: string;
   badge: string;
   kind: "overdue" | "invoice" | "ready" | "waiting";
+  // True when a reminder is due today (it has not been nudged in the last few days).
+  canRemind: boolean;
 };
 
 type DashboardViewProps = {
@@ -102,6 +104,12 @@ function MetricCard({
 function AttentionRow({ item }: { item: DashboardActionItem }) {
   const style = actionStyle[item.kind];
   const documentLabel = item.type === "invoice" ? "invoice" : "quote";
+  const remindLabel =
+    item.type === "quote"
+      ? "Follow up on this quote"
+      : item.kind === "overdue"
+        ? "Send payment reminder"
+        : "Send a friendly heads-up";
 
   return (
     <li>
@@ -128,6 +136,17 @@ function AttentionRow({ item }: { item: DashboardActionItem }) {
         </span>
         <span className="hidden sm:block"><ArrowIcon /></span>
       </Link>
+      {item.canRemind && (
+        <div className="mt-1.5 flex justify-end pr-1">
+          <Link
+            href={`/app/documents/${item.id}#remind`}
+            aria-label={`${remindLabel} for ${documentLabel} ${item.number} to ${item.clientName}`}
+            className="inline-flex min-h-10 items-center rounded-full bg-orange/10 px-3.5 text-xs font-extrabold text-orange transition hover:bg-orange/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange"
+          >
+            {remindLabel} <span className="ml-1" aria-hidden="true">→</span>
+          </Link>
+        </div>
+      )}
     </li>
   );
 }

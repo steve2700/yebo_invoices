@@ -2,8 +2,9 @@
 
 import { useRef, useState } from "react";
 import { waLink } from "@/lib/dates";
+import { recordReminderSent } from "./actions";
 
-type MessageMode = "intro" | "reminder";
+type MessageMode = "intro" | "reminder" | "quote_followup";
 type Props = {
   mode: MessageMode;
   documentId: string;
@@ -12,14 +13,35 @@ type Props = {
   balanceLabel?: string;
 };
 
+const COPY: Record<MessageMode, { title: string; button: string; standard: string; aria: string }> = {
+  intro: {
+    title: "Document introduction",
+    button: "Draft intro with AI",
+    standard: "Send standard message",
+    aria: "Draft a document introduction with AI",
+  },
+  reminder: {
+    title: "Payment reminder",
+    button: "Draft reminder with AI",
+    standard: "Send standard reminder",
+    aria: "Draft a payment reminder with AI",
+  },
+  quote_followup: {
+    title: "Quote follow-up",
+    button: "Draft follow-up with AI",
+    standard: "Send standard follow-up",
+    aria: "Draft a quote follow-up with AI",
+  },
+};
+
 export default function AiMessageComposer({ mode, documentId, whatsappNumber, fallbackMessage, balanceLabel }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
-  const isReminder = mode === "reminder";
-  const title = isReminder ? "Payment reminder" : "Document introduction";
+  const copy = COPY[mode];
+  const isIntro = mode === "intro";
 
   async function draftMessage() {
     setPending(true);
@@ -45,6 +67,15 @@ export default function AiMessageComposer({ mode, documentId, whatsappNumber, fa
     }
   }
 
+  // Starts the 3 day wait. Intros are not reminders, so they are never recorded.
+  // This must not block the WhatsApp tab from opening, so it is fire and forget.
+  function recordSend() {
+    if (isIntro) return;
+    void recordReminderSent(documentId, mode).catch((recordError) => {
+      console.error("Could not record the reminder:", recordError);
+    });
+  }
+
   const whatsappUrl = waLink(whatsappNumber, message);
 
   return (
@@ -54,20 +85,21 @@ export default function AiMessageComposer({ mode, documentId, whatsappNumber, fa
           type="button"
           disabled={pending}
           aria-busy={pending}
-          aria-label={`Draft a ${isReminder ? "payment reminder" : "document introduction"} with AI`}
+          aria-label={copy.aria}
           onClick={() => void draftMessage()}
-          className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 ${isReminder ? "bg-lime text-ink" : "bg-yebo text-white"}`}
+          className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 ${isIntro ? "bg-yebo text-white" : "bg-lime text-ink"}`}
         >
-          <span>{pending ? "Drafting..." : `Draft ${isReminder ? "reminder" : "intro"} with AI`}</span>
+          <span>{pending ? "Drafting..." : copy.button}</span>
           {balanceLabel && <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold text-ink/70">{balanceLabel} due</span>}
         </button>
         <a
           href={waLink(whatsappNumber, fallbackMessage)}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={recordSend}
           className="inline-flex min-h-10 items-center rounded-xl border-2 border-neutral-300 px-4 py-2 text-sm font-bold text-ink transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2"
         >
-          {isReminder ? "Send standard reminder" : "Send standard message"}
+          {copy.standard}
         </a>
       </div>
       <p aria-live="polite" className="mt-1 px-1 text-xs text-neutral-500">
@@ -83,7 +115,7 @@ export default function AiMessageComposer({ mode, documentId, whatsappNumber, fa
         <div className="flex items-start justify-between gap-4 rounded-t-[2rem] bg-ink p-5 text-paper">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-lime">AI draft</p>
-            <h2 id={`draft-${mode}-title`} className="mt-1 text-xl font-black">Review your {title.toLowerCase()}</h2>
+            <h2 id={`draft-${mode}-title`} className="mt-1 text-xl font-black">Review your {copy.title.toLowerCase()}</h2>
           </div>
           <button
             type="button"
@@ -116,7 +148,10 @@ export default function AiMessageComposer({ mode, documentId, whatsappNumber, fa
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={() => dialogRef.current?.close()}
+              onClick={() => {
+                recordSend();
+                dialogRef.current?.close();
+              }}
               className="inline-flex min-h-11 items-center rounded-xl bg-yebo px-4 py-2 text-sm font-bold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2"
             >
               Open WhatsApp

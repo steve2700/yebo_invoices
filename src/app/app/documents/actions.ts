@@ -1,10 +1,26 @@
 "use server";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { addDays } from "@/lib/dates";
 import { greetingName } from "@/lib/names";
 import { buildDocumentPdf } from "@/lib/pdf";
 import { appUrl } from "@/lib/url";
+
+type Sb = Awaited<ReturnType<typeof createClient>>;
+
+// followups_due() in 0002_followups.sql counts one event type for invoices and quotes alike,
+// and the events insert policy only allows 'sent', 'reminder_sent', 'paid' (plus 'emailed' once
+// you apply the policy fix). Any other event name is rejected by row level security.
+const REMINDER_EVENT = "reminder_sent";
+
+// Event rows are history, so a failed insert should never block the main action.
+// It is logged instead of being swallowed silently, and the caller gets a boolean back.
+async function logEvent(sb: Sb, documentId: string, type: string) {
+  const { error } = await sb.from("events").insert({ document_id: documentId, type });
+  if (error) console.error(`Could not record "${type}" event for document ${documentId}:`, error.message);
+  return !error;
+}
 
 export async function emailDocument(fd: FormData) {
   const id = String(fd.get("id"));
@@ -35,15 +51,27 @@ export async function emailDocument(fd: FormData) {
       attachments: [{ filename: `${kind}-${doc.number}.pdf`, content: Buffer.from(pdf).toString("base64") }],
     }),
   });
-  if (response.ok) await sb.from("events").insert({ document_id: id, type: "emailed" });
+  if (response.ok) {
+    // followups_due() times quote follow-ups from the 'sent' event, so an emailed draft needs one.
+    if (doc.status === "draft") await logEvent(sb, id, "sent");
+    await logEvent(sb, id, "emailed");
+  } else console.error(`Resend rejected document ${id}:`, response.status, await response.text().catch(() => ""));
   redirect(`/app/documents/${id}`);
 }
 
 export async function sendDraft(fd: FormData) {
   const id = String(fd.get("id"));
   const sb = await createClient();
-  const { error } = await sb.from("documents").update({ status: "sent" }).eq("id", id).eq("status", "draft");
-  if (!error) await sb.from("events").insert({ document_id: id, type: "sent" });
+  // select() returns the rows that actually changed, so a double tap on an already sent
+  // document does not log a second "sent" event.
+  const { data: updated, error } = await sb
+    .from("documents")
+    .update({ status: "sent" })
+    .eq("id", id)
+    .eq("status", "draft")
+    .select("id");
+  if (error) console.error(`Could not mark document ${id} as sent:`, error.message);
+  else if (updated?.length) await logEvent(sb, id, "sent");
   redirect(`/app/documents/${id}`);
 }
 
@@ -54,11 +82,15 @@ export async function markPaid(fd: FormData) {
   const { data: doc } = await sb.from("documents").select("total_cents,type").eq("id", id).single();
   if (doc?.type === "invoice") {
     const { data: pays } = await sb.from("payments").select("amount_cents").eq("document_id", id);
-    const due = doc.total_cents - (pays ?? []).reduce((a, p) => a + p.amount_cents, 0);
+    const due = doc.total_cents - (pays ?? []).reduce((a, p) => a + Number(p.amount_cents), 0);
     if (due > 0) {
-      await sb.from("payments").insert({ document_id: id, amount_cents: due, method });
-      await sb.from("documents").update({ status: "paid" }).eq("id", id);
-      await sb.from("events").insert({ document_id: id, type: "paid" });
+      // The payment is the money record. If it fails we stop here and never flip the status,
+      // otherwise the invoice would show as paid with no payment behind it.
+      const { error: payError } = await sb.from("payments").insert({ document_id: id, amount_cents: due, method });
+      if (payError) throw new Error(`Could not record the payment: ${payError.message}`);
+      const { error: statusError } = await sb.from("documents").update({ status: "paid" }).eq("id", id);
+      if (statusError) throw new Error(`Payment saved but the status update failed: ${statusError.message}`);
+      await logEvent(sb, id, "paid");
     }
   }
   redirect(`/app/documents/${id}`);
@@ -80,8 +112,13 @@ export async function convertToInvoice(fd: FormData) {
     payment_terms: q.payment_terms, source_quote_id: q.id,
   }).select("id").single();
   if (error) throw error;
-  await sb.from("document_lines").insert((lines ?? []).map(({ id: _id, document_id: _d, ...l }) => ({ ...l, document_id: inv.id })));
-  await sb.from("events").insert({ document_id: inv.id, type: "sent" });
+  const { error: linesError } = await sb.from("document_lines").insert((lines ?? []).map(({ id: _id, document_id: _d, ...l }) => ({ ...l, document_id: inv.id })));
+  if (linesError) {
+    // Do not leave a sent invoice with no line items behind.
+    await sb.from("documents").delete().eq("id", inv.id);
+    throw new Error(`Could not copy the quote lines: ${linesError.message}`);
+  }
+  await logEvent(sb, inv.id, "sent");
   redirect(`/app/documents/${inv.id}`);
 }
 
@@ -111,7 +148,11 @@ export async function duplicateDocument(fd: FormData) {
     payment_plan: d.payment_plan, deposit_percent: d.deposit_percent, payment_terms: d.payment_terms, note: d.note,
   }).select("id").single();
   if (error) throw error;
-  await sb.from("document_lines").insert(rows.map((l) => ({ ...l, document_id: copy.id })));
+  const { error: linesError } = await sb.from("document_lines").insert(rows.map((l) => ({ ...l, document_id: copy.id })));
+  if (linesError) {
+    await sb.from("documents").delete().eq("id", copy.id).eq("status", "draft");
+    throw new Error(`Could not copy the lines: ${linesError.message}`);
+  }
   redirect(`/app/documents/${copy.id}/edit`);
 }
 
@@ -120,4 +161,41 @@ export async function deleteDraft(fd: FormData) {
   const sb = await createClient();
   await sb.from("documents").delete().eq("id", id).eq("status", "draft"); // sent documents can never be deleted
   redirect("/app/documents");
+}
+
+// Called by AiMessageComposer when the user taps "Open WhatsApp" or the standard message link.
+// This is the step that starts the 3 day wait before the dashboard offers another nudge.
+export async function recordReminderSent(
+  documentId: string,
+  kind: "reminder" | "quote_followup",
+): Promise<{ ok: boolean }> {
+  if (kind !== "reminder" && kind !== "quote_followup") return { ok: false };
+  const sb = await createClient();
+  const { data: doc } = await sb.from("documents").select("id,type,status").eq("id", documentId).maybeSingle();
+  if (!doc) return { ok: false };
+
+  const allowed =
+    kind === "reminder"
+      ? doc.type === "invoice" && ["sent", "viewed", "partially_paid"].includes(doc.status)
+      : doc.type === "quote" && ["sent", "viewed"].includes(doc.status);
+  if (!allowed) return { ok: false };
+
+  // Every reminder counts toward the 3 reminder cap in followups_due(), so ignore a repeat tap
+  // (for example the standard link and the AI dialog) within a minute of the last one.
+  const { data: last } = await sb
+    .from("events")
+    .select("created_at")
+    .eq("document_id", doc.id)
+    .eq("type", REMINDER_EVENT)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (last && Date.now() - new Date(last.created_at).getTime() < 60_000) return { ok: true };
+
+  const ok = await logEvent(sb, doc.id, REMINDER_EVENT);
+  if (ok) {
+    revalidatePath("/app");
+    revalidatePath(`/app/documents/${doc.id}`);
+  }
+  return { ok };
 }
