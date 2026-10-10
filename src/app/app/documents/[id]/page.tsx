@@ -10,17 +10,41 @@ import AiMessageComposer from "../AiMessageComposer";
 import { convertToInvoice, deleteDraft, duplicateDocument, emailDocument, markPaid, sendDraft } from "../actions";
 import ConfirmForm from "../ConfirmForm";
 
-export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
+const EVENT_LABELS: Record<string, string> = {
+  sent: "Sent to client",
+  emailed: "Emailed to client",
+  viewed: "Viewed by client",
+  accepted: "Accepted by client",
+  declined: "Declined by client",
+  reminder_sent: "Reminder sent",
+  paid: "Marked as paid",
+};
+
+export default async function DocumentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string }> }) {
   const { id } = await params;
+  const { notice } = await searchParams;
   const sb = await createClient();
   const { data: d } = await sb.from("documents").select("*,clients(name,email,whatsapp_number)").eq("id", id).single();
   if (!d) notFound();
   const [{ data: biz }, { data: events }, { data: payments }] = await Promise.all([
-    sb.from("businesses").select("name").single(),
+    sb.from("businesses").select("name,email").single(),
     sb.from("events").select("type,created_at").eq("document_id", id).order("created_at", { ascending: false }),
     sb.from("payments").select("amount_cents").eq("document_id", id),
   ]);
   const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
+
+  // Without a business email, client replies to our emails have nowhere to go.
+  const businessEmailMissing = !(typeof biz?.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(biz.email.trim()));
+  const notices: Record<string, { tone: "ok" | "error"; text: string }> = {
+    emailed: {
+      tone: "ok",
+      text: `Email sent${client?.email ? ` to ${client.email}` : ""}.${businessEmailMissing ? " Tip: add your business email in Settings so client replies reach you." : ""}`,
+    },
+    email_failed: { tone: "error", text: "We could not send the email. Please try again, or share the link on WhatsApp." },
+    email_missing: { tone: "error", text: "This client has no email address yet." },
+    payment_failed: { tone: "error", text: "We could not record that payment. Please try again." },
+  };
+  const banner = notice ? notices[notice] : undefined;
 
   const base = appUrl();
   const link = `${base}/d/${d.public_token}`;
@@ -29,7 +53,17 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const amountPaid = (payments ?? []).reduce((total, payment) => total + Number(payment.amount_cents), 0);
   const balanceDue = Math.max(Number(d.total_cents) - amountPaid, 0);
   const canSendPaymentReminder = d.type === "invoice" && d.status !== "draft" && d.status !== "paid" && balanceDue > 0;
-  const canSendQuoteFollowup = d.type === "quote" && (d.status === "sent" || d.status === "viewed");
+  const todayInSouthAfrica = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
+  const canSendQuoteFollowUp = d.type === "quote"
+    && (d.status === "sent" || d.status === "viewed")
+    && !(d.expiry_date && d.expiry_date < todayInSouthAfrica);
+  const followUpMsg = [
+    `Hi ${greetingName(client?.name)},`,
+    `Just checking in on quote ${d.number} for ${formatRand(d.total_cents)} from ${biz?.name ?? "our team"}.`,
+    d.expiry_date ? `It is valid until ${formatDate(d.expiry_date)}.` : null,
+    `View and accept it here: ${link}`,
+    "If you would like anything changed, just reply to this message.",
+  ].filter(Boolean).join("\n\n");
   const reminderMsg = [
     `Hi ${greetingName(client?.name)},`,
     `A friendly reminder from ${biz?.name ?? "our team"} that invoice ${d.number} has an outstanding balance of ${formatRand(balanceDue)}.`,
@@ -38,11 +72,6 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     "If you have already paid, thank you. Please disregard this reminder.",
     `View invoice: ${link}`,
   ].filter(Boolean).join("\n\n");
-  const quoteFollowupMsg = [
-    `Hi ${greetingName(client?.name)},`,
-    `Just checking in on quote ${d.number} from ${biz?.name ?? "our team"} for ${formatRand(d.total_cents)}. Let us know if you have any questions or would like anything changed.`,
-    `View quote: ${link}`,
-  ].join("\n\n");
 
   const btn = "rounded-xl px-4 py-2 font-bold";
   return (
@@ -50,6 +79,14 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       <Link href="/app/documents" className="text-sm text-neutral-500">All documents</Link>
       <h1 className="mt-2 text-2xl font-extrabold">{d.number}</h1>
       <p className="text-neutral-600">{client?.name} · {formatRand(d.total_cents)} · <b>{d.status}</b></p>
+      {banner && (
+        <p
+          role={banner.tone === "error" ? "alert" : "status"}
+          className={`mt-3 rounded-xl p-3 text-sm font-semibold ${banner.tone === "error" ? "bg-red-50 text-red-700" : "bg-lime/50 text-ink"}`}
+        >
+          {banner.text}
+        </p>
+      )}
 
       <div className="mt-5 flex flex-wrap gap-2 print:hidden">
         {d.status === "draft" && (
@@ -67,29 +104,37 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         <a href={link} target="_blank" rel="noreferrer" className={`${btn} border-2 border-neutral-300`}>Open client view</a>
       </div>
 
+      {businessEmailMissing && client?.email && (
+        <p className="mt-3 rounded-xl bg-orange/10 p-3 text-xs leading-5 text-ink print:hidden">
+          Your business email isn&apos;t set, so client replies to this email won&apos;t reach you.{" "}
+          <Link href="/app/settings" className="font-bold underline underline-offset-2">Add it in Settings</Link>.
+        </p>
+      )}
+
       <div className="mt-5 flex flex-wrap gap-2">
         {d.type === "quote" && d.status === "accepted" && (
           <form action={convertToInvoice}><input type="hidden" name="id" value={d.id} />
             <button className={`${btn} bg-neutral-900 text-white`}>Create invoice from this quote</button></form>
         )}
-        {(canSendPaymentReminder || canSendQuoteFollowup) && (
+        {canSendPaymentReminder && (
           <div id="remind" className="scroll-mt-24">
-            {canSendPaymentReminder ? (
-              <AiMessageComposer
-                mode="reminder"
-                documentId={d.id}
-                whatsappNumber={client?.whatsapp_number ?? null}
-                fallbackMessage={reminderMsg}
-                balanceLabel={formatRand(balanceDue)}
-              />
-            ) : (
-              <AiMessageComposer
-                mode="quote_followup"
-                documentId={d.id}
-                whatsappNumber={client?.whatsapp_number ?? null}
-                fallbackMessage={quoteFollowupMsg}
-              />
-            )}
+            <AiMessageComposer
+              mode="reminder"
+              documentId={d.id}
+              whatsappNumber={client?.whatsapp_number ?? null}
+              fallbackMessage={reminderMsg}
+              balanceLabel={formatRand(balanceDue)}
+            />
+          </div>
+        )}
+        {canSendQuoteFollowUp && (
+          <div id="remind" className="scroll-mt-24">
+            <AiMessageComposer
+              mode="quote_followup"
+              documentId={d.id}
+              whatsappNumber={client?.whatsapp_number ?? null}
+              fallbackMessage={followUpMsg}
+            />
           </div>
         )}
         {d.type === "invoice" && d.status !== "paid" && d.status !== "draft" && (
@@ -113,7 +158,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       <h2 className="mt-8 font-extrabold">Activity</h2>
       <ul className="mt-2 divide-y rounded-2xl bg-white shadow-sm ring-1 ring-black/5 text-sm">
         {(events ?? []).map((e, i) => (
-          <li key={i} className="flex justify-between p-3"><span>{e.type}</span>
+          <li key={i} className="flex justify-between p-3"><span>{EVENT_LABELS[e.type] ?? e.type}</span>
             <span className="text-neutral-500">{new Date(e.created_at).toLocaleString("en-ZA")}</span></li>
         ))}
         {!events?.length && <li className="p-3 text-neutral-500">No activity yet.</li>}
