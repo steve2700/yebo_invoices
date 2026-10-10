@@ -17,7 +17,7 @@ const EVENT_LABELS: Record<string, string> = {
   accepted: "Accepted by client",
   declined: "Declined by client",
   reminder_sent: "Reminder sent",
-  paid: "Marked as paid",
+  paid: "Payment received",
 };
 
 export default async function DocumentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string }> }) {
