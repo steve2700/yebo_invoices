@@ -4,14 +4,15 @@ import { revalidatePath } from "next/cache";
 import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/server";
 import { formatRand } from "@/lib/money";
-import { formatDate } from "@/lib/dates";
+import { formatDate, waLink } from "@/lib/dates";
 import { appUrl } from "@/lib/url";
 import { readableOn } from "@/lib/color";
 
 type Line = { description: string; quantity: number; unit_price_cents: number; line_total_cents: number };
 
-export default async function PublicDocument({ params }: { params: Promise<{ token: string }> }) {
+export default async function PublicDocument({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ payment?: string }> }) {
   const { token } = await params;
+  const { payment } = await searchParams;
   const supabase = await createClient();
   const { data } = await supabase.rpc("get_public_document", { p_token: token });
   if (!data) notFound();
@@ -27,7 +28,9 @@ export default async function PublicDocument({ params }: { params: Promise<{ tok
   const unpaidInvoice = !isQuote && d.status !== "paid" && d.status !== "draft";
   const hasBank = b.bank_account_holder && b.bank_account_number && b.bank_branch_code;
   const showBank = hasBank && (!isQuote || d.status === "accepted");
+  const canPayOnline = unpaidInvoice && Boolean(b.online_payments);
   const pageUrl = `${appUrl()}/d/${token}`;
+  const shareMessage = `Payment received by ${b.name}: ${formatRand(d.total_cents)} for invoice ${d.number}. Receipt: ${pageUrl}`;
   const qr = await QRCode.toDataURL(pageUrl, { margin: 1, width: 240 });
   const label = isQuote ? "Quote" : b.vat_registered ? "Tax invoice" : "Invoice";
   const web = b.website ? (/^https?:/.test(b.website) ? b.website : `https://${b.website}`) : null;
@@ -80,8 +83,19 @@ export default async function PublicDocument({ params }: { params: Promise<{ tok
         <article className="rounded-3xl bg-white p-5 shadow-xl ring-1 ring-black/5 sm:p-7">
           {d.status === "accepted" && <p className="mb-5 rounded-2xl bg-lime p-3 text-center font-black">Yebo! Quote accepted. Thank you.</p>}
           {d.status === "declined" && <p className="mb-5 rounded-2xl bg-ink/5 p-3 text-center font-bold">You declined this quote.</p>}
-          {d.status === "paid" && <p className="mb-5 rounded-2xl bg-lime p-3 text-center font-black">Paid. Thank you!</p>}
+          {d.status === "paid" && (
+            <div className="mb-5 rounded-2xl bg-lime p-3 text-center">
+              <p className="font-black">Paid. Thank you!</p>
+              {!isQuote && (
+                <a href={waLink(null, shareMessage)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-10 items-center rounded-full bg-white/70 px-4 text-sm font-bold">
+                  Share receipt on WhatsApp
+                </a>
+              )}
+            </div>
+          )}
           {expired && <p className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">This quote has expired. Please contact {b.name} for an updated one.</p>}
+          {payment === "cancelled" && unpaidInvoice && <p role="status" className="mb-5 rounded-2xl bg-ink/5 p-3 text-center text-sm font-bold">Your payment was cancelled and you have not been charged. You can try again whenever you are ready.</p>}
+          {canPayOnline && b.payments_sandbox && <p role="note" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">Test mode: payments on this page are practice only and no real money will be taken.</p>}
 
           {(d.location || d.job_date || d.job_date_tbd) && (
             <section className="rounded-2xl border border-ink/10 bg-paper/60 p-4">
@@ -155,8 +169,28 @@ export default async function PublicDocument({ params }: { params: Promise<{ tok
           )}
           {unpaidInvoice && (
             <div className={bar}>
-              {showBank && <a href="#pay" className="grid min-h-12 flex-1 place-items-center rounded-2xl px-4 text-base font-black" style={{ background: color, color: fg }}>Pay by EFT</a>}
-              <a href={`/d/${token}/pdf`} className="grid min-h-12 flex-1 place-items-center rounded-2xl border border-black/15 px-4 text-sm font-bold">Download PDF</a>
+              {canPayOnline && (
+                <form method="post" action={`/d/${token}/pay`} className="flex-1">
+                  <button type="submit" className="min-h-12 w-full rounded-2xl px-4 text-base font-black active:scale-[.98]" style={{ background: color, color: fg }}>Pay now</button>
+                </form>
+              )}
+              {showBank && (
+                <a
+                  href="#pay"
+                  className={canPayOnline
+                    ? "grid min-h-12 flex-1 place-items-center rounded-2xl border border-black/15 px-4 text-sm font-bold"
+                    : "grid min-h-12 flex-1 place-items-center rounded-2xl px-4 text-base font-black"}
+                  style={canPayOnline ? undefined : { background: color, color: fg }}
+                >
+                  Pay by EFT
+                </a>
+              )}
+              <a
+                href={`/d/${token}/pdf`}
+                className={`${canPayOnline ? "hidden sm:grid" : "grid"} min-h-12 flex-1 place-items-center rounded-2xl border border-black/15 px-4 text-sm font-bold`}
+              >
+                Download PDF
+              </a>
             </div>
           )}
         </article>
