@@ -10,6 +10,17 @@ import AiMessageComposer from "../AiMessageComposer";
 import { convertToInvoice, deleteDraft, duplicateDocument, emailDocument, markPaid, sendDraft } from "../actions";
 import ConfirmForm from "../ConfirmForm";
 
+// Always show times in South African time, whatever timezone the server runs in.
+const southAfricaTime = new Intl.DateTimeFormat("en-ZA", {
+  timeZone: "Africa/Johannesburg",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
 const EVENT_LABELS: Record<string, string> = {
   sent: "Sent to client",
   emailed: "Emailed to client",
@@ -159,7 +170,7 @@ export default async function DocumentPage({ params, searchParams }: { params: P
       <ul className="mt-2 divide-y rounded-2xl bg-white shadow-sm ring-1 ring-black/5 text-sm">
         {(events ?? []).map((e, i) => (
           <li key={i} className="flex justify-between p-3"><span>{EVENT_LABELS[e.type] ?? e.type}</span>
-            <span className="text-neutral-500">{new Date(e.created_at).toLocaleString("en-ZA")}</span></li>
+            <span className="text-neutral-500">{southAfricaTime.format(new Date(e.created_at))}</span></li>
         ))}
         {!events?.length && <li className="p-3 text-neutral-500">No activity yet.</li>}
       </ul>

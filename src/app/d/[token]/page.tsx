@@ -1,12 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @next/next/no-img-element */
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/server";
 import { formatRand } from "@/lib/money";
 import { formatDate, waLink } from "@/lib/dates";
 import { appUrl } from "@/lib/url";
 import { readableOn } from "@/lib/color";
+import { notifyQuoteAnswered } from "@/lib/notify-quote";
 
 type Line = { description: string; quantity: number; unit_price_cents: number; line_total_cents: number };
 
@@ -22,7 +24,8 @@ export default async function PublicDocument({ params, searchParams }: { params:
   const isQuote = d.type === "quote";
   const color: string = /^#[0-9a-f]{6}$/i.test(b.brand_color) ? b.brand_color : "#0F8A5F";
   const fg = readableOn(color);
-  const today = new Date().toISOString().slice(0, 10);
+  // "Today" in South Africa, so a quote does not expire a couple of hours early or late.
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
   const expired = isQuote && ["sent", "viewed"].includes(d.status) && d.expiry_date && d.expiry_date < today;
   const canAnswer = isQuote && ["sent", "viewed"].includes(d.status) && !expired;
   const unpaidInvoice = !isQuote && d.status !== "paid" && d.status !== "draft";
@@ -44,6 +47,8 @@ export default async function PublicDocument({ params, searchParams }: { params:
     const ev = formData.get("event") === "accepted" ? "accepted" : "declined";
     const sb = await createClient();
     await sb.rpc("record_document_event", { p_token: token, p_event: ev });
+    // Email the owner after the response is sent, so the client's tap is not slowed down.
+    after(() => notifyQuoteAnswered(token, ev));
     revalidatePath(`/d/${token}`);
   }
 
