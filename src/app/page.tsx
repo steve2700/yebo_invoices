@@ -4,11 +4,14 @@ import { appUrl } from "@/lib/url";
 import LandingHero from "@/components/LandingHero";
 import WorkflowSection from "@/components/WorkflowSection";
 import ProductStorySection from "@/components/ProductStorySection";
+import WhyNotAChatbot from "@/components/WhyNotAChatbot";
+import PricingSection from "@/components/PricingSection";
+import FaqSection from "@/components/FaqSection";
 import ClosingSection from "@/components/ClosingSection";
 import LandingFooter from "@/components/LandingFooter";
 
 const description =
-  "Create professional quotes and invoices for South African small businesses. Draft from a voice note, share a clear client link and turn accepted quotes into invoices.";
+  "Quotes and invoices for South African small businesses. Speak a quote, send it in one tap, see when your client opens it, get paid online and track your monthly targets.";
 
 export const metadata: Metadata = {
   title: "Yebo Invoices | Clear quotes, faster invoicing",
@@ -43,7 +46,10 @@ export default function Home() {
       <main>
         <LandingHero />
         <WorkflowSection />
+        <WhyNotAChatbot />
         <ProductStorySection />
+        <PricingSection />
+        <FaqSection />
         <ClosingSection />
       </main>
       <LandingFooter />

@@ -16,20 +16,20 @@ type Props = {
 const COPY: Record<MessageMode, { title: string; button: string; standard: string; aria: string }> = {
   intro: {
     title: "Document introduction",
-    button: "Draft intro with AI",
-    standard: "Send standard message",
+    button: "Write it for me with AI",
+    standard: "Use a ready-made message",
     aria: "Draft a document introduction with AI",
   },
   reminder: {
     title: "Payment reminder",
-    button: "Draft reminder with AI",
-    standard: "Send standard reminder",
+    button: "Write a reminder with AI",
+    standard: "Use a ready-made reminder",
     aria: "Draft a payment reminder with AI",
   },
   quote_followup: {
     title: "Quote follow-up",
-    button: "Draft follow-up with AI",
-    standard: "Send standard follow-up",
+    button: "Write a follow-up with AI",
+    standard: "Use a ready-made follow-up",
     aria: "Draft a quote follow-up with AI",
   },
 };
@@ -89,7 +89,7 @@ export default function AiMessageComposer({ mode, documentId, whatsappNumber, fa
           onClick={() => void draftMessage()}
           className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 ${isIntro ? "bg-yebo text-white" : "bg-lime text-ink"}`}
         >
-          <span>{pending ? "Drafting..." : copy.button}</span>
+          <span>{pending ? "Writing your message…" : copy.button}</span>
           {balanceLabel && <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold text-ink/70">{balanceLabel} due</span>}
         </button>
         <a
@@ -103,7 +103,7 @@ export default function AiMessageComposer({ mode, documentId, whatsappNumber, fa
         </a>
       </div>
       <p aria-live="polite" className="mt-1 px-1 text-xs text-neutral-500">
-        {pending ? "Writing a draft..." : "Review and edit the draft before WhatsApp opens. Nothing sends automatically."}
+        {pending ? "Writing a friendly message. This takes a few seconds." : "Either way, WhatsApp opens with the message ready. You read it first, and nothing is sent until you tap send in WhatsApp."}
       </p>
       {error && <p role="alert" className="mt-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 

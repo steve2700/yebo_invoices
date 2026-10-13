@@ -52,10 +52,17 @@ Yebo is built around one rule: **a new user should send their first quote within
 - [x] **Payment emails:** a receipt to the client and a "You've been paid" alert to the owner
 - [x] **One-tap WhatsApp thank-yous** for the owner and a "Share receipt" button for the client
 - [x] **Quote answered emails:** the owner is emailed when a client accepts or declines a quote
+- [x] **Monthly targets:** set a money target and a quotes target, see animated progress, days left and a gentle "what to do next" on the dashboard
+- [x] **Clear document actions:** every button says what it does, email sending shows progress and a clear "sent" or "failed" message, and replies go straight to the business owner
+- [x] **Welcome tour:** a short plain-English introduction to the features at the end of onboarding
+- [x] **Privacy Notice and Terms of Service** pages, linked from the footer
+- [x] **Pricing, comparison and FAQ** sections on the landing page (one plan, R199 per month)
 - [ ] Fully automatic reminders (scheduled, no tap needed)
 
 ### Planned
 
+- [ ] Subscription billing (R199 per month through PayFast) with a subscribe step after onboarding
+- [ ] "Get found" page for businesses that want a website, Google Business Profile or Google Ads
 - [ ] Rate limits on the AI routes
 - [ ] Pay a quote's deposit online, and part payments
 - [ ] A confirmation email to the client when they accept a quote
@@ -301,6 +308,7 @@ Run the migrations **in order** in the Supabase SQL Editor (copies are in `supab
 | `0004_payfast.sql` | PayFast settings and payment attempts tables, and the "accepts online payments" flag on the public page |
 | `0005_payment_notifications.sql` | Remembers when payment emails were sent, so each is sent once |
 | `0006_thanked_payments.sql` | Remembers when the owner thanked a client for a payment |
+| `0007_monthly_targets.sql` | Monthly money and quote targets for each business |
 
 Supabase may warn about "destructive operations" on some of these. They only drop and recreate policies or functions, and do not touch your data.
 
@@ -316,6 +324,11 @@ GROQ_API_KEY=
 
 RESEND_API_KEY=
 RESEND_EMAIL_DOMAIN=yeboinvoices.com
+
+# Shown on the Privacy Notice and Terms pages (required before launch)
+LEGAL_NAME=                       # your registered business name
+LEGAL_ADDRESS=                    # your registered address
+CONTACT_EMAIL=                    # where people can reach you about privacy and terms
 ```
 
 Never commit real keys. Keep `.env.local` in `.gitignore`. Set the same variables in Vercel under **Project Settings → Environment Variables**, then redeploy. `NEXT_PUBLIC_APP_URL` is where PayFast sends payment confirmations and what email links use, so it must be the public address and must not redirect.
@@ -353,6 +366,12 @@ In **Authentication → Providers**, enable Google (and keep Email on for magic 
 | Email sending and layout | `src/lib/email.ts` |
 | Quote accepted or declined emails | `src/lib/notify-quote.ts` |
 | Server-only Supabase admin client | `src/lib/supabase/admin.ts` |
+| Monthly targets card and saving | `src/app/app/MonthlyTargets.tsx`, `src/app/app/targets/actions.ts` |
+| Onboarding (business, logo and banking, welcome tour) | `src/app/app/onboarding/` |
+| Email card with progress and result | `src/app/app/documents/SendEmailCard.tsx` |
+| Privacy Notice, Terms and their text | `src/app/privacy`, `src/app/terms`, `src/lib/legal-content.ts` |
+| Landing page sections and the plan price | `src/components/`, `src/lib/plans.ts` |
+| Shared gentle animations | `src/app/globals.css`, `src/components/Reveal.tsx`, `src/components/SubmitButton.tsx` |
 | PDF builder | `src/lib/pdf.ts` |
 
 ---

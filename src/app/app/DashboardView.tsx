@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { formatRand } from "@/lib/money";
+import ThankClientButton from "./ThankClientButton";
+import MonthlyTargets, { type MonthlyStats } from "./MonthlyTargets";
 
 export type DashboardActionItem = {
   id: string;
@@ -16,6 +18,18 @@ export type DashboardActionItem = {
   canRemind: boolean;
 };
 
+export type DashboardRecentPayment = {
+  id: string;
+  clientName: string;
+  firstName: string;
+  invoiceNumber: string;
+  amountCents: number;
+  methodLabel: string;
+  paidAgo: string;
+  // A ready-to-open WhatsApp link with the thank-you message already written.
+  whatsappHref: string;
+};
+
 type DashboardViewProps = {
   businessName: string;
   greeting: string;
@@ -29,6 +43,8 @@ type DashboardViewProps = {
   waitingQuoteCount: number;
   readyToInvoiceCount: number;
   actionItems: DashboardActionItem[];
+  recentPayments: DashboardRecentPayment[];
+  monthly: MonthlyStats;
 };
 
 const actionStyle = {
@@ -104,12 +120,11 @@ function MetricCard({
 function AttentionRow({ item }: { item: DashboardActionItem }) {
   const style = actionStyle[item.kind];
   const documentLabel = item.type === "invoice" ? "invoice" : "quote";
-  const remindLabel =
-    item.type === "quote"
-      ? "Follow up on this quote"
-      : item.kind === "overdue"
-        ? "Send payment reminder"
-        : "Send a friendly heads-up";
+  const remindLabel = item.kind === "overdue"
+    ? "Send payment reminder"
+    : item.kind === "waiting"
+      ? "Send a follow-up"
+      : "Send a friendly heads-up";
 
   return (
     <li>
@@ -178,6 +193,8 @@ export default function DashboardView({
   waitingQuoteCount,
   readyToInvoiceCount,
   actionItems,
+  recentPayments,
+  monthly,
 }: DashboardViewProps) {
   return (
     <main className="min-h-full bg-paper px-4 pb-10 pt-6 text-ink sm:px-6 sm:pt-8 lg:px-8 lg:pt-10">
@@ -211,6 +228,8 @@ export default function DashboardView({
           </div>
         </header>
 
+        <MonthlyTargets stats={monthly} />
+
         <section aria-label="Business overview" className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
           <MetricCard
             label="Collected this month"
@@ -230,6 +249,24 @@ export default function DashboardView({
             alert={overdueInvoiceCount > 0}
           />
         </section>
+
+        {recentPayments.length > 0 && (
+          <section aria-labelledby="paid-heading" className="rounded-3xl border border-lime/70 bg-lime/20 p-4 sm:p-6">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-yebo">Good news</p>
+            <h2 id="paid-heading" className="mt-1.5 text-xl font-extrabold tracking-tight text-ink sm:text-2xl">You&apos;ve been paid</h2>
+            <ul className="mt-4 flex flex-col gap-2.5">
+              {recentPayments.map((payment) => (
+                <li key={payment.id} className="flex flex-col gap-3 rounded-2xl border border-ink/10 bg-white p-3.5 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-extrabold text-ink">{payment.clientName} paid {formatRand(payment.amountCents)}</p>
+                    <p className="mt-1 truncate text-xs text-ink/55">Invoice {payment.invoiceNumber} <span aria-hidden="true">·</span> {payment.methodLabel} <span aria-hidden="true">·</span> {payment.paidAgo}</p>
+                  </div>
+                  <ThankClientButton paymentId={payment.id} href={payment.whatsappHref} firstName={payment.firstName} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(17rem,.75fr)] lg:gap-5">
           <section aria-labelledby="attention-heading" className="min-w-0 rounded-3xl border border-ink/10 bg-white p-4 shadow-[0_12px_40px_-32px_rgba(17,45,35,.45)] sm:p-6">

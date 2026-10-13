@@ -6,6 +6,7 @@ import { addDays } from "@/lib/dates";
 import { greetingName } from "@/lib/names";
 import { buildDocumentPdf } from "@/lib/pdf";
 import { appUrl } from "@/lib/url";
+import { isEmail, renderEmail, sendEmail } from "@/lib/email";
 
 type Sb = Awaited<ReturnType<typeof createClient>>;
 
@@ -22,41 +23,90 @@ async function logEvent(sb: Sb, documentId: string, type: string) {
   return !error;
 }
 
-export async function emailDocument(fd: FormData) {
-  const id = String(fd.get("id"));
+// What the "Email" card shows the user after they tap it.
+export type EmailResult =
+  | { ok: true; to: string; at: string; replyTo: string | null }
+  | { ok: false; error: string };
+
+// Emails a quote or invoice (with its PDF) to the client and tells the user exactly what happened.
+// Replies go straight to the business's own email, not to the noreply sender address.
+export async function sendDocumentEmail(documentId: string): Promise<EmailResult> {
+  if (typeof documentId !== "string" || !/^[0-9a-f-]{36}$/i.test(documentId)) {
+    return { ok: false, error: "We could not find that document." };
+  }
   const sb = await createClient();
-  const { data: doc } = await sb.from("documents").select("id,number,type,public_token,status,client_id,business_id,subtotal_cents,vat_cents,vat_percent,total_cents").eq("id", id).single();
-  if (!doc) redirect(`/app/documents/${id}`);
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return { ok: false, error: "Please sign in again to send this." };
+
+  const { data: doc } = await sb
+    .from("documents")
+    .select("id,number,type,public_token,status,client_id,business_id")
+    .eq("id", documentId)
+    .maybeSingle();
+  if (!doc) return { ok: false, error: "We could not find that document." };
+
   const [{ data: client }, { data: business }] = await Promise.all([
-    sb.from("clients").select("name,email").eq("id", doc.client_id).single(),
-    sb.from("businesses").select("name").eq("id", doc.business_id).single(),
+    sb.from("clients").select("name,email").eq("id", doc.client_id).maybeSingle(),
+    sb.from("businesses").select("name,email,brand_color").eq("id", doc.business_id).maybeSingle(),
   ]);
-  if (!client?.email) redirect(`/app/documents/${id}`);
-  const base = appUrl();
-  const link = `${base}/d/${doc.public_token}`;
   const kind = doc.type === "quote" ? "quote" : "invoice";
-  await sb.from("documents").update({ status: "sent" }).eq("id", id).eq("status", "draft");
+  if (!isEmail(client?.email)) {
+    return { ok: false, error: `${client?.name ?? "This client"} has no email address saved. Send it on WhatsApp instead, or add an email address to the client.` };
+  }
+  const to = client.email.trim();
+  const replyTo = isEmail(business?.email) ? business.email.trim() : null;
+  const businessName = business?.name ?? "Yebo Invoices";
+  const link = `${appUrl()}/d/${doc.public_token}`;
+
+  // The public version of a document (used for the PDF) only exists once a draft is marked as sent.
+  const { data: flipped } = await sb.from("documents").update({ status: "sent" }).eq("id", documentId).eq("status", "draft").select("id");
+  const wasDraft = (flipped?.length ?? 0) > 0;
+  const undoSend = async () => {
+    if (wasDraft) await sb.from("documents").update({ status: "draft" }).eq("id", documentId).eq("status", "sent");
+  };
+
   const { data: pub } = await sb.rpc("get_public_document", { p_token: doc.public_token });
-  if (!pub) redirect(`/app/documents/${id}`);
-  const pdf = await buildDocumentPdf(pub, link);
-  const fromDomain = process.env.RESEND_EMAIL_DOMAIN ?? "resend.dev";
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": `document-email/${id}` },
-    body: JSON.stringify({
-      from: `${business?.name ?? "Yebo Invoices"} <noreply@${fromDomain}>`,
-      to: [client.email],
-      subject: `Your ${kind} ${doc.number}`,
-      html: `<p>Hi ${greetingName(client.name)},</p><p>Your ${kind} from ${business?.name ?? "Yebo Invoices"} is ready.</p><p>We've attached a PDF copy for your records. You can also <a href="${link}">view it online</a>.</p>`,
+  if (!pub) {
+    await undoSend();
+    return { ok: false, error: "We could not prepare the PDF. Please try again." };
+  }
+
+  let sent = false;
+  try {
+    const pdf = await buildDocumentPdf(pub, link);
+    sent = await sendEmail({
+      to,
+      fromName: businessName,
+      replyTo,
+      // Stops a double tap sending twice, but still allows a deliberate resend a minute later.
+      idempotencyKey: `document-email/${documentId}/${Math.floor(Date.now() / 60_000)}`,
+      subject: `Your ${kind} ${doc.number} from ${businessName}`,
+      html: renderEmail({
+        brandColor: business?.brand_color,
+        heading: `Your ${kind} is ready`,
+        intro: `Hi ${greetingName(client.name)}, ${businessName} has sent you ${kind === "quote" ? "a quote" : "an invoice"}. A PDF copy is attached, and you can also view it online.`,
+        rows: [[kind === "quote" ? "Quote" : "Invoice", doc.number]],
+        buttonLabel: kind === "quote" ? "View and accept the quote" : "View and pay the invoice",
+        buttonUrl: link,
+        footer: replyTo ? `Questions? Just reply to this email and it will reach ${businessName} directly.` : null,
+      }),
       attachments: [{ filename: `${kind}-${doc.number}.pdf`, content: Buffer.from(pdf).toString("base64") }],
-    }),
-  });
-  if (response.ok) {
-    // followups_due() times quote follow-ups from the 'sent' event, so an emailed draft needs one.
-    if (doc.status === "draft") await logEvent(sb, id, "sent");
-    await logEvent(sb, id, "emailed");
-  } else console.error(`Resend rejected document ${id}:`, response.status, await response.text().catch(() => ""));
-  redirect(`/app/documents/${id}`);
+    });
+  } catch (error) {
+    console.error(`Could not build or send the email for document ${documentId}:`, error);
+  }
+
+  if (!sent) {
+    await undoSend();
+    return { ok: false, error: "The email did not go through, so nothing was sent to your client. Please try again in a moment." };
+  }
+
+  // followups_due() times quote follow-ups from the 'sent' event, so an emailed draft needs one.
+  if (wasDraft) await logEvent(sb, documentId, "sent");
+  await logEvent(sb, documentId, "emailed");
+  revalidatePath(`/app/documents/${documentId}`);
+  revalidatePath("/app");
+  return { ok: true, to, at: new Date().toISOString(), replyTo };
 }
 
 export async function sendDraft(fd: FormData) {
@@ -101,6 +151,9 @@ export async function convertToInvoice(fd: FormData) {
   const sb = await createClient();
   const { data: q } = await sb.from("documents").select("*").eq("id", quoteId).single();
   if (!q || q.type !== "quote" || q.status !== "accepted") redirect(`/app/documents/${quoteId}`);
+  // A quote becomes one invoice. If it already has one (for example from a double tap), open that instead.
+  const { data: already } = await sb.from("documents").select("id").eq("source_quote_id", quoteId).limit(1);
+  if (already?.length) redirect(`/app/documents/${already[0].id}`);
   const { data: lines } = await sb.from("document_lines").select("*").eq("document_id", quoteId);
   const { data: n, error: nErr } = await sb.rpc("next_document_number", { p_business: q.business_id, p_type: "invoice" });
   if (nErr) throw nErr;
@@ -128,12 +181,13 @@ export async function duplicateDocument(fd: FormData) {
   const { data: d } = await sb.from("documents").select("*").eq("id", id).single();
   const { data: biz } = await sb.from("businesses").select("id,vat_registered,default_expiry_days").single();
   if (!d || !biz) redirect("/app/documents");
-  const { data: src } = await sb.from("document_lines").select("description,quantity,unit_price_cents,sort_order").eq("document_id", id).order("sort_order");
+  const { data: src } = await sb.from("document_lines").select("description,quantity,unit_price_cents,line_total_cents,sort_order").eq("document_id", id).order("sort_order");
   const { data: n, error: nErr } = await sb.rpc("next_document_number", { p_business: biz.id, p_type: d.type });
   if (nErr) throw nErr;
 
-  // totals are recalculated, so a copy always follows the business's current VAT status
-  const rows = (src ?? []).map((l) => ({ ...l, line_total_cents: Math.round(Number(l.quantity) * l.unit_price_cents) }));
+  // Line totals are copied exactly (recalculating them can lose a cent). Only VAT is recalculated,
+  // so a copy always follows the business's current VAT status.
+  const rows = (src ?? []).map((l) => ({ ...l, line_total_cents: Number(l.line_total_cents) }));
   const subtotal = rows.reduce((a, l) => a + l.line_total_cents, 0);
   const vatPercent = biz.vat_registered ? 15 : 0;
   const vat = Math.round((subtotal * vatPercent) / 100);

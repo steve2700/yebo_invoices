@@ -7,9 +7,10 @@ export default function LandingHeader() {
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-4 sm:px-8 lg:px-12">
         <Logo />
         <nav aria-label="Main navigation" className="hidden items-center gap-8 text-sm font-semibold text-yebo-deep/65 md:flex">
-          <Link className="transition-colors hover:text-yebo-deep" href="#workflow">How it works</Link>
-          <Link className="transition-colors hover:text-yebo-deep" href="#features">For your business</Link>
-          <Link className="transition-colors hover:text-yebo-deep" href="#voice-notes">Voice quotes</Link>
+          <Link className="transition-colors hover:text-yebo-deep" href="/#workflow">How it works</Link>
+          <Link className="transition-colors hover:text-yebo-deep" href="/#why">Why Yebo</Link>
+          <Link className="transition-colors hover:text-yebo-deep" href="/#pricing">Pricing</Link>
+          <Link className="transition-colors hover:text-yebo-deep" href="/#faq">Questions</Link>
         </nav>
         <div className="flex items-center gap-3">
           <Link className="hidden rounded-full px-3 py-2 text-sm font-semibold text-yebo-deep transition-colors hover:bg-yebo-deep/5 sm:inline-flex" href="/login">Sign in</Link>

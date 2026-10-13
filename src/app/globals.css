@@ -21,9 +21,33 @@ body { background: hsl(var(--paper)); }
 }
 .stamp { animation: stamp .55s .7s cubic-bezier(.2,.8,.3,1) both; }
 
+/* Gentle motion used across the app. All of it switches off for people who prefer reduced motion. */
+@keyframes fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pop-in { 0% { opacity: 0; transform: scale(.88); } 70% { opacity: 1; transform: scale(1.04); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes bar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes draw-check { from { stroke-dashoffset: 28; } to { stroke-dashoffset: 0; } }
+@keyframes soft-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+
+.fade-up { animation: fade-up .6s cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--d, 0s); }
+.pop-in { animation: pop-in .45s cubic-bezier(.2,.8,.3,1) both; animation-delay: var(--d, 0s); }
+.bar-grow { transform-origin: left center; animation: bar-grow 1s cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--d, .15s); }
+.spin { animation: spin .8s linear infinite; }
+.draw-check { stroke-dasharray: 28; animation: draw-check .5s .15s ease-out both; }
+.soft-pulse { animation: soft-pulse 1.4s ease-in-out infinite; }
+.shimmer-bar { background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+
+/* Elements that fade in as they scroll into view (see the Reveal component) */
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); transition-delay: var(--d, 0s); }
+.reveal.is-visible { opacity: 1; transform: none; }
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .stamp { animation: none; transform: rotate(-6deg); }
+  .fade-up, .pop-in, .bar-grow, .draw-check, .soft-pulse, .shimmer-bar { animation: none; }
+  .spin { animation-duration: 2.4s; }
+  .reveal { opacity: 1; transform: none; transition: none; }
 }
 
 .font-sans { font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif; }

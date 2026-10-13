@@ -12,6 +12,7 @@ type SendEmailInput = {
   html: string;
   fromName: string;
   replyTo?: string | null;
+  attachments?: { filename: string; content: string }[]; // content is base64
   // Resend ignores a second send with the same key within 24 hours, so a retry can never double-send.
   idempotencyKey?: string;
 };
@@ -40,8 +41,9 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
         subject: input.subject,
         html: input.html,
         ...(input.replyTo && isEmail(input.replyTo) ? { reply_to: input.replyTo.trim() } : {}),
+        ...(input.attachments?.length ? { attachments: input.attachments } : {}),
       }),
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(20_000),
     });
     if (!response.ok) {
       console.error("[email] Resend rejected the email:", response.status, await response.text());

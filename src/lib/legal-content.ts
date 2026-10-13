@@ -1,3 +1,5 @@
+import { PRO_PRICE_LABEL } from "@/lib/plans";
+
 export type LegalSection = {
   id: string;
   title: string;
@@ -19,9 +21,10 @@ export const legalContact: {
   registeredAddress: string | null;
   contactEmail: string | null;
 } = {
-  legalName: null,
-  registeredAddress: null,
-  contactEmail: null,
+  // Set LEGAL_NAME, LEGAL_ADDRESS and CONTACT_EMAIL in your hosting environment variables.
+  legalName: process.env.LEGAL_NAME?.trim() || null,
+  registeredAddress: process.env.LEGAL_ADDRESS?.trim() || null,
+  contactEmail: process.env.CONTACT_EMAIL?.trim() || null,
 };
 
 export const privacyPolicy: LegalDocument = {
@@ -29,8 +32,8 @@ export const privacyPolicy: LegalDocument = {
   eyebrow: "Privacy · POPIA",
   title: "Your information, handled with care.",
   description:
-    "This notice explains what Yebo Invoices handles when you create business documents, share them with clients, or use AI-assisted drafting.",
-  updated: "7 October 2026",
+    "This notice explains what Yebo Invoices handles when you create business documents, share them with clients, take payments, or use AI-assisted drafting.",
+  updated: "12 October 2026",
   sections: [
     {
       id: "scope",
@@ -51,6 +54,9 @@ export const privacyPolicy: LegalDocument = {
         "Business profile information, such as your business name, email, phone number, website, address, company or VAT registration details, optional banking details, logo, brand colour, and quote settings.",
         "Client and document information, such as client names, phone or WhatsApp numbers, email addresses and addresses; job descriptions and locations; quote and invoice line items, prices, tax, dates, payment terms, notes, and document status or response events.",
         "Information you choose to submit to AI features, including typed work details and voice recordings. A voice recording is transcribed to return an editable quote draft.",
+        "Payment information: if you connect PayFast, we store your PayFast merchant details securely on our server. When a client pays an invoice through PayFast, we receive the status, amount and PayFast reference of the payment. We do not receive or store card numbers.",
+        "Subscription information: your plan, its status and billing dates. Card or bank details for your Yebo subscription are handled by PayFast, not stored by Yebo.",
+        "Targets and progress: the monthly money and quote targets you set, which are used to show your progress.",
         "Basic technical and security information that hosting, authentication, and other service providers may process to deliver and protect the website, such as request timestamps, browser information, and network information.",
       ],
     },
@@ -64,6 +70,8 @@ export const privacyPolicy: LegalDocument = {
         "Create and secure accounts, remember business settings, and provide customer support.",
         "Prepare, store, display, and export the quotes and invoices you request.",
         "Send a document and its PDF to the recipient when you choose the email option, and provide a public document link when you share one.",
+        "Send you service emails, such as a notice when a client accepts a quote or pays an invoice, and send your client a receipt when they pay.",
+        "Pass a client's payment to PayFast when they choose to pay online, and record the payment once PayFast confirms it.",
         "Generate AI-assisted messages, transcriptions, or quote drafts when you choose those features.",
         "Record document events such as sending, viewing, acceptance, decline, or a payment entry; prevent misuse; diagnose service issues; and meet legal obligations.",
       ],
@@ -88,7 +96,7 @@ export const privacyPolicy: LegalDocument = {
       id: "ai-features",
       title: "AI-assisted features",
       paragraphs: [
-        "If you choose an AI feature, the information needed for that request is sent to Vercel AI Gateway and Google AI models to generate a draft or transcription. Depending on the feature, this may include a voice recording or transcript, business name, item descriptions, and job details.",
+        "If you choose an AI feature, the information needed for that request is sent to Groq, our AI provider, to generate a draft, a tidied piece of text or a transcription. Depending on the feature, this may include a voice recording or transcript, business name, item descriptions, and job details.",
         "The voice-drafting feature returns a transcript and editable draft to your browser; it does not add the recording or transcript to your saved Yebo documents by default. AI providers may process or retain request information under their own current terms and retention practices. Avoid including sensitive details that are not needed, and review every generated result before using or sharing it.",
       ],
     },
@@ -96,7 +104,8 @@ export const privacyPolicy: LegalDocument = {
       id: "service-providers",
       title: "Service providers and other disclosures",
       paragraphs: [
-        "We use third-party providers to run Yebo and deliver features. Based on the current service, these include Supabase for authentication, database, and logo storage; Vercel for hosting and AI Gateway; Google models for AI requests; and Resend to deliver quote or invoice emails and attached PDFs when you choose email delivery.",
+        "We use third-party providers to run Yebo and deliver features. Based on the current service, these include Supabase for authentication, database, and logo storage; Vercel for hosting; Groq for AI requests; Resend to deliver emails and attached PDFs; and PayFast to process online payments and subscription payments.",
+        "WhatsApp buttons in Yebo only open WhatsApp on your own device with a message already written. Yebo does not send WhatsApp messages on your behalf. WhatsApp's own terms and privacy notice apply to anything you send there.",
         "We may also disclose information when needed to comply with law, respond to valid legal requests, protect users and the service, or transfer the service as part of a business reorganisation. We do not sell personal information for advertising.",
       ],
     },
@@ -160,7 +169,7 @@ export const termsOfService: LegalDocument = {
   title: "Good work starts with clear terms.",
   description:
     "These terms cover your use of Yebo Invoices, from preparing a quote to sharing a finished invoice with a client.",
-  updated: "7 October 2026",
+  updated: "12 October 2026",
   sections: [
     {
       id: "agreement",
@@ -182,7 +191,7 @@ export const termsOfService: LegalDocument = {
       id: "service",
       title: "What Yebo provides",
       paragraphs: [
-        "Yebo provides tools to manage business details and clients, prepare quotes and invoices, create PDFs, share documents, collect a quote response, and record payment information. Some features can prepare AI-assisted text or an editable draft from a voice recording.",
+        "Yebo provides tools to manage business details and clients, prepare quotes and invoices, create PDFs, share documents, collect a quote response, and record payment information. Some features can prepare AI-assisted text or an editable draft from a voice recording. Yebo also lets clients pay invoices online through PayFast and shows you monthly targets and progress.",
         "We may update, add, limit, or discontinue features to maintain or improve the service. We aim to keep Yebo available but do not promise uninterrupted access or that every feature will be available at all times.",
       ],
     },
@@ -192,7 +201,24 @@ export const termsOfService: LegalDocument = {
       paragraphs: [
         "You are responsible for checking every quote and invoice before sending it. Confirm the recipient, work description, quantities, prices, dates, bank details, payment terms, VAT treatment, and any legal wording. Yebo's calculations and document templates are tools, not accounting, legal, or tax advice.",
         "You remain responsible for deciding whether a client's acceptance forms a contract and for agreeing the scope of work, payment arrangements, warranties, and any other terms with that client. A status recorded on a Yebo page is a service record; it is not a substitute for any separate agreement or signature your business needs.",
-        "Yebo can display bank details you enter and lets you record a payment manually. The current app does not initiate, verify, or settle a bank transfer or card payment. A payment entry is not independent confirmation that funds reached your account.",
+        "Yebo can display bank details you enter and lets you record an EFT or cash payment manually. A payment you record yourself is not independent confirmation that funds reached your account.",
+      ],
+    },
+    {
+      id: "online-payments",
+      title: "Online payments through PayFast",
+      paragraphs: [
+        "If you connect your own PayFast account, your clients can pay your invoices by card or instant EFT. The payment goes from your client to your PayFast account. Yebo does not receive, hold or pay out those funds.",
+        "Yebo marks an invoice as paid only after PayFast confirms the payment to us. PayFast charges its own fees to you, and PayFast's terms apply to the payment. You are responsible for your own PayFast account, for any refund or dispute with your client, and for keeping your PayFast details correct.",
+        "While you are in test mode, no real money moves, and payments are for practice only.",
+      ],
+    },
+    {
+      id: "messages",
+      title: "Emails and WhatsApp messages",
+      paragraphs: [
+        "You are responsible for the content of the messages you send to your clients and for having a proper reason and permission to contact them. Use Yebo to send the quotes, invoices and reminders your clients expect, and not to send unrelated marketing.",
+        "AI can draft a message for you, but you always read it first, and nothing is sent to a client until you choose to send it.",
       ],
     },
     {
@@ -230,14 +256,17 @@ export const termsOfService: LegalDocument = {
       id: "third-party-services",
       title: "Third-party services",
       paragraphs: [
-        "Yebo relies on third-party services for hosting, sign-in, data storage, AI processing, and email delivery. Those providers may have their own terms and privacy notices. We are not responsible for services that we do not control, although this does not limit any responsibility that cannot legally be excluded.",
+        "Yebo relies on third-party services for hosting, sign-in, data storage, AI processing, email delivery, payments and messaging. Those providers may have their own terms and privacy notices. We are not responsible for services that we do not control, although this does not limit any responsibility that cannot legally be excluded.",
       ],
     },
     {
       id: "fees",
       title: "Fees and subscriptions",
       paragraphs: [
-        "Yebo is currently offered free while it launches, as stated on the website. The current app does not create a paid subscription or recurring charge. If paid plans are introduced, the price, billing interval, renewal, cancellation, and applicable refund terms will be shown before you choose a plan. Any payment will be subject to the terms presented at purchase and the payment provider's terms.",
+        `Yebo Pro costs ${PRO_PRICE_LABEL} per month. The price is shown before you subscribe. It is billed monthly in advance through PayFast and renews automatically each month until you cancel.`,
+        "You can cancel at any time in Settings. After you cancel, you keep access until the end of the month you have already paid for, and you will not be charged again. We do not refund part-months unless the law requires it.",
+        "If a payment fails, we may limit your ability to create new documents until it is sorted out. Your clients can still view and pay documents you have already sent, and you can still see and download your information.",
+        "We will give you at least 30 days' notice before a price change takes effect for you. Payments are also subject to PayFast's terms.",
       ],
     },
     {

@@ -1,7 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate } from "@/lib/dates";
-import DashboardView, { type DashboardActionItem } from "./DashboardView";
+import { formatDate, waLink } from "@/lib/dates";
+import { formatRand } from "@/lib/money";
+import { greetingName } from "@/lib/names";
+import { appUrl } from "@/lib/url";
+import DashboardView, { type DashboardActionItem, type DashboardRecentPayment } from "./DashboardView";
+import type { MonthlyStats } from "./MonthlyTargets";
+import { southAfricaMonth } from "@/lib/time";
 
 type DocumentRow = {
   id: string;
@@ -28,6 +34,18 @@ function clientName(document: DocumentRow) {
   const client = Array.isArray(document.clients) ? document.clients[0] : document.clients;
   return client?.name ?? "Client";
 }
+
+function timeAgo(iso: string) {
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (minutes < 2) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+const PAYMENT_METHODS: Record<string, string> = { payfast: "Paid online", eft: "EFT", cash: "Cash" };
 
 function dayCount(days: number) {
   return `${days} day${days === 1 ? "" : "s"}`;
@@ -79,8 +97,39 @@ export default async function Dashboard() {
     supabase.rpc("followups_due"),
   ]);
 
+  // Payments from the last 7 days the owner has not yet thanked the client for. If the 0006 migration has not
+  // been run yet this query fails, and the section simply does not appear.
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: recentPaymentRows } = await supabase
+    .from("payments")
+    .select("id,amount_cents,method,paid_at,documents(number,public_token,clients(name,whatsapp_number))")
+    .is("thanked_at", null)
+    .gte("paid_at", sevenDaysAgo)
+    .order("paid_at", { ascending: false })
+    .limit(3);
+  const first = <T,>(value: T | T[] | null | undefined): T | null => (Array.isArray(value) ? value[0] ?? null : value ?? null);
+  const recentPayments: DashboardRecentPayment[] = [];
+  for (const row of (recentPaymentRows ?? []) as any[]) {
+    const paidDocument = first<any>(row.documents);
+    const paidClient = first<any>(paidDocument?.clients);
+    if (!paidDocument || !paidClient) continue;
+    const firstName = greetingName(paidClient.name);
+    const amountText = formatRand(Number(row.amount_cents));
+    const message = `Hi ${firstName}, thank you for your payment of ${amountText} for invoice ${paidDocument.number}. We've received it and really appreciate it! Your receipt: ${appUrl()}/d/${paidDocument.public_token}`;
+    recentPayments.push({
+      id: row.id,
+      clientName: paidClient.name ?? "Your client",
+      firstName,
+      invoiceNumber: paidDocument.number,
+      amountCents: Number(row.amount_cents),
+      methodLabel: PAYMENT_METHODS[row.method] ?? "Payment",
+      paidAgo: timeAgo(row.paid_at),
+      whatsappHref: waLink(paidClient.whatsapp_number ?? null, message),
+    });
+  }
+
   // If the 0002 migration has not been run yet, followups_due() errors. In that case we fall back
-  // to offering a reminder on every overdue invoice instead of hiding the buttons.
+  // to offering a reminder on every overdue invoice (quotes get no button) instead of breaking.
   const followupsAvailable = !followupError;
   const followups = new Map<string, Followup>(
     followupsAvailable ? ((followupData ?? []) as Followup[]).map((followup) => [followup.document_id, followup]) : [],
@@ -121,6 +170,27 @@ export default async function Dashboard() {
     (document) => document.type === "quote" && document.status === "accepted" && !convertedQuoteIds.has(document.id),
   );
   const paidThisMonth = (monthPayments ?? []).reduce((total, payment) => total + Number(payment.amount_cents), 0);
+
+  // This month's targets and progress. If this month has no target yet, last month's is carried over.
+  // If the 0007 migration has not been run yet these queries return nothing and the card shows its "set a target" state.
+  const currentMonth = southAfricaMonth();
+  const [{ count: quotesSentCount }, { count: quotesAcceptedCount }, { data: currentTarget }, { data: lastTarget }] = await Promise.all([
+    supabase.from("documents").select("id", { count: "exact", head: true }).eq("type", "quote").neq("status", "draft").gte("created_at", currentMonth.startIso).lt("created_at", currentMonth.endIso),
+    supabase.from("events").select("id", { count: "exact", head: true }).eq("type", "accepted").gte("created_at", currentMonth.startIso).lt("created_at", currentMonth.endIso),
+    supabase.from("monthly_targets").select("revenue_cents,quotes_count").eq("month", currentMonth.key).maybeSingle(),
+    supabase.from("monthly_targets").select("revenue_cents,quotes_count").lt("month", currentMonth.key).order("month", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  const activeTarget = currentTarget ?? lastTarget;
+  const monthly: MonthlyStats = {
+    monthName: currentMonth.monthName,
+    daysLeft: currentMonth.daysLeft,
+    collectedCents: paidThisMonth,
+    revenueTargetCents: Number(activeTarget?.revenue_cents ?? 0),
+    quotesSent: quotesSentCount ?? 0,
+    quotesTarget: Number(activeTarget?.quotes_count ?? 0),
+    quotesAccepted: quotesAcceptedCount ?? 0,
+    carriedOver: !currentTarget && Boolean(lastTarget),
+  };
   const outstandingCents = openInvoices.reduce((total, document) => total + balanceDue(document), 0);
   const overdueCents = overdueInvoices.reduce((total, document) => total + balanceDue(document), 0);
 
@@ -171,9 +241,8 @@ export default async function Dashboard() {
         detail: followup && followup.days_waiting > 0 ? `${seen} · no reply after ${dayCount(followup.days_waiting)}` : seen,
         badge: "Awaiting reply",
         kind: "waiting",
-        // Shown when followups_due() says this quote has waited 3+ days with no recent nudge.
-        // The quote page renders the follow-up composer under the same #remind anchor.
-        canRemind: followup?.kind === "quote_followup",
+        // Offer a follow-up only when one is due (3+ days with no reply and not nudged recently).
+        canRemind: followupsAvailable ? followups.has(document.id) : false,
       };
     }),
   ].sort((first, second) => {
@@ -200,6 +269,8 @@ export default async function Dashboard() {
       waitingQuoteCount={waitingQuotes.length}
       readyToInvoiceCount={readyQuotes.length}
       actionItems={actionItems}
+      recentPayments={recentPayments}
+      monthly={monthly}
     />
   );
 }

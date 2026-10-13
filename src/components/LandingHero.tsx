@@ -15,18 +15,18 @@ export default function LandingHero() {
             Quote clearly.<br />Get the <span className="text-yebo">yes.</span>
           </h1>
           <p className="mt-4 max-w-xl text-sm leading-5 text-yebo-deep/70 sm:mt-7 sm:text-lg sm:leading-8">
-            Create a clear quote, share one easy client link, then turn accepted work into an invoice — all from your phone.
+            Speak your quote, send it in one tap, see when your client opens it, and get paid online. Everything is tracked for you, all from your phone.
           </p>
           <div className="mt-5 flex flex-col items-stretch gap-1.5 sm:mt-8 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
             <Link className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-yebo px-6 py-3 text-sm font-bold text-white shadow-lg shadow-yebo/15 transition hover:-translate-y-0.5 hover:bg-yebo-deep sm:min-h-13 sm:w-auto sm:py-3.5" href="/login">
-              Create your first quote <span aria-hidden="true" className="ml-2">→</span>
+              Get started <span aria-hidden="true" className="ml-2">→</span>
             </Link>
             <Link className="inline-flex min-h-10 items-center justify-center px-2 text-sm font-bold text-yebo-deep underline decoration-yebo-deep/25 underline-offset-4 transition hover:decoration-yebo-deep sm:min-h-12" href="#workflow">
-              See the flow
+              See how it works
             </Link>
           </div>
           <p className="mt-6 hidden text-xs font-semibold text-yebo-deep/50 sm:block">
-            Share by link, email or WhatsApp · Prices in rands · VAT when registered
+            Send by email or WhatsApp · Clients pay by card or instant EFT · Prices in rands, VAT when registered
           </p>
         </div>
 
