@@ -1,5 +1,9 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { billingEnforced, hasAccess } from "@/lib/access";
+
+// Pages anyone signed in can open without a paid plan, so they can set up, subscribe, and manage or cancel their plan.
+const OPEN_WITHOUT_A_PLAN = ["/app/subscribe", "/app/settings", "/app/onboarding"];
 
 export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
@@ -29,6 +33,19 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user && isAppRoute) {
     return NextResponse.redirect(new URL("/login", req.url));
+  }
+
+  // When billing is switched on, the app itself needs a paid-up plan. Clients can always view and pay documents (/d/...).
+  if (user && isAppRoute && billingEnforced()) {
+    const open = OPEN_WITHOUT_A_PLAN.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+    if (!open) {
+      const { data: sub } = await supabase.from("subscriptions").select("status,plan,current_period_end").maybeSingle();
+      if (!hasAccess(sub)) {
+        const url = new URL("/app/subscribe", req.url);
+        if (sub) url.searchParams.set("reason", "expired");
+        return NextResponse.redirect(url);
+      }
+    }
   }
   return res;
 }

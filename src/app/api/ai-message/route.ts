@@ -2,6 +2,7 @@ import { groq } from "@ai-sdk/groq";
 import { generateText } from "ai";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkAiAccess } from "@/lib/subscription";
 import { formatDate } from "@/lib/dates";
 import { formatRand } from "@/lib/money";
 import { greetingName } from "@/lib/names";
@@ -222,6 +223,11 @@ export async function POST(request: Request) {
     return errorResponse("The draft request is not valid JSON.", 400);
   }
   if (!isRecord(input)) return errorResponse("The draft request is invalid.", 400);
+
+  // Reminders and follow-ups are part of The Real Business plan and above. Everything else just needs a paid-up plan.
+  const needsReminders = input.kind === "reminder" || input.kind === "quote_followup";
+  const access = await checkAiAccess(supabase, needsReminders ? "reminders" : undefined);
+  if (!access.ok) return errorResponse(access.message, 402);
 
   try {
     if (input.kind === "intro_note") return await draftIntroNote(input);

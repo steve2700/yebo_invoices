@@ -1,6 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { checkDocumentAllowance } from "@/lib/subscription";
 import { addDays } from "@/lib/dates";
 
 export type NewQuote = {
@@ -17,6 +18,8 @@ export async function createQuote(input: NewQuote): Promise<{ error: string } | 
   const sb = await createClient();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) redirect("/login");
+  const allowance = await checkDocumentAllowance(sb);
+  if (!allowance.ok) return { error: allowance.message };
   let docId = "";
   try {
     const { data: biz } = await sb.from("businesses").select("*").single();

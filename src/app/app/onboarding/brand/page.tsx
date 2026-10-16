@@ -3,9 +3,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import LogoUpload from "../../settings/LogoUpload";
 import SubmitButton from "@/components/SubmitButton";
+import { billingEnforced } from "@/lib/access";
 
 // Where a new user lands when onboarding is finished. The goal is their first quote, so go straight there.
-const AFTER_ONBOARDING = "/app/onboarding/welcome";
+// With billing switched on, the next step is choosing a plan. Otherwise it is the welcome tour.
+const AFTER_ONBOARDING = billingEnforced() ? "/app/subscribe?onboarding=1" : "/app/onboarding/welcome";
 
 async function saveBanking(formData: FormData) {
   "use server";
@@ -64,16 +66,16 @@ export default async function OnboardingBrand({ searchParams }: { searchParams: 
               <p className="mb-4 text-xs font-bold uppercase tracking-[0.22em] text-lime">Nearly there</p>
               <h1 className="max-w-sm text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl">Look like a real business. Get paid.</h1>
               <p className="mt-5 max-w-sm text-sm leading-6 text-paper/65">Your logo goes on every quote and invoice, and your banking details let clients pay you by EFT. Both are optional, and you can add them later.</p>
-              <div className="mt-9 flex items-center gap-3 text-xs text-paper/60"><span className="h-px w-10 bg-lime" /> Next: meet your tools</div>
+              <div className="mt-9 flex items-center gap-3 text-xs text-paper/60"><span className="h-px w-10 bg-lime" /> {billingEnforced() ? "Next: choose your plan" : "Next: meet your tools"}</div>
             </div>
           </div>
         </section>
 
         <section className="px-7 py-8 sm:px-10 sm:py-12">
-          <div className="mb-6" role="group" aria-label="Step 2 of 3">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange">Step 2 of 3</p>
+          <div className="mb-6" role="group" aria-label={`Step 2 of ${billingEnforced() ? 4 : 3}`}>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange">Step 2 of {billingEnforced() ? 4 : 3}</p>
             <div className="mt-2 flex gap-1.5" aria-hidden="true">
-              {[0, 1, 2].map((index) => (
+              {Array.from({ length: billingEnforced() ? 4 : 3 }, (_, index) => index).map((index) => (
                 <span key={index} className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink/10">
                   {index < 2 && <span style={{ "--d": `${index * 0.15}s` } as React.CSSProperties} className="bar-grow block h-full w-full rounded-full bg-orange" />}
                 </span>

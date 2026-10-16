@@ -140,3 +140,79 @@ export async function confirmWithPayfast(entries: [string, string][], sandbox: b
     return false;
   }
 }
+
+
+// ============ SUBSCRIPTIONS (Yebo billing its own customers) ============
+
+export type PayfastSubscriptionInput = {
+  merchantId: string;
+  merchantKey: string;
+  passphrase?: string | null;
+  sandbox: boolean;
+  returnUrl: string;
+  cancelUrl: string;
+  notifyUrl: string;
+  email?: string | null;
+  paymentId: string;
+  amountCents: number;
+  itemName: string;
+  itemDescription: string;
+  customStr1: string;
+  billingDate: string; // YYYY-MM-DD: when the second payment is taken. The first payment is taken now.
+};
+
+// A normal payment form plus the recurring fields. PayFast checks the signature in this exact field order.
+export function buildPayfastSubscriptionCheckout(input: PayfastSubscriptionInput) {
+  const one = (value: string, max: number) => value.replace(/\s+/g, " ").trim().slice(0, max);
+  const amount = formatPayfastAmount(input.amountCents);
+  const fields: [string, string][] = [
+    ["merchant_id", input.merchantId.trim()],
+    ["merchant_key", input.merchantKey.trim()],
+    ["return_url", input.returnUrl],
+    ["cancel_url", input.cancelUrl],
+    ["notify_url", input.notifyUrl],
+    ["email_address", (input.email ?? "").trim()],
+    ["m_payment_id", input.paymentId],
+    ["amount", amount],
+    ["item_name", one(input.itemName, 100)],
+    ["item_description", one(input.itemDescription, 255)],
+    ["custom_str1", one(input.customStr1, 255)],
+    ["subscription_type", "1"],
+    ["billing_date", input.billingDate],
+    ["recurring_amount", amount],
+    ["frequency", "3"], // 3 = monthly
+    ["cycles", "0"], // 0 = until cancelled
+  ];
+  const sent = fields.filter(([, value]) => value.trim() !== "");
+  return {
+    action: input.sandbox ? PAYFAST_SANDBOX_URL : PAYFAST_LIVE_URL,
+    fields: [...sent, ["signature", payfastSignature(sent, input.passphrase)]] as [string, string][],
+  };
+}
+
+// Cancels a recurring subscription with PayFast's API. Returns true only when PayFast says it worked.
+// This needs an API-enabled PayFast merchant account. If it fails, the caller shows a clear fallback message.
+export async function cancelPayfastSubscription(token: string, creds: { merchantId: string; passphrase?: string | null; sandbox: boolean }) {
+  const timestamp = new Date().toISOString().slice(0, 19); // 2026-10-13T10:00:00
+  const params: Record<string, string> = { "merchant-id": creds.merchantId, timestamp, version: "v1" };
+  if (creds.passphrase?.trim()) params.passphrase = creds.passphrase.trim();
+  const signature = createHash("md5")
+    .update(Object.keys(params).sort().map((key) => `${key}=${payfastEncode(params[key])}`).join("&"))
+    .digest("hex");
+  try {
+    const response = await fetch(`https://api.payfast.co.za/subscriptions/${encodeURIComponent(token)}/cancel${creds.sandbox ? "?testing=true" : ""}`, {
+      method: "PUT",
+      headers: { "merchant-id": creds.merchantId, version: "v1", timestamp, signature },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = (await response.json().catch(() => null)) as { status?: string } | null;
+    if (!response.ok || body?.status !== "success") {
+      console.error("[payfast] could not cancel subscription:", response.status, JSON.stringify(body));
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("[payfast] cancel request failed:", error);
+    return false;
+  }
+}

@@ -1,4 +1,6 @@
-import { PRO_PRICE_LABEL } from "@/lib/plans";
+import { FAIR_USE, PLANS, PLAN_ORDER, priceLabel } from "@/lib/plans";
+
+const planSummary = PLAN_ORDER.map((id) => `${PLANS[id].name} (${priceLabel(id)} per month)`).join(", ").replace(/, ([^,]*)$/, " and $1");
 
 export type LegalSection = {
   id: string;
@@ -263,7 +265,8 @@ export const termsOfService: LegalDocument = {
       id: "fees",
       title: "Fees and subscriptions",
       paragraphs: [
-        `Yebo Pro costs ${PRO_PRICE_LABEL} per month. The price is shown before you subscribe. It is billed monthly in advance through PayFast and renews automatically each month until you cancel.`,
+        `Yebo has three paid plans: ${planSummary}. Each plan has monthly limits on quotes, invoices and voice quotes, shown on the pricing page. Plans described as unlimited are subject to fair use, which currently means up to ${FAIR_USE.documentsPerMonth} documents and ${FAIR_USE.voicePerMonth} voice quotes a month. Features marked "coming soon" are not part of a plan until they are released.`,
+        "The price is shown before you subscribe. It is billed monthly in advance through PayFast and renews automatically each month until you cancel. You can change plan at any time. When you switch, your new plan starts when your payment for it is received.",
         "You can cancel at any time in Settings. After you cancel, you keep access until the end of the month you have already paid for, and you will not be charged again. We do not refund part-months unless the law requires it.",
         "If a payment fails, we may limit your ability to create new documents until it is sorted out. Your clients can still view and pay documents you have already sent, and you can still see and download your information.",
         "We will give you at least 30 days' notice before a price change takes effect for you. Payments are also subject to PayFast's terms.",

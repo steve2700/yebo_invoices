@@ -56,12 +56,13 @@ Yebo is built around one rule: **a new user should send their first quote within
 - [x] **Clear document actions:** every button says what it does, email sending shows progress and a clear "sent" or "failed" message, and replies go straight to the business owner
 - [x] **Welcome tour:** a short plain-English introduction to the features at the end of onboarding
 - [x] **Privacy Notice and Terms of Service** pages, linked from the footer
-- [x] **Pricing, comparison and FAQ** sections on the landing page (one plan, R199 per month)
+- [x] **Pricing, comparison and FAQ** sections on the landing page (three plans: The Side-Hustler R49, The Real Business R199, The Industry King R499)
+- [x] **Subscriptions through PayFast** with a subscribe step after onboarding, monthly limits per plan, a "Your plan" card with usage in Settings, and cancelling in Settings. Switched on with `BILLING_ENFORCED=true`
+- [x] **A better voice assistant:** a "say it like this" guide, a live microphone meter, a fixable transcript, an editable draft, phone number capture, and a warning when a price looks wrong (for example R1.80 instead of R1 800)
 - [ ] Fully automatic reminders (scheduled, no tap needed)
 
 ### Planned
 
-- [ ] Subscription billing (R199 per month through PayFast) with a subscribe step after onboarding
 - [ ] "Get found" page for businesses that want a website, Google Business Profile or Google Ads
 - [ ] Rate limits on the AI routes
 - [ ] Pay a quote's deposit online, and part payments
@@ -309,6 +310,7 @@ Run the migrations **in order** in the Supabase SQL Editor (copies are in `supab
 | `0005_payment_notifications.sql` | Remembers when payment emails were sent, so each is sent once |
 | `0006_thanked_payments.sql` | Remembers when the owner thanked a client for a payment |
 | `0007_monthly_targets.sql` | Monthly money and quote targets for each business |
+| `0008_subscriptions.sql` | Subscriptions, subscription payments and voice quote usage |
 
 Supabase may warn about "destructive operations" on some of these. They only drop and recreate policies or functions, and do not touch your data.
 
@@ -326,6 +328,13 @@ RESEND_API_KEY=
 RESEND_EMAIL_DOMAIN=yeboinvoices.com
 
 # Shown on the Privacy Notice and Terms pages (required before launch)
+# Billing. Leave BILLING_ENFORCED unset (or false) until you are ready to charge, so nobody is locked out.
+BILLING_ENFORCED=false            # true switches on plans, limits and the paid-plan check
+YEBO_PAYFAST_MERCHANT_ID=         # Yebo's OWN PayFast account (receives subscription fees)
+YEBO_PAYFAST_MERCHANT_KEY=
+YEBO_PAYFAST_PASSPHRASE=          # required for subscriptions
+YEBO_PAYFAST_SANDBOX=true         # test mode. Only set to false when you go live
+
 LEGAL_NAME=                       # your registered business name
 LEGAL_ADDRESS=                    # your registered address
 CONTACT_EMAIL=                    # where people can reach you about privacy and terms
@@ -370,9 +379,44 @@ In **Authentication → Providers**, enable Google (and keep Email on for magic 
 | Onboarding (business, logo and banking, welcome tour) | `src/app/app/onboarding/` |
 | Email card with progress and result | `src/app/app/documents/SendEmailCard.tsx` |
 | Privacy Notice, Terms and their text | `src/app/privacy`, `src/app/terms`, `src/lib/legal-content.ts` |
-| Landing page sections and the plan price | `src/components/`, `src/lib/plans.ts` |
+| Landing page sections | `src/components/` |
+| The three plans, their prices and limits (one place to change them) | `src/lib/plans.ts` |
+| Plan access rules and usage limits | `src/lib/access.ts`, `src/lib/subscription.ts` |
+| Subscribe step, checkout and confirmation page | `src/app/app/subscribe/` |
+| Subscription payment confirmation from PayFast | `src/app/api/subscriptions/notify/route.ts` |
+| "Your plan" card and cancelling | `src/app/app/billing/` |
+| Voice assistant, editable draft and voice route | `src/app/app/quotes/new/VoiceQuoteAssistant.tsx`, `src/app/api/voice-quote/route.ts` |
 | Shared gentle animations | `src/app/globals.css`, `src/components/Reveal.tsx`, `src/components/SubmitButton.tsx` |
 | PDF builder | `src/lib/pdf.ts` |
+
+---
+
+## Billing and plans
+
+Three monthly plans, all paid through PayFast, defined in `src/lib/plans.ts`:
+
+| Plan | Price | Quotes and invoices | Voice quotes | Reminders |
+|---|---|---|---|---|
+| The Side-Hustler | R49 | 10 a month | 1 a month | No |
+| The Real Business | R199 | 50 a month | 5 a month | Yes |
+| The Industry King | R499 | Unlimited (fair use) | Unlimited (fair use) | Yes |
+
+- Only features that exist today are listed as included. Ideas that are not built yet are shown as "Coming soon" and are not part of a plan.
+- **A single switch.** Nothing is limited and nobody is locked out until `BILLING_ENFORCED=true`. Before you turn it on, run the optional "comped" SQL at the bottom of `0008_subscriptions.sql` for your own test business.
+- **How a subscription works.** The owner picks a plan and pays on PayFast. The first payment is taken at once, and PayFast then charges the same amount monthly. PayFast confirms each payment to `/api/subscriptions/notify`, which runs the same checks as invoice payments (signature, PayFast's servers, amount, and PayFast's own confirmation), and only then switches the plan on for one month plus 3 spare days.
+- **Access.** Access lasts until the end of the paid period, so a cancelled plan keeps working until then. Clients can always view and pay documents already sent, and owners can always reach Settings to manage or cancel.
+- **Limits.** Quotes and invoices are counted per South African calendar month. Voice quotes are counted when a recording is successfully turned into a draft. Fixing a misheard word and rebuilding the draft from text does not use up a voice quote.
+- **Changing plan** starts a new PayFast subscription, and the old one is cancelled automatically when the new payment arrives.
+- **Cancelling** uses PayFast's API (it needs an API-enabled merchant account). If PayFast cannot cancel automatically, nothing changes and the owner is told how to cancel in PayFast.
+
+### Going live with billing (checklist)
+
+1. Create and get approved for Yebo's own **live** PayFast merchant account. In its Integration settings, set a passphrase, enable ITN notifications, and ask PayFast to enable recurring billing and the API if they are not already on.
+2. Set `YEBO_PAYFAST_MERCHANT_ID`, `YEBO_PAYFAST_MERCHANT_KEY` and `YEBO_PAYFAST_PASSPHRASE` in Vercel, and `YEBO_PAYFAST_SANDBOX=false`.
+3. Run `0008_subscriptions.sql`, then the "comped" SQL for your own business.
+4. Test the whole flow in sandbox first: subscribe, confirm the plan switches on, hit a limit, change plan, cancel.
+5. Set `BILLING_ENFORCED=true` and redeploy.
+6. Make one real subscription with your own card and check the first payment and the welcome email.
 
 ---
 
@@ -393,6 +437,8 @@ Run this after deploying, on a phone as well as a desktop browser. Payment confi
 11. **Thank-yous:** the dashboard shows a "You've been paid" card. **Thank on WhatsApp** opens WhatsApp with the message and clears the card. **Not needed** clears it without opening WhatsApp.
 12. **Reminders:** open an overdue invoice from the dashboard, draft a reminder, open WhatsApp, and check the dashboard button disappears.
 13. **Times:** Activity times match South African time.
+14. **Voice:** record a quote that includes a client name, a phone number and a price in thousands. Check the phone number appears, a price like "one point eight" is flagged with a "Use R1 800" button, and fixing the words and tapping "Rebuild" works.
+15. **Plans (sandbox):** subscribe, check the plan switches on, create documents until you reach the limit and see the upgrade message, change plan, and cancel.
 
 ---
 

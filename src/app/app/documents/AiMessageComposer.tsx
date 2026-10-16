@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { waLink } from "@/lib/dates";
+import WhatsAppIcon from "@/components/WhatsAppIcon";
 import { recordReminderSent } from "./actions";
 
 type MessageMode = "intro" | "reminder" | "quote_followup";
@@ -99,7 +100,7 @@ export default function AiMessageComposer({ mode, documentId, whatsappNumber, fa
           onClick={recordSend}
           className="inline-flex min-h-10 items-center rounded-xl border-2 border-neutral-300 px-4 py-2 text-sm font-bold text-ink transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2"
         >
-          {copy.standard}
+          <WhatsAppIcon className="mr-2 size-4 text-[#25D366]" />{copy.standard}
         </a>
       </div>
       <p aria-live="polite" className="mt-1 px-1 text-xs text-neutral-500">
@@ -154,7 +155,7 @@ export default function AiMessageComposer({ mode, documentId, whatsappNumber, fa
               }}
               className="inline-flex min-h-11 items-center rounded-xl bg-yebo px-4 py-2 text-sm font-bold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2"
             >
-              Open WhatsApp
+              <WhatsAppIcon className="mr-2 size-4" />Open WhatsApp
             </a>
           </div>
         </div>

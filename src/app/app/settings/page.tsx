@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import LogoUpload from "./LogoUpload";
 import { createAdminClient } from "@/lib/supabase/admin";
+import BillingCard from "../billing/BillingCard";
+import { billingEnforced } from "@/lib/access";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -132,7 +134,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <div className="grid gap-6 lg:grid-cols-[210px_1fr]">
           <aside className="hidden lg:block">
             <div className="sticky top-24 rounded-2xl border border-yebo-deep/10 bg-white/70 p-2">
-              {[['#identity', 'Brand identity'], ['#contact', 'Contact details'], ['#banking', 'Banking details'], ['#defaults', 'Quote defaults'], ['#payments', 'Online payments']].map(([href, text], index) => (
+              {[...(billingEnforced() ? [['#billing', 'Your plan']] : []), ['#identity', 'Brand identity'], ['#contact', 'Contact details'], ['#banking', 'Banking details'], ['#defaults', 'Quote defaults'], ['#payments', 'Online payments']].map(([href, text], index) => (
                 <a key={href} href={href} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-yebo-deep/60 transition hover:bg-yebo-chalk hover:text-yebo-deep">
                   <span className="flex size-6 items-center justify-center rounded-full bg-yebo-chalk text-[10px] font-black text-yebo">0{index + 1}</span>{text}
                 </a>
@@ -141,6 +143,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
           </aside>
 
           <div className="flex flex-col gap-6">
+          <BillingCard />
           <form action={save} className="flex flex-col gap-6">
             <section id="identity" className="overflow-hidden rounded-3xl border border-yebo-deep/10 bg-white shadow-[0_12px_40px_rgba(12,59,46,0.06)]">
               <div className="border-b border-yebo-deep/10 bg-gradient-to-br from-white to-yebo-chalk/70 px-6 py-6 sm:px-8">

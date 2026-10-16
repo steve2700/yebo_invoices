@@ -7,6 +7,7 @@ import { greetingName } from "@/lib/names";
 import { buildDocumentPdf } from "@/lib/pdf";
 import { appUrl } from "@/lib/url";
 import { isEmail, renderEmail, sendEmail } from "@/lib/email";
+import { checkDocumentAllowance } from "@/lib/subscription";
 
 type Sb = Awaited<ReturnType<typeof createClient>>;
 
@@ -149,6 +150,7 @@ export async function markPaid(fd: FormData) {
 export async function convertToInvoice(fd: FormData) {
   const quoteId = String(fd.get("id"));
   const sb = await createClient();
+  if (!(await checkDocumentAllowance(sb)).ok) redirect("/app/subscribe?reason=documents");
   const { data: q } = await sb.from("documents").select("*").eq("id", quoteId).single();
   if (!q || q.type !== "quote" || q.status !== "accepted") redirect(`/app/documents/${quoteId}`);
   // A quote becomes one invoice. If it already has one (for example from a double tap), open that instead.
@@ -178,6 +180,7 @@ export async function convertToInvoice(fd: FormData) {
 export async function duplicateDocument(fd: FormData) {
   const id = String(fd.get("id"));
   const sb = await createClient();
+  if (!(await checkDocumentAllowance(sb)).ok) redirect("/app/subscribe?reason=documents");
   const { data: d } = await sb.from("documents").select("*").eq("id", id).single();
   const { data: biz } = await sb.from("businesses").select("id,vat_registered,default_expiry_days").single();
   if (!d || !biz) redirect("/app/documents");

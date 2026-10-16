@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { billingEnforced } from "@/lib/access";
 
 const features = [
   { icon: "🎙️", title: "Speak your quote", text: "Press record and say who it is for and what you are charging. Yebo writes the quote. You check it and tap send." },
@@ -23,10 +24,10 @@ export default async function Welcome() {
         <div className="relative overflow-hidden bg-ink px-7 py-10 text-paper sm:px-10">
           <div className="absolute -right-16 -top-16 size-48 rounded-full bg-lime/20 blur-2xl" />
           <div className="relative">
-            <div className="mb-6" role="group" aria-label="Step 3 of 3">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-lime">Step 3 of 3</p>
+            <div className="mb-6" role="group" aria-label={`Step ${billingEnforced() ? 4 : 3} of ${billingEnforced() ? 4 : 3}`}>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-lime">Step {billingEnforced() ? 4 : 3} of {billingEnforced() ? 4 : 3}</p>
               <div className="mt-2 flex gap-1.5" aria-hidden="true">
-                {[0, 1, 2].map((index) => (
+                {Array.from({ length: billingEnforced() ? 4 : 3 }, (_, index) => index).map((index) => (
                   <span key={index} className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/15">
                     <span style={{ "--d": `${index * 0.15}s` } as React.CSSProperties} className="bar-grow block h-full w-full rounded-full bg-lime" />
                   </span>

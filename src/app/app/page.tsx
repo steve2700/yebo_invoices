@@ -8,6 +8,7 @@ import { appUrl } from "@/lib/url";
 import DashboardView, { type DashboardActionItem, type DashboardRecentPayment } from "./DashboardView";
 import type { MonthlyStats } from "./MonthlyTargets";
 import { southAfricaMonth } from "@/lib/time";
+import { entitlement } from "@/lib/subscription";
 
 type DocumentRow = {
   id: string;
@@ -135,6 +136,8 @@ export default async function Dashboard() {
     followupsAvailable ? ((followupData ?? []) as Followup[]).map((followup) => [followup.document_id, followup]) : [],
   );
 
+  const ent = await entitlement(supabase);
+  const remindersAllowed = !ent.enforced || Boolean(ent.plan?.reminders);
   const documents = (documentData ?? []) as unknown as DocumentRow[];
   const convertedQuoteIds = new Set((conversionData ?? []).map((document) => document.source_quote_id));
   const invoiceIds = documents
@@ -213,7 +216,7 @@ export default async function Dashboard() {
         badge: overdue ? "Overdue" : "Payment due",
         kind: overdue ? "overdue" : "invoice",
         // Offer a reminder only when one is due (not nudged in the last 3 days, fewer than 3 sent).
-        canRemind: followupsAvailable ? followups.has(document.id) : overdue,
+        canRemind: remindersAllowed && (followupsAvailable ? followups.has(document.id) : overdue),
       };
     }),
     ...readyQuotes.map((document): DashboardActionItem => ({
@@ -242,7 +245,7 @@ export default async function Dashboard() {
         badge: "Awaiting reply",
         kind: "waiting",
         // Offer a follow-up only when one is due (3+ days with no reply and not nudged recently).
-        canRemind: followupsAvailable ? followups.has(document.id) : false,
+        canRemind: remindersAllowed && (followupsAvailable ? followups.has(document.id) : false),
       };
     }),
   ].sort((first, second) => {

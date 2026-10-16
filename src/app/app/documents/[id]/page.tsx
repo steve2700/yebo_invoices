@@ -6,7 +6,9 @@ import { formatDate } from "@/lib/dates";
 import { greetingName } from "@/lib/names";
 import { appUrl } from "@/lib/url";
 import { formatSouthAfricaDateTime, southAfricaDate } from "@/lib/time";
+import { entitlement } from "@/lib/subscription";
 import SubmitButton from "@/components/SubmitButton";
+import WhatsAppIcon from "@/components/WhatsAppIcon";
 import CopyButton from "../CopyButton";
 import AiMessageComposer from "../AiMessageComposer";
 import SendEmailCard from "../SendEmailCard";
@@ -76,7 +78,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 }
 
 // One action: what it does, written for a busy person, with the control underneath.
-function ActionCard({ icon, title, description, children }: { icon: string; title: string; description: React.ReactNode; children: React.ReactNode }) {
+function ActionCard({ icon, title, description, children }: { icon: React.ReactNode; title: string; description: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex items-start gap-3">
@@ -106,6 +108,8 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     sb.from("payments").select("amount_cents").eq("document_id", id),
   ]);
   const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
+  const ent = await entitlement(sb);
+  const remindersAllowed = !ent.enforced || Boolean(ent.plan?.reminders);
 
   const isQuote = d.type === "quote";
   const kind = isQuote ? "quote" : "invoice";
@@ -184,7 +188,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         />
 
         <ActionCard
-          icon="💬"
+          icon={<WhatsAppIcon className="size-6 text-[#25D366]" />}
           title="Send on WhatsApp in one tap"
           description={<>WhatsApp opens with the message and the link already written. You read it and tap send. <b>Nothing is sent without you.</b></>}
         >
@@ -238,7 +242,13 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
             </ActionCard>
           )}
 
-          {waitingOnQuote && (
+          {waitingOnQuote && !remindersAllowed && (
+            <ActionCard icon="⏰" title="Reminders are on The Real Business plan" description="Quotes that go quiet are often just forgotten. Upgrade for one-tap reminders with the message already written.">
+              <Link href="/app/subscribe?change=1" className={btnOutline}>See the plans</Link>
+            </ActionCard>
+          )}
+
+          {waitingOnQuote && remindersAllowed && (
             <ActionCard
               icon="⏰"
               title={`Nudge ${first} about this quote`}
@@ -252,6 +262,11 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
 
           {waitingOnPayment && (
             <>
+              {!remindersAllowed ? (
+                <ActionCard icon="⏰" title="Reminders are on The Real Business plan" description={`${formatRand(balanceDue)} is still outstanding. Upgrade for one-tap payment reminders with the message already written.`}>
+                  <Link href="/app/subscribe?change=1" className={btnOutline}>See the plans</Link>
+                </ActionCard>
+              ) : (
               <ActionCard
                 icon="⏰"
                 title={`Remind ${first} to pay`}
@@ -261,6 +276,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
                   <AiMessageComposer mode="reminder" documentId={d.id} whatsappNumber={client?.whatsapp_number ?? null} fallbackMessage={reminderMsg} balanceLabel={formatRand(balanceDue)} />
                 </div>
               </ActionCard>
+              )}
               <ActionCard
                 icon="💰"
                 title="Did they pay you outside Yebo?"

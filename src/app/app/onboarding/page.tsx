@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { businessPrefix } from "@/lib/prefix";
 import SubmitButton from "@/components/SubmitButton";
+import { billingEnforced } from "@/lib/access";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -91,7 +92,7 @@ export default async function Onboarding({ searchParams }: { searchParams: Promi
         </section>
 
         <section className="px-7 py-8 sm:px-10 sm:py-12">
-          <Progress step={1} total={3} />
+          <Progress step={1} total={billingEnforced() ? 4 : 3} />
           <div className="mb-7"><h2 className="text-2xl font-extrabold tracking-tight text-ink">Tell us about your business</h2><p className="mt-2 text-sm leading-6 text-ink/55">You can always fine-tune these details later in Settings.</p></div>
 
           {error && <div role="alert" className="mb-5 rounded-xl border border-orange/25 bg-orange/10 px-4 py-3 text-sm font-semibold text-ink">{error}</div>}

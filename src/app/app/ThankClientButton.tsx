@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { markPaymentThanked } from "@/app/app/payments/actions";
+import WhatsAppIcon from "@/components/WhatsAppIcon";
 
 type Props = {
   paymentId: string;
@@ -30,7 +31,7 @@ export default function ThankClientButton({ paymentId, href, firstName }: Props)
         aria-label={`Thank ${firstName} on WhatsApp`}
         className="inline-flex min-h-11 items-center rounded-xl bg-yebo px-4 text-sm font-extrabold text-white transition hover:bg-yebo-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2"
       >
-        Thank {firstName} on WhatsApp
+        <WhatsAppIcon className="mr-2 size-4" />Thank {firstName} on WhatsApp
       </a>
       <button
         type="button"

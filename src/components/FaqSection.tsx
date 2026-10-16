@@ -6,6 +6,7 @@ const questions = [
   { q: "What happens when I send a quote?", a: "You choose email or WhatsApp. Yebo shows you straight away that it was sent, and tells you when your client opens, accepts or pays." },
   { q: "Where do my clients' replies go?", a: "Straight to the business email you set up in Yebo, so nothing gets lost in a no-reply inbox." },
   { q: "How do I get paid?", a: "Clients can pay your invoices online by card or instant EFT through PayFast, straight into your own PayFast account. You can also record EFT and cash payments yourself." },
+  { q: "Which plan should I pick?", a: "Pick the one that matches a normal month for your business. If you are not busy yet, start with The Side-Hustler. If you quote every week, The Real Business is built for you. You can change plan any time." },
   { q: "Can I cancel?", a: "Yes, any time, from Settings. You keep access until the end of the month you have paid for, and you will not be charged again." },
   { q: "Is my information safe?", a: "Your information is stored securely and is never sold. You can read exactly what we collect and why in our Privacy Notice." },
 ];

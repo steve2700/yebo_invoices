@@ -3,6 +3,7 @@ import { generateText, Output } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { checkAiAccess } from "@/lib/subscription";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -113,6 +114,8 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return errorResponse("Sign in again to tidy your wording.", 401);
+  const access = await checkAiAccess(supabase);
+  if (!access.ok) return errorResponse(access.message, 402);
 
   let body: unknown;
   try {

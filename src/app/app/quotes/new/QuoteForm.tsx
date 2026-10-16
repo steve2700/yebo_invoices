@@ -3,7 +3,7 @@ import { useEffect, useState, useTransition } from "react";
 import { createQuote, updateDraft } from "./actions";
 import { formatRand } from "@/lib/money";
 import { greetingName } from "@/lib/names";
-import VoiceQuoteAssistant, { type VoiceQuoteDraft } from "./VoiceQuoteAssistant";
+import VoiceQuoteAssistant, { type ApplyMode, type VoiceQuoteDraft } from "./VoiceQuoteAssistant";
 
 type Client = { id: string; name: string; whatsapp_number: string | null; address: string | null; preferred_payment: string | null };
 type Item = { description: string; default_price_cents: number };
@@ -57,7 +57,7 @@ function isTidySuggestion(value: unknown): value is TidySuggestion {
 
 type Initial = { clientId: string; f: Fields; lines: Line[] };
 
-export default function QuoteForm({ clients, items, vatRegistered, docType = "quote", documentId, initial }: { clients: Client[]; items: Item[]; vatRegistered: boolean; docType?: "quote" | "invoice"; documentId?: string; initial?: Initial }) {
+export default function QuoteForm({ clients, items, vatRegistered, docType = "quote", documentId, initial, voiceLeft = null }: { clients: Client[]; items: Item[]; vatRegistered: boolean; docType?: "quote" | "invoice"; documentId?: string; initial?: Initial; voiceLeft?: number | null }) {
   const isInvoice = docType === "invoice";
   const [clientId, setClientId] = useState(initial?.clientId ?? (clients.length ? "" : "new"));
   const [newClient, setNewClient] = useState({ name: "", whatsapp: "", email: "", address: "" });
@@ -278,28 +278,44 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
     }
   }
 
-  function applyVoiceDraft(draft: VoiceQuoteDraft) {
+  function applyVoiceDraft(draft: VoiceQuoteDraft, mode: ApplyMode) {
     if (draft.clientName) {
       const matchedClient = clients.find((client) => normalizeClientName(client.name) === normalizeClientName(draft.clientName!));
       if (matchedClient) {
         pickClient(matchedClient.id);
       } else {
+        // A new client: keep the phone number and email that were heard, so WhatsApp works straight away.
         setClientId("new");
-        setNewClient({ name: draft.clientName, whatsapp: "", email: "", address: "" });
+        setNewClient({ name: draft.clientName, whatsapp: draft.clientPhone ?? "", email: draft.clientEmail ?? "", address: "" });
       }
     }
     if (draft.title) setField("title", draft.title);
     if (draft.location) setField("location", draft.location);
     if (draft.description) setField("description", draft.description);
-    setLines(draft.items.map((item) => ({
+    const incoming: Line[] = draft.items.map((item) => ({
       description: item.description,
       quantity: Math.round(item.quantity * 100) / 100,
       price: item.amountRand === null ? 0 : Math.round(item.amountRand * 100) / 100,
       pricingMode: item.amountRand !== null && item.priceBasis !== "unit_rate" ? "line_total" : "unit",
-    })));
+    }));
+    setLines((current) => {
+      const kept = mode === "append" ? current.filter((line) => line.description.trim() || line.price > 0) : [];
+      return [...kept, ...incoming];
+    });
     setVoiceApplied(true);
     setHiddenTips((current) => current.filter((id) => id !== "voice-check"));
     setError("");
+    // Take the owner straight to the amounts, so they can check them.
+    window.setTimeout(() => document.getElementById("amount-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+  }
+
+  // One tap to add an item the owner uses a lot, at its usual price.
+  function quickAdd(item: Item) {
+    const line: Line = { description: item.description, quantity: 1, price: item.default_price_cents / 100, pricingMode: "unit" };
+    setLines((current) => {
+      const onlyEmptyLine = current.length === 1 && !current[0].description.trim() && !(current[0].price > 0);
+      return onlyEmptyLine ? [line] : [...current, line];
+    });
   }
 
   function updateLine(index: number, patch: Partial<Line>) {
@@ -400,7 +416,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         </div>
       </header>
 
-      {!documentId && <VoiceQuoteAssistant docType={docType} onApply={applyVoiceDraft} onBusyChange={setVoiceBusy} />}
+      {!documentId && <VoiceQuoteAssistant docType={docType} onApply={applyVoiceDraft} onBusyChange={setVoiceBusy} hasExistingItems={lines.some((line) => line.description.trim() || line.price > 0)} voiceLeft={voiceLeft} />}
 
       <section className="rounded-[2rem] bg-white p-5 shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5 sm:p-7">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-orange">01 · Start here</p>
@@ -422,7 +438,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         {clients.length === 0 && <p className="mt-2 text-xs text-ink/50">Only the client’s name is needed to get started.</p>}
       </section>
 
-      <section className="mt-5 rounded-[2rem] bg-ink p-5 text-paper shadow-[0_16px_60px_rgba(20,42,31,.12)] sm:p-7">
+      <section id="amount-section" className="mt-5 scroll-mt-24 rounded-[2rem] bg-ink p-5 text-paper shadow-[0_16px_60px_rgba(20,42,31,.12)] sm:p-7">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-lime">02 · The amount</p>
@@ -466,6 +482,19 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         <button type="button" className="mt-4 min-h-11 rounded-full border border-lime/40 px-4 py-2 text-sm font-bold text-lime transition hover:bg-white/10" onClick={() => setLines((current) => [...current, { description: "", quantity: 1, price: 0 }])}>
           + Add another item
         </button>
+
+        {items.length > 0 && (
+          <div className="mt-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-paper/55">Quick add one of your usual items</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {items.slice(0, 6).map((item) => (
+                <button key={item.description} type="button" onClick={() => quickAdd(item)} className="min-h-10 max-w-full truncate rounded-full bg-white/10 px-3.5 text-xs font-semibold text-paper transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime">
+                  + {item.description}{item.default_price_cents > 0 ? ` · ${formatRand(item.default_price_cents)}` : ""}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-4">
           <button

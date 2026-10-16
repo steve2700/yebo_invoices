@@ -4,6 +4,7 @@ import Logo from "@/components/Logo";
 import InstallPrompt from "./InstallPrompt";
 import BottomNav from "./BottomNav";
 import { createClient } from "@/lib/supabase/server";
+import { billingBanner } from "@/lib/subscription";
 
 async function signOut() {
   "use server";
@@ -12,7 +13,8 @@ async function signOut() {
   redirect("/login");
 }
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const banner = await billingBanner();
   const link = "rounded-full px-3 py-1.5 text-sm font-semibold text-yebo-deep/70 hover:bg-yebo-deep/5 hover:text-yebo-deep";
   return (
     <>
@@ -28,6 +30,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
       </header>
+      {banner && (
+        <div role="status" className={`border-b px-4 py-2.5 text-center text-sm font-semibold ${banner.tone === "warn" ? "border-orange/30 bg-orange/10 text-yebo-deep" : "border-yebo/20 bg-lime/25 text-yebo-deep"}`}>
+          {banner.text} <Link href="/app/settings#billing" className="underline underline-offset-2">Manage plan</Link>
+        </div>
+      )}
       <div className="pb-[var(--tab-h)]">{children}</div>
       <BottomNav />
     </>
