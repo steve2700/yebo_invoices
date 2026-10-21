@@ -169,7 +169,7 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
   const businessDetails = [
     b.address,
     [b.email, b.phone, b.website].filter(Boolean).join("  |  "),
-    `${b.company_reg ? `Reg. no: ${b.company_reg}` : "Sole proprietor"}${b.vat_registered ? `  |  VAT no: ${b.vat_number}` : "  |  Not VAT registered"}`,
+    `${b.company_reg ? `Reg. no: ${b.company_reg}` : "Sole proprietor"}${b.vat_registered ? `  |  VAT no: ${b.vat_number}` : "  |  Not VAT registered"}${b.year_started ? `  |  Trading since ${b.year_started}` : ""}`,
   ].filter(Boolean) as string[];
   for (const detail of businessDetails) {
     for (const row of wrap(detail, font, 8, 270)) {
@@ -372,7 +372,7 @@ export async function buildDocumentPdf({ document: d, lines, business: b, client
   const trust = [
     b.address,
     [b.email, b.phone, b.website].filter(Boolean).join("  |  "),
-    `${b.company_reg ? `Reg. no: ${b.company_reg}` : "Sole proprietor"}${b.vat_registered ? `  |  VAT no: ${b.vat_number}` : "  |  Not VAT registered"}`,
+    `${b.company_reg ? `Reg. no: ${b.company_reg}` : "Sole proprietor"}${b.vat_registered ? `  |  VAT no: ${b.vat_number}` : "  |  Not VAT registered"}${b.year_started ? `  |  Trading since ${b.year_started}` : ""}`,
   ].filter(Boolean) as string[];
   for (const t of trust) for (const l of wrap(t, font, 8.5, 290)) { put(l, M, 8.5, font, mute, leftY); leftY -= 11.5; }
 

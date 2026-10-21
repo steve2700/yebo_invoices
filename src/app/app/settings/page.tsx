@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import BillingCard from "../billing/BillingCard";
 import { billingEnforced } from "@/lib/access";
 import BankFields from "@/components/BankFields";
+import WorkPhotos from "./WorkPhotos";
 import { isValidBankName } from "@/lib/sa-banks";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -21,10 +22,17 @@ async function save(fd: FormData) {
   if (!isValidBankName(t("bank_name"))) {
     redirect(`/app/settings?error=${encodeURIComponent("Please choose your bank from the list.")}`);
   }
+  const yearRaw = t("year_started");
+  const thisYear = +new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg", year: "numeric" }).format(new Date());
+  const year = yearRaw ? Number(yearRaw) : null;
+  if (year !== null && (!Number.isInteger(year) || year < 1950 || year > thisYear)) {
+    redirect(`/app/settings?error=${encodeURIComponent(`The year you started should be between 1950 and ${thisYear}.`)}`);
+  }
   if (email && !EMAIL_PATTERN.test(email)) {
     redirect(`/app/settings?error=${encodeURIComponent("That business email doesn't look right. Please check it and try again.")}`);
   }
   const { error } = await sb.from("businesses").update({
+    year_started: year, about: (t("about") ?? "").slice(0, 160) || null,
     email, phone: t("phone"), website: t("website"), address: t("address"),
     bank_name: t("bank_name"), bank_account_type: t("bank_account_type"), bank_account_holder: t("bank_account_holder"),
     bank_account_number: t("bank_account_number"), bank_branch_code: t("bank_branch_code"),
@@ -139,7 +147,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <div className="grid gap-6 lg:grid-cols-[210px_1fr]">
           <aside className="hidden lg:block">
             <div className="sticky top-24 rounded-2xl border border-yebo-deep/10 bg-white/70 p-2">
-              {[...(billingEnforced() ? [['#billing', 'Your plan']] : []), ['#identity', 'Brand identity'], ['#contact', 'Contact details'], ['#banking', 'Banking details'], ['#defaults', 'Quote defaults'], ['#payments', 'Online payments']].map(([href, text], index) => (
+              {[...(billingEnforced() ? [['#billing', 'Your plan']] : []), ['#identity', 'Brand identity'], ['#contact', 'Contact details'], ['#banking', 'Banking details'], ['#trust', 'Build trust'], ['#defaults', 'Quote defaults'], ['#payments', 'Online payments']].map(([href, text], index) => (
                 <a key={href} href={href} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-yebo-deep/60 transition hover:bg-yebo-chalk hover:text-yebo-deep">
                   <span className="flex size-6 items-center justify-center rounded-full bg-yebo-chalk text-[10px] font-black text-yebo">0{index + 1}</span>{text}
                 </a>
@@ -188,13 +196,31 @@ export default async function Settings({ searchParams }: { searchParams: Promise
 
             <section id="banking" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8"><p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">03 · Get paid</p><h2 className="mt-2 text-xl font-black">Banking details <span className="text-sm font-medium text-yebo-deep/40">(optional)</span></h2><p className="mt-1 text-sm text-yebo-deep/55">Add these once and they&apos;ll be ready on every quote.</p><div className="mt-6 grid gap-5 sm:grid-cols-2"><BankFields defaultBank={b.bank_name} defaultBranchCode={b.bank_branch_code} labelClass={label} inputClass={input} /><label className={label}>Account type<select name="bank_account_type" defaultValue={b.bank_account_type ?? "Business cheque"} className={input}>{["Business cheque", "Savings", "Current"].map((x) => <option key={x}>{x}</option>)}</select></label><label className={label}>Account holder<input name="bank_account_holder" placeholder="Your registered business name" defaultValue={b.bank_account_holder ?? ""} className={input} /></label><label className={label}>Account number<input name="bank_account_number" inputMode="numeric" placeholder="8–11 digits" defaultValue={b.bank_account_number ?? ""} className={input} /></label></div></section>
 
-            <section id="defaults" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8"><p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">04 · Your signature</p><h2 className="mt-2 text-xl font-black">Quote defaults</h2><p className="mt-1 text-sm text-yebo-deep/55">Set the details you use most often. You can always change them per quote.</p><div className="mt-6 grid gap-5 sm:grid-cols-2"><label className={label}>Brand colour<div className="mt-2 flex items-center gap-3 rounded-xl border border-yebo-deep/10 bg-yebo-chalk/40 p-2"><input type="color" name="brand_color" defaultValue={b.brand_color} className="size-10 cursor-pointer rounded-lg border-0 bg-transparent" /><span className="text-sm font-semibold">Your accent colour</span></div></label><label className={label}>Workmanship guarantee<select name="guarantee_months" defaultValue={b.guarantee_months ?? ""} className={input}><option value="">None</option>{[3, 6, 12].map((m) => <option key={m} value={m}>{m} months</option>)}</select></label><label className={label}>Quotes are valid for<select name="default_expiry_days" defaultValue={b.default_expiry_days} className={input}>{[7, 14, 30].map((d) => <option key={d} value={d}>{d} days</option>)}</select></label></div><div className="mt-8 flex justify-end border-t border-yebo-deep/10 pt-6"><button className="rounded-xl bg-yebo px-6 py-3 text-sm font-black text-white shadow-lg shadow-yebo/20 transition hover:-translate-y-0.5 hover:bg-yebo-deep focus-visible:outline-none">Save changes <span aria-hidden="true">→</span></button></div></section>
+            <section id="trust" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">04 · Build trust</p>
+              <h2 className="mt-2 text-xl font-black">Show clients who they are hiring <span className="text-sm font-medium text-yebo-deep/40">(optional)</span></h2>
+              <p className="mt-1 text-sm text-yebo-deep/55">Clients often choose on price, but they say yes to businesses that feel safe. This appears on the page where they accept your quote, and the year also shows on your PDF.</p>
+              <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                <label className={label}>Year you started trading
+                  <input name="year_started" inputMode="numeric" maxLength={4} placeholder="e.g. 2016" defaultValue={b.year_started ?? ""} className={input} />
+                </label>
+                <label className={`${label} sm:col-span-2`}>One line about you <span className="font-medium normal-case tracking-normal text-yebo-deep/40">(up to 160 characters)</span>
+                  <textarea name="about" rows={2} maxLength={160} placeholder="Family-run borehole and plumbing team. Fully insured, 6-month guarantee on all work." defaultValue={b.about ?? ""} className={input} />
+                </label>
+              </div>
+              <div className="mt-6">
+                <p className={label}>Photos of past work</p>
+                <div className="mt-3"><WorkPhotos current={Array.isArray(b.work_photos) ? b.work_photos : []} /></div>
+              </div>
+            </section>
+
+            <section id="defaults" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8"><p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">05 · Your signature</p><h2 className="mt-2 text-xl font-black">Quote defaults</h2><p className="mt-1 text-sm text-yebo-deep/55">Set the details you use most often. You can always change them per quote.</p><div className="mt-6 grid gap-5 sm:grid-cols-2"><label className={label}>Brand colour<div className="mt-2 flex items-center gap-3 rounded-xl border border-yebo-deep/10 bg-yebo-chalk/40 p-2"><input type="color" name="brand_color" defaultValue={b.brand_color} className="size-10 cursor-pointer rounded-lg border-0 bg-transparent" /><span className="text-sm font-semibold">Your accent colour</span></div></label><label className={label}>Workmanship guarantee<select name="guarantee_months" defaultValue={b.guarantee_months ?? ""} className={input}><option value="">None</option>{[3, 6, 12].map((m) => <option key={m} value={m}>{m} months</option>)}</select></label><label className={label}>Quotes are valid for<select name="default_expiry_days" defaultValue={b.default_expiry_days} className={input}>{[7, 14, 30].map((d) => <option key={d} value={d}>{d} days</option>)}</select></label></div><div className="mt-8 flex justify-end border-t border-yebo-deep/10 pt-6"><button className="rounded-xl bg-yebo px-6 py-3 text-sm font-black text-white shadow-lg shadow-yebo/20 transition hover:-translate-y-0.5 hover:bg-yebo-deep focus-visible:outline-none">Save changes <span aria-hidden="true">→</span></button></div></section>
           </form>
 
           <form action={savePayfast} id="payments" className="scroll-mt-24 rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">05 · Take payments online</p>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">06 · Take payments online</p>
                 <h2 className="mt-2 text-xl font-black">Online payments with PayFast <span className="text-sm font-medium text-yebo-deep/40">(optional)</span></h2>
                 <p className="mt-1 max-w-xl text-sm leading-6 text-yebo-deep/55">Let clients pay your invoices by card or instant EFT. The money goes straight into your own PayFast account, and Yebo never holds it.</p>
               </div>

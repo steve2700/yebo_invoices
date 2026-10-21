@@ -61,10 +61,17 @@ Yebo is built around one rule: **a new user should send their first quote within
 - [x] **VAT sales summary** (The Industry King): every invoice, or every payment, for any period, with the VAT on it, as a CSV for the accountant. It covers the sales side only (output tax), not purchases, and is not a VAT201 return
 - [x] **VAT sales summary** (The Industry King): every invoice and payment for any period, with the VAT on it, as a CSV for your accountant. By invoice date or by payment date. This is the sales (output tax) side only and is not a VAT201 return
 - [x] **A better voice assistant:** a "say it like this" guide, a live microphone meter, a fixable transcript, an editable draft, phone number capture, and a warning when a price looks wrong (for example R1.80 instead of R1 800)
+- [x] **South African banks list:** one list of 16 banks with their universal branch codes (`src/lib/sa-banks.ts`), used by onboarding and Settings. Picking a bank fills in its branch code, which can still be edited. Old saved names such as "FNB" are mapped to the new names, and "Other" is gone
+- [x] **Yebo promo strip on every PDF:** a small footer on the last page of each quote and invoice PDF (Yebo logo, "This quote/invoice was made with Yebo Invoices", and a link to the site with `?ref=pdf-quote` or `?ref=pdf-invoice` so sign-ups from PDFs can be counted). It sits below the content margin so it never overlaps totals or banking details
+- [x] **Tidier quote PDFs:** tighter spacing, and the totals and payment box now move to the next page together so the payment box is never left alone on a nearly empty page
+- [x] **Build trust (Settings):** the year the business started trading, one short "about us" line (160 characters) and up to 6 photos of past work. They appear in an "About" card on the page where a client accepts a quote, and "Trading since YEAR" is added to the PDF header. Nothing is shown if the business leaves these blank
 - [ ] Fully automatic reminders (scheduled, no tap needed)
 
 ### Planned
 
+- [ ] Trust badges the owner can switch on (insured, certified, registered), and customer reviews on the quote page (real, attributable reviews only)
+- [ ] Good / Better / Best options on one quote
+- [ ] Let higher plans hide the Yebo promo strip on their PDFs
 - [ ] "Get found" page for businesses that want a website, Google Business Profile or Google Ads
 - [ ] Rate limits on the AI routes
 - [ ] Pay a quote's deposit online, and part payments
@@ -240,7 +247,7 @@ A reminder is recorded when WhatsApp opens, not when the message is actually sen
 
 ## Data model (overview)
 
-- **businesses**: owner, branding, contact details, VAT settings, bank details, numbering prefix
+- **businesses**: owner, branding, contact details, VAT settings, bank details, trust profile (year started, about line, work photos), numbering prefix
 - **clients**: name, email, WhatsApp number, notes
 - **items**: autocomplete library per business
 - **documents**: quotes and invoices in one table (`type`, `status`, totals, `public_token`, `source_quote_id`)
@@ -313,6 +320,7 @@ Run the migrations **in order** in the Supabase SQL Editor (copies are in `supab
 | `0006_thanked_payments.sql` | Remembers when the owner thanked a client for a payment |
 | `0007_monthly_targets.sql` | Monthly money and quote targets for each business |
 | `0008_subscriptions.sql` | Subscriptions, subscription payments and voice quote usage |
+| `0009_trust_profile.sql` | Year started, "about us" line and up to 6 work photos on each business, and the same fields on the public client page |
 
 Supabase may warn about "destructive operations" on some of these. They only drop and recreate policies or functions, and do not touch your data.
 
@@ -391,7 +399,9 @@ In **Authentication → Providers**, enable Google (and keep Email on for magic 
 | VAT sales summary page and CSV download | `src/app/app/reports/vat/`, `src/lib/vat-report.ts`, `src/lib/vat-data.ts` |
 | Voice assistant, editable draft and voice route | `src/app/app/quotes/new/VoiceQuoteAssistant.tsx`, `src/app/api/voice-quote/route.ts` |
 | Shared gentle animations | `src/app/globals.css`, `src/components/Reveal.tsx`, `src/components/SubmitButton.tsx` |
-| PDF builder | `src/lib/pdf.ts` |
+| PDF builder (including the Yebo promo strip) | `src/lib/pdf.ts` |
+| South African banks and branch codes | `src/lib/sa-banks.ts`, `src/components/BankFields.tsx` |
+| Build trust: work photos upload | `src/app/app/settings/WorkPhotos.tsx` |
 
 ---
 
