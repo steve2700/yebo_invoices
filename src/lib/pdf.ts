@@ -1,8 +1,9 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
+import { LineCapStyle, PDFDocument, PDFString, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import QRCode from "qrcode";
 import { formatRand } from "./money";
 import { formatDate } from "./dates";
 import { readableOn } from "./color";
+import { appUrl } from "./url";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Pub = { document: any; lines: any[]; business: any; client: any };
@@ -66,6 +67,47 @@ function wrap(text: string, font: PDFFont, size: number, max: number): string[] 
     out.push(line);
   }
   return out;
+}
+
+// ---- Yebo promo strip ----
+// A small, quiet strip at the very bottom of the last page. It sits below the content margin
+// (content stops at y = 48), so it can never overlap totals or banking details.
+// The whole strip is a clickable link. "ref" lets us count sign-ups that came from PDFs.
+function drawYeboPromo(pdf: PDFDocument, page: PDFPage, font: PDFFont, bold: PDFFont, kind: "quote" | "invoice") {
+  const W = 595, M = 48, R = W - M;
+  const stripY = 10, stripH = 30;
+  const green = rgb(0.059, 0.541, 0.373);   // #0F8A5F
+  const lime = rgb(0.801, 0.929, 0.451);
+  const ink = rgb(0.05, 0.14, 0.11);
+  const mute = rgb(0.4, 0.45, 0.43);
+  const base = appUrl();
+  const host = base.replace(/^https?:\/\//, "").replace(/^www\./, "");
+  const url = `${base}/?ref=pdf-${kind}`;
+
+  page.drawRectangle({ x: M, y: stripY, width: R - M, height: stripH, color: rgb(0.95, 0.97, 0.96) });
+
+  // Yebo mark, drawn as vector shapes (same artwork as the site logo, no image file needed).
+  const s = 0.5;                       // 40 unit artwork -> 20 pt
+  const ox = M + 9, top = stripY + stripH - 5;
+  page.drawSvgPath("M12 0H28A12 12 0 0 1 40 12V28A12 12 0 0 1 28 40H12A12 12 0 0 1 0 28V12A12 12 0 0 1 12 0Z", { x: ox, y: top, scale: s, color: green });
+  page.drawSvgPath("M10.5 11.5L20 22L29.5 11.5M20 22V30", { x: ox, y: top, scale: s, borderColor: rgb(1, 1, 1), borderWidth: 3.5 * s, borderLineCap: LineCapStyle.Round });
+  page.drawCircle({ x: ox + 29.5 * s, y: top - 11.5 * s, size: 3 * s, color: lime });
+
+  const tx = ox + 20 + 9;
+  const line1 = kind === "quote" ? "This quote was made with Yebo Invoices" : "This invoice was made with Yebo Invoices";
+  page.drawText(clean(line1), { x: tx, y: stripY + 17, size: 8.5, font: bold, color: ink });
+  page.drawText(clean("Quotes clients say yes to. Send your first quote in 3 minutes."), { x: tx, y: stripY + 7, size: 7.5, font, color: mute });
+
+  const label = host;
+  const lw = bold.widthOfTextAtSize(label, 9);
+  page.drawText(label, { x: R - 10 - lw, y: stripY + 15, size: 9, font: bold, color: green });
+  page.drawLine({ start: { x: R - 10 - lw, y: stripY + 12.5 }, end: { x: R - 10, y: stripY + 12.5 }, thickness: 0.6, color: green });
+
+  const annot = pdf.context.register(pdf.context.obj({
+    Type: "Annot", Subtype: "Link", Rect: [M, stripY, R, stripY + stripH], Border: [0, 0, 0],
+    A: { Type: "Action", S: "URI", URI: PDFString.of(url) },
+  }));
+  page.node.addAnnot(annot);
 }
 
 async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub, link: string): Promise<Uint8Array> {
@@ -282,6 +324,7 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
     y -= 8;
   }
 
+  drawYeboPromo(pdf, page, font, bold, "quote");
   return pdf.save();
 }
 
@@ -419,5 +462,6 @@ export async function buildDocumentPdf({ document: d, lines, business: b, client
   if (b.guarantee_months) { para(`${b.guarantee_months}-month workmanship guarantee on all work by ${b.name}.`, 9, font, mute); y -= 4; }
   para(isQuote ? "Accept before the validity date to hold this price." : "Thank you for your business.", 9, font, mute);
 
+  drawYeboPromo(pdf, page, font, bold, isQuote ? "quote" : "invoice");
   return pdf.save();
 }
