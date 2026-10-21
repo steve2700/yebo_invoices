@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import LogoUpload from "../../settings/LogoUpload";
 import SubmitButton from "@/components/SubmitButton";
 import { billingEnforced } from "@/lib/access";
+import BankFields from "@/components/BankFields";
+import { isValidBankName } from "@/lib/sa-banks";
 
 // Where a new user lands when onboarding is finished. The goal is their first quote, so go straight there.
 // With billing switched on, the next step is choosing a plan. Otherwise it is the welcome tour.
@@ -26,6 +28,7 @@ async function saveBanking(formData: FormData) {
   // Nothing entered: just carry on. Banking details are optional.
   if (!holder && !number && !branch && !bankName) redirect(AFTER_ONBOARDING);
 
+  if (!isValidBankName(bankName)) return fail("Please choose your bank from the list.");
   if (number && !/^\d{8,11}$/.test(number)) return fail("Your account number should be 8 to 11 digits.");
   if (branch && !/^\d{6}$/.test(branch)) return fail("Your branch code should be 6 digits.");
   // Clients only see the EFT details if all three are there, so ask for them together.
@@ -108,12 +111,7 @@ export default async function OnboardingBrand({ searchParams }: { searchParams: 
               <p className="text-sm font-bold text-ink">Banking details <span className="font-normal text-ink/40">(optional)</span></p>
               <p className="mt-1 text-xs text-ink/50">Shown to clients on your invoices so they can pay you by EFT.</p>
               <div className="mt-4 grid gap-5 sm:grid-cols-2">
-                <label className="text-sm font-semibold text-ink">Bank
-                  <select name="bank_name" defaultValue={business.bank_name ?? ""} className={field}>
-                    <option value="">Choose your bank</option>
-                    {["FNB", "Standard Bank", "Absa", "Nedbank", "Capitec", "Other"].map((bank) => <option key={bank}>{bank}</option>)}
-                  </select>
-                </label>
+                <BankFields defaultBank={business.bank_name} defaultBranchCode={business.bank_branch_code} labelClass="text-sm font-semibold text-ink" inputClass={field} placeholder="Choose your bank" />
                 <label className="text-sm font-semibold text-ink">Account type
                   <select name="bank_account_type" defaultValue={business.bank_account_type ?? "Business cheque"} className={field}>
                     {["Business cheque", "Savings", "Current"].map((type) => <option key={type}>{type}</option>)}
@@ -121,7 +119,6 @@ export default async function OnboardingBrand({ searchParams }: { searchParams: 
                 </label>
                 <label className="text-sm font-semibold text-ink">Account holder<input name="bank_account_holder" defaultValue={business.bank_account_holder ?? ""} placeholder="Your registered business name" className={field} /></label>
                 <label className="text-sm font-semibold text-ink">Account number<input name="bank_account_number" inputMode="numeric" defaultValue={business.bank_account_number ?? ""} placeholder="8 to 11 digits" className={field} /></label>
-                <label className="text-sm font-semibold text-ink">Branch code<input name="bank_branch_code" inputMode="numeric" defaultValue={business.bank_branch_code ?? ""} placeholder="6 digits" className={field} /></label>
               </div>
             </div>
 
