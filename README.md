@@ -58,6 +58,8 @@ Yebo is built around one rule: **a new user should send their first quote within
 - [x] **Privacy Notice and Terms of Service** pages, linked from the footer
 - [x] **Pricing, comparison and FAQ** sections on the landing page (three plans: The Side-Hustler R49, The Real Business R199, The Industry King R499)
 - [x] **Subscriptions through PayFast** with a subscribe step after onboarding, monthly limits per plan, a "Your plan" card with usage in Settings, and cancelling in Settings. Switched on with `BILLING_ENFORCED=true`
+- [x] **VAT sales summary** (The Industry King): every invoice, or every payment, for any period, with the VAT on it, as a CSV for the accountant. It covers the sales side only (output tax), not purchases, and is not a VAT201 return
+- [x] **VAT sales summary** (The Industry King): every invoice and payment for any period, with the VAT on it, as a CSV for your accountant. By invoice date or by payment date. This is the sales (output tax) side only and is not a VAT201 return
 - [x] **A better voice assistant:** a "say it like this" guide, a live microphone meter, a fixable transcript, an editable draft, phone number capture, and a warning when a price looks wrong (for example R1.80 instead of R1 800)
 - [ ] Fully automatic reminders (scheduled, no tap needed)
 
@@ -382,9 +384,11 @@ In **Authentication → Providers**, enable Google (and keep Email on for magic 
 | Landing page sections | `src/components/` |
 | The three plans, their prices and limits (one place to change them) | `src/lib/plans.ts` |
 | Plan access rules and usage limits | `src/lib/access.ts`, `src/lib/subscription.ts` |
+| VAT sales summary (page, CSV download, and the maths) | `src/app/app/reports/vat/`, `src/lib/vat-report.ts`, `src/lib/vat-data.ts` |
 | Subscribe step, checkout and confirmation page | `src/app/app/subscribe/` |
 | Subscription payment confirmation from PayFast | `src/app/api/subscriptions/notify/route.ts` |
 | "Your plan" card and cancelling | `src/app/app/billing/` |
+| VAT sales summary page and CSV download | `src/app/app/reports/vat/`, `src/lib/vat-report.ts`, `src/lib/vat-data.ts` |
 | Voice assistant, editable draft and voice route | `src/app/app/quotes/new/VoiceQuoteAssistant.tsx`, `src/app/api/voice-quote/route.ts` |
 | Shared gentle animations | `src/app/globals.css`, `src/components/Reveal.tsx`, `src/components/SubmitButton.tsx` |
 | PDF builder | `src/lib/pdf.ts` |
@@ -399,7 +403,7 @@ Three monthly plans, all paid through PayFast, defined in `src/lib/plans.ts`:
 |---|---|---|---|---|
 | The Side-Hustler | R49 | 10 a month | 1 a month | No |
 | The Real Business | R199 | 50 a month | 5 a month | Yes |
-| The Industry King | R499 | Unlimited (fair use) | Unlimited (fair use) | Yes |
+| The Industry King | R499 | Unlimited (fair use) | Unlimited (fair use) | Yes, plus the VAT sales summary |
 
 - Only features that exist today are listed as included. Ideas that are not built yet are shown as "Coming soon" and are not part of a plan.
 - **A single switch.** Nothing is limited and nobody is locked out until `BILLING_ENFORCED=true`. Before you turn it on, run the optional "comped" SQL at the bottom of `0008_subscriptions.sql` for your own test business.
@@ -408,6 +412,13 @@ Three monthly plans, all paid through PayFast, defined in `src/lib/plans.ts`:
 - **Limits.** Quotes and invoices are counted per South African calendar month. Voice quotes are counted when a recording is successfully turned into a draft. Fixing a misheard word and rebuilding the draft from text does not use up a voice quote.
 - **Changing plan** starts a new PayFast subscription, and the old one is cancelled automatically when the new payment arrives.
 - **Cancelling** uses PayFast's API (it needs an API-enabled merchant account). If PayFast cannot cancel automatically, nothing changes and the owner is told how to cancel in PayFast.
+
+### VAT sales summary (The Industry King)
+
+- **Where:** Reports in the top menu (and a card in Settings, for phones), at `/app/reports/vat`. Download is at `/app/reports/vat/export`.
+- **What it shows:** for any period, either every **invoice dated in the period** (excl VAT, VAT, incl VAT, how much has been paid) or every **payment received in the period** (split into its VAT part and the rest). Ask your accountant which one applies to the business.
+- **Limits, stated on the page:** it covers sales only. It has no purchases (input tax), so it is not a VAT201 return, and there are no credit notes yet.
+- **Safe by design:** money is built with integer maths, the CSV defuses spreadsheet formulas in client names, drafts are never included, dates use South African time, and more than 1000 rows are read in pages.
 
 ### Going live with billing (checklist)
 
@@ -438,7 +449,8 @@ Run this after deploying, on a phone as well as a desktop browser. Payment confi
 12. **Reminders:** open an overdue invoice from the dashboard, draft a reminder, open WhatsApp, and check the dashboard button disappears.
 13. **Times:** Activity times match South African time.
 14. **Voice:** record a quote that includes a client name, a phone number and a price in thousands. Check the phone number appears, a price like "one point eight" is flagged with a "Use R1 800" button, and fixing the words and tapping "Rebuild" works.
-15. **Plans (sandbox):** subscribe, check the plan switches on, create documents until you reach the limit and see the upgrade message, change plan, and cancel.
+15. **VAT summary:** on a Industry King (or free-access) account, open Reports, pick last month, check the totals match your invoices, download the CSV and open it in Excel. Check a name starting with "=" does not turn into a formula.
+16. **Plans (sandbox):** subscribe, check the plan switches on, create documents until you reach the limit and see the upgrade message, change plan, and cancel.
 
 ---
 
