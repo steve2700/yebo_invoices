@@ -207,7 +207,7 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
   putRight(total, R - 12, amountSize, bold, onBrand, heroTop - 52);
   put("Valid through", termsX + 13, 7.5, font, onBrand, heroTop - 74);
   put(String(formatDate(d.expiry_date)), termsX + 13, 9, bold, onBrand, heroTop - 88);
-  y = heroTop - heroHeight - 20;
+  y = heroTop - heroHeight - 14;
 
   const jobDetails = [
     d.location ? ["PROJECT LOCATION", String(d.location)] as const : null,
@@ -224,13 +224,13 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
       put(label, x + 12, 7.5, bold, mute, y - 15);
       wrap(value, font, 9, columnWidth - 26).forEach((row, rowIndex) => put(row, x + 12, 9, font, ink, y - 31 - rowIndex * 12));
     });
-    y -= detailsHeight + 17;
+    y -= detailsHeight + 12;
   }
 
   if (d.description) {
     heading("What is included");
     paragraph(String(d.description), 9.5, font, ink, summaryWidth, 13);
-    y -= 7;
+    y -= 4;
   }
   if (d.labour_only) {
     need(22);
@@ -245,7 +245,7 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
     page.drawRectangle({ x: M, y: y - noteHeight, width: 3, height: noteHeight, color: brand });
     put("A NOTE FOR YOU", M + 14, 7.5, bold, brand, y - 15);
     noteRows.forEach((row, index) => put(row, M + 14, 9, font, ink, y - 30 - index * 13));
-    y -= noteHeight + 15;
+    y -= noteHeight + 10;
   }
 
   heading("Investment breakdown");
@@ -262,7 +262,7 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
 
   for (const item of lines ?? []) {
     const itemRows = wrap(String(item.description ?? ""), font, 9.5, 235);
-    const rowHeight = Math.max(29, itemRows.length * 13 + 12);
+    const rowHeight = Math.max(21, itemRows.length * 13 + 8);
     need(rowHeight + 5);
     itemRows.forEach((row, index) => put(row, descriptionX, 9.5, index === 0 ? bold : font, ink, y - index * 13));
     putRight(String(Number(item.quantity)), qtyRight, 9, font, ink, y);
@@ -270,13 +270,22 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
     putRight(formatRand(item.line_total_cents), R, 9, bold, ink, y);
     y -= rowHeight;
     page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 0.5, color: rule });
-    y -= 8;
+    y -= 7;
   }
 
   const totalsX = R - 220;
   const totalsWidth = R - totalsX;
   const totalsHeight = 91;
-  need(totalsHeight + 14);
+  const paymentPlan = d.payment_plan === "full"
+    ? "Payment in full is needed to confirm the booking."
+    : d.payment_plan === "deposit"
+      ? `A ${d.deposit_percent}% deposit (${formatRand(Math.round((d.total_cents * d.deposit_percent) / 100))}) confirms the booking. The balance is due ${d.payment_terms}.`
+      : `No deposit is needed. Full payment is due ${d.payment_terms}.`;
+  const paymentRows = wrap(paymentPlan, font, 9, 300);
+  const nextStepHeight = Math.max(72, paymentRows.length * 13 + 34);
+  // Keep the totals and the payment box together: if both do not fit on this page, both move to the next,
+  // so the payment box is never left alone on a nearly empty page.
+  need(totalsHeight + 14 + nextStepHeight + 10);
   const totalsTop = y;
   page.drawRectangle({ x: totalsX, y: totalsTop - totalsHeight, width: totalsWidth, height: totalsHeight, color: rgb(0.985, 0.99, 0.985), borderColor: rule, borderWidth: 0.7 });
   put("Subtotal", totalsX + 12, 8.5, font, mute, totalsTop - 18);
@@ -287,15 +296,8 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
   page.drawRectangle({ x: totalsX + 1, y: totalsTop - 82, width: totalsWidth - 2, height: 33, color: brand });
   put("TOTAL", totalsX + 12, 10, bold, onBrand, totalsTop - 70);
   putRight(formatRand(d.total_cents), R - 12, 12, bold, onBrand, totalsTop - 71);
-  y = totalsTop - totalsHeight - 16;
+  y = totalsTop - totalsHeight - 12;
 
-  const paymentPlan = d.payment_plan === "full"
-    ? "Payment in full is needed to confirm the booking."
-    : d.payment_plan === "deposit"
-      ? `A ${d.deposit_percent}% deposit (${formatRand(Math.round((d.total_cents * d.deposit_percent) / 100))}) confirms the booking. The balance is due ${d.payment_terms}.`
-      : `No deposit is needed. Full payment is due ${d.payment_terms}.`;
-  const paymentRows = wrap(paymentPlan, font, 9, 300);
-  const nextStepHeight = Math.max(80, paymentRows.length * 13 + 34);
   need(nextStepHeight);
   const nextStepTop = y;
   const actionX = R - 172;
