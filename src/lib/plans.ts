@@ -14,6 +14,7 @@ export type Plan = {
   docsPerMonth: number | null; // null = unlimited (fair use applies)
   voicePerMonth: number | null; // null = unlimited (fair use applies)
   reminders: boolean;
+  workPhotos: number; // photos of past work shown on the quote link
   recommended?: boolean;
   features: string[];
   comingSoon: string[];
@@ -34,6 +35,7 @@ export const PLANS: Record<PlanId, Plan> = {
     docsPerMonth: 10,
     voicePerMonth: 1,
     reminders: false,
+    workPhotos: 1,
     features: [
       "Up to 10 quotes and invoices a month",
       "1 voice quote a month: speak it and Yebo fills it in",
@@ -42,6 +44,7 @@ export const PLANS: Record<PlanId, Plan> = {
       "Clients can pay online by card or instant EFT",
       "Your logo and colours on every document",
       "Monthly targets with a progress bar",
+      "1 photo of your work on your quote link",
     ],
     comingSoon: [],
     catchLine: "You get 1 voice quote a month. The moment real work shows up, you will upgrade before your pie gets cold.",
@@ -57,6 +60,7 @@ export const PLANS: Record<PlanId, Plan> = {
     docsPerMonth: 50,
     voicePerMonth: 5,
     reminders: true,
+    workPhotos: 3,
     recommended: true,
     features: [
       "Up to 50 quotes and invoices a month",
@@ -64,6 +68,7 @@ export const PLANS: Record<PlanId, Plan> = {
       "Everything in The Side-Hustler",
       "One-tap WhatsApp reminders for quotes and invoices that go quiet, with the message already written",
       "All your clients and past quotes in one place",
+      "Up to 3 photos of your work on your quote link",
     ],
     comingSoon: ["Google reviews shown on your quote links", "Automatic WhatsApp and SMS reminders"],
   },
@@ -78,18 +83,19 @@ export const PLANS: Record<PlanId, Plan> = {
     docsPerMonth: null,
     voicePerMonth: null,
     reminders: true,
+    workPhotos: 6,
     features: [
       "Unlimited quotes and invoices",
       "Unlimited voice quotes",
       "Everything in The Real Business",
       "VAT sales summary for your accountant: every invoice and payment for any period, with the VAT on it, as a CSV file",
+      "Up to 6 photos of your work on your quote link",
       "Priority support and a one-to-one setup call",
     ],
     comingSoon: [
       "Expense and input-tax tracking, to turn the VAT summary into a full VAT picture",
       "Profit margin tracking",
       "Multi-crew access",
-      "Site photos on quotes",
       "Google review capture",
     ],
   },

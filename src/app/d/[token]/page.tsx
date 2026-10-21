@@ -136,14 +136,10 @@ export default async function PublicDocument({ params, searchParams }: { params:
             <b className="block">{isQuote ? "Payment & booking terms" : "How payment works"}</b><span className="mt-0.5 block leading-relaxed">{plan}</span>
           </section>
 
-          {isQuote && (b.year_started || b.about || b.company_reg || b.guarantee_months || (Array.isArray(b.work_photos) && b.work_photos.length > 0)) && (
+          {isQuote && (b.year_started || b.about || (Array.isArray(b.work_photos) && b.work_photos.length > 0)) && (
             <section className="mt-5 rounded-2xl border border-ink/10 p-4 text-sm">
-              <h2 className="text-[10px] font-bold uppercase tracking-[.14em] text-ink/45">About {b.name}</h2>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {b.year_started && <span className="rounded-full bg-ink/5 px-3 py-1 text-xs font-bold">Trading since {b.year_started}</span>}
-                {b.guarantee_months && <span className="rounded-full bg-ink/5 px-3 py-1 text-xs font-bold">{b.guarantee_months}-month workmanship guarantee</span>}
-                {b.company_reg && <span className="rounded-full bg-ink/5 px-3 py-1 text-xs font-bold">Registered business</span>}
-              </div>
+              <h2 className="text-[10px] font-bold uppercase tracking-[.14em] text-ink/45">Why hire {b.name}</h2>
+              {b.year_started && <div className="mt-3 flex flex-wrap gap-2"><span className="rounded-full bg-ink/5 px-3 py-1 text-xs font-bold">Trading since {b.year_started}</span></div>}
               {b.about && <p className="mt-3 leading-relaxed text-ink/80">{b.about}</p>}
               {Array.isArray(b.work_photos) && b.work_photos.length > 0 && (
                 <div className="mt-4">

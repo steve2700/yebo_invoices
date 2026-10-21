@@ -64,7 +64,10 @@ Yebo is built around one rule: **a new user should send their first quote within
 - [x] **South African banks list:** one list of 16 banks with their universal branch codes (`src/lib/sa-banks.ts`), used by onboarding and Settings. Picking a bank fills in its branch code, which can still be edited. Old saved names such as "FNB" are mapped to the new names, and "Other" is gone
 - [x] **Yebo promo strip on every PDF:** a small footer on the last page of each quote and invoice PDF (Yebo logo, "This quote/invoice was made with Yebo Invoices", and a link to the site with `?ref=pdf-quote` or `?ref=pdf-invoice` so sign-ups from PDFs can be counted). It sits below the content margin so it never overlaps totals or banking details
 - [x] **Tidier quote PDFs:** tighter spacing, and the totals and payment box now move to the next page together so the payment box is never left alone on a nearly empty page
-- [x] **Build trust (Settings):** the year the business started trading, one short "about us" line (160 characters) and up to 6 photos of past work. They appear in an "About" card on the page where a client accepts a quote, and "Trading since YEAR" is added to the PDF header. Nothing is shown if the business leaves these blank
+- [x] **Build trust (Settings):** the year the business started trading, one short "about us" line (160 characters) and photos of past work. **Photo limits follow the plan: The Side-Hustler 1, The Real Business 3, The Industry King 6** (set as `workPhotos` in `src/lib/plans.ts`, checked on the server in `src/app/app/settings/actions.ts`, and listed in each plan's features). Several photos can be picked in one go. Photos save the moment they are chosen; the year and the about line save with the Save changes button. They appear in an "About" card on the page where a client accepts a quote, and "Trading since YEAR" is added to the PDF header. Nothing is shown if the business leaves these blank
+- [x] **A Save changes button in every Settings section** (brand identity, contact details, banking, build trust, quote defaults), so owners never have to scroll to the bottom. They all save the same form, so any of them saves everything on the page. Logo and work photos save on their own as soon as they are chosen
+- [x] The page where a client accepts a quote shows "Why hire ..." (year started, about line, work photos). The photos are on that page only, not in the PDF
+- [x] Fixed a duplicate "Reports" link in the top menu, and tightened the quote PDF again so the totals and payment box fit on page 1 when there is room
 - [ ] Fully automatic reminders (scheduled, no tap needed)
 
 ### Planned
@@ -401,7 +404,7 @@ In **Authentication → Providers**, enable Google (and keep Email on for magic 
 | Shared gentle animations | `src/app/globals.css`, `src/components/Reveal.tsx`, `src/components/SubmitButton.tsx` |
 | PDF builder (including the Yebo promo strip) | `src/lib/pdf.ts` |
 | South African banks and branch codes | `src/lib/sa-banks.ts`, `src/components/BankFields.tsx` |
-| Build trust: work photos upload | `src/app/app/settings/WorkPhotos.tsx` |
+| Build trust: work photos upload, plan limit and saving | `src/app/app/settings/WorkPhotos.tsx`, `src/app/app/settings/actions.ts`, `src/lib/work-photos.ts` |
 
 ---
 

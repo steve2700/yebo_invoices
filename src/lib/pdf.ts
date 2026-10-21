@@ -127,7 +127,7 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
   const topBand = () => page.drawRectangle({ x: 0, y: H - 6, width: W, height: 6, color: brand });
   topBand();
   const nextPage = () => { page = pdf.addPage([W, H]); topBand(); y = H - 46; };
-  const need = (height: number) => { if (y - height < 48) nextPage(); };
+  const need = (height: number) => { if (y - height < 46) nextPage(); };
   const put = (text: string, x: number, size = 10, face = font, color = ink, atY = y) =>
     page.drawText(clean(text), { x, y: atY, size, font: face, color });
   const putRight = (text: string, right: number, size = 10, face = font, color = ink, atY = y) => {
@@ -275,7 +275,7 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
 
   const totalsX = R - 220;
   const totalsWidth = R - totalsX;
-  const totalsHeight = 91;
+  const totalsHeight = 87;
   const paymentPlan = d.payment_plan === "full"
     ? "Payment in full is needed to confirm the booking."
     : d.payment_plan === "deposit"
@@ -285,7 +285,7 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
   const nextStepHeight = Math.max(72, paymentRows.length * 13 + 34);
   // Keep the totals and the payment box together: if both do not fit on this page, both move to the next,
   // so the payment box is never left alone on a nearly empty page.
-  need(totalsHeight + 14 + nextStepHeight + 10);
+  need(totalsHeight + 12 + nextStepHeight + 6);
   const totalsTop = y;
   page.drawRectangle({ x: totalsX, y: totalsTop - totalsHeight, width: totalsWidth, height: totalsHeight, color: rgb(0.985, 0.99, 0.985), borderColor: rule, borderWidth: 0.7 });
   put("Subtotal", totalsX + 12, 8.5, font, mute, totalsTop - 18);

@@ -7,6 +7,8 @@ import BillingCard from "../billing/BillingCard";
 import { billingEnforced } from "@/lib/access";
 import BankFields from "@/components/BankFields";
 import WorkPhotos from "./WorkPhotos";
+import SubmitButton from "@/components/SubmitButton";
+import { workPhotoLimit } from "@/lib/work-photos";
 import { isValidBankName } from "@/lib/sa-banks";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -115,6 +117,12 @@ export default async function Settings({ searchParams }: { searchParams: Promise
   } catch {
     payfastAvailable = false;
   }
+  const photoLimit = await workPhotoLimit(sb);
+  const SaveRow = () => (
+    <div className="mt-7 flex justify-end border-t border-yebo-deep/10 pt-5">
+      <SubmitButton pendingLabel="Saving..." className="rounded-xl bg-yebo px-6 py-3 text-sm font-black text-white shadow-lg shadow-yebo/20 transition hover:-translate-y-0.5 hover:bg-yebo-deep focus-visible:outline-none">Save changes <span aria-hidden="true">→</span></SubmitButton>
+    </div>
+  );
   const emailMissing = !(typeof b.email === "string" && EMAIL_PATTERN.test(b.email.trim()));
 
   return (
@@ -171,6 +179,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
                 <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">01 · First impression</p><h2 className="mt-2 text-xl font-black">Brand identity</h2><p className="mt-1 text-sm text-yebo-deep/55">Give your documents a recognizable signature.</p></div><span className="rounded-full bg-lime px-3 py-1 text-xs font-black text-yebo-deep">Visible on quotes</span></div>
               </div>
               <div className="grid gap-7 px-6 py-7 sm:grid-cols-[150px_1fr] sm:px-8"><div><p className={label}>Your logo</p><div className="mt-2 flex size-28 items-center justify-center rounded-2xl border border-dashed border-yebo/30 bg-yebo-chalk/70 p-3"><LogoUpload current={b.logo_url} compact /></div></div><div className="flex flex-col justify-center gap-3"><p className="text-sm font-semibold">A little polish goes a long way.</p><p className="max-w-md text-sm leading-6 text-yebo-deep/55">Upload a square or horizontal logo. We&apos;ll place it neatly on your client-facing quote pages.</p><p className="text-xs font-semibold text-yebo-deep/40">PNG, JPG or SVG · Max 5 MB</p></div></div>
+              <div className="px-6 pb-7 sm:px-8"><SaveRow /></div>
             </section>
 
             <section id="contact" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8">
@@ -192,9 +201,10 @@ export default async function Settings({ searchParams }: { searchParams: Promise
                   <input name="address" autoComplete="street-address" placeholder="Street, suburb, city" defaultValue={b.address ?? ""} className={input} />
                 </label>
               </div>
+              <SaveRow />
             </section>
 
-            <section id="banking" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8"><p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">03 · Get paid</p><h2 className="mt-2 text-xl font-black">Banking details <span className="text-sm font-medium text-yebo-deep/40">(optional)</span></h2><p className="mt-1 text-sm text-yebo-deep/55">Add these once and they&apos;ll be ready on every quote.</p><div className="mt-6 grid gap-5 sm:grid-cols-2"><BankFields defaultBank={b.bank_name} defaultBranchCode={b.bank_branch_code} labelClass={label} inputClass={input} /><label className={label}>Account type<select name="bank_account_type" defaultValue={b.bank_account_type ?? "Business cheque"} className={input}>{["Business cheque", "Savings", "Current"].map((x) => <option key={x}>{x}</option>)}</select></label><label className={label}>Account holder<input name="bank_account_holder" placeholder="Your registered business name" defaultValue={b.bank_account_holder ?? ""} className={input} /></label><label className={label}>Account number<input name="bank_account_number" inputMode="numeric" placeholder="8–11 digits" defaultValue={b.bank_account_number ?? ""} className={input} /></label></div></section>
+            <section id="banking" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8"><p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">03 · Get paid</p><h2 className="mt-2 text-xl font-black">Banking details <span className="text-sm font-medium text-yebo-deep/40">(optional)</span></h2><p className="mt-1 text-sm text-yebo-deep/55">Add these once and they&apos;ll be ready on every quote.</p><div className="mt-6 grid gap-5 sm:grid-cols-2"><BankFields defaultBank={b.bank_name} defaultBranchCode={b.bank_branch_code} labelClass={label} inputClass={input} /><label className={label}>Account type<select name="bank_account_type" defaultValue={b.bank_account_type ?? "Business cheque"} className={input}>{["Business cheque", "Savings", "Current"].map((x) => <option key={x}>{x}</option>)}</select></label><label className={label}>Account holder<input name="bank_account_holder" placeholder="Your registered business name" defaultValue={b.bank_account_holder ?? ""} className={input} /></label><label className={label}>Account number<input name="bank_account_number" inputMode="numeric" placeholder="8–11 digits" defaultValue={b.bank_account_number ?? ""} className={input} /></label></div><SaveRow /></section>
 
             <section id="trust" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">04 · Build trust</p>
@@ -210,8 +220,9 @@ export default async function Settings({ searchParams }: { searchParams: Promise
               </div>
               <div className="mt-6">
                 <p className={label}>Photos of past work</p>
-                <div className="mt-3"><WorkPhotos current={Array.isArray(b.work_photos) ? b.work_photos : []} /></div>
+                <div className="mt-3"><WorkPhotos current={Array.isArray(b.work_photos) ? b.work_photos : []} limit={photoLimit} /></div>
               </div>
+              <SaveRow />
             </section>
 
             <section id="defaults" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8"><p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">05 · Your signature</p><h2 className="mt-2 text-xl font-black">Quote defaults</h2><p className="mt-1 text-sm text-yebo-deep/55">Set the details you use most often. You can always change them per quote.</p><div className="mt-6 grid gap-5 sm:grid-cols-2"><label className={label}>Brand colour<div className="mt-2 flex items-center gap-3 rounded-xl border border-yebo-deep/10 bg-yebo-chalk/40 p-2"><input type="color" name="brand_color" defaultValue={b.brand_color} className="size-10 cursor-pointer rounded-lg border-0 bg-transparent" /><span className="text-sm font-semibold">Your accent colour</span></div></label><label className={label}>Workmanship guarantee<select name="guarantee_months" defaultValue={b.guarantee_months ?? ""} className={input}><option value="">None</option>{[3, 6, 12].map((m) => <option key={m} value={m}>{m} months</option>)}</select></label><label className={label}>Quotes are valid for<select name="default_expiry_days" defaultValue={b.default_expiry_days} className={input}>{[7, 14, 30].map((d) => <option key={d} value={d}>{d} days</option>)}</select></label></div><div className="mt-8 flex justify-end border-t border-yebo-deep/10 pt-6"><button className="rounded-xl bg-yebo px-6 py-3 text-sm font-black text-white shadow-lg shadow-yebo/20 transition hover:-translate-y-0.5 hover:bg-yebo-deep focus-visible:outline-none">Save changes <span aria-hidden="true">→</span></button></div></section>

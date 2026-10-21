@@ -3,53 +3,64 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { setWorkPhotos } from "./actions";
 
-const MAX_PHOTOS = 6;
 const MAX_BYTES = 5 * 1024 * 1024;
 
-// Up to 6 photos of past work, shown to clients on the quote page. Each photo saves the moment it is
-// chosen (same as the logo), so there is no extra Save button to forget.
-export default function WorkPhotos({ current }: { current: string[] }) {
+// Photos of past work, shown to clients on the quote page. You can pick several at once.
+// Photos save the moment they are chosen (same as the logo), so there is no Save button to press for them.
+export default function WorkPhotos({ current, limit }: { current: string[]; limit: number }) {
   const router = useRouter();
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
-
-  async function save(next: string[]) {
-    const sb = createClient();
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) return "Please sign in again.";
-    const { error } = await sb.from("businesses").update({ work_photos: next }).eq("owner_id", user.id);
-    return error ? error.message : "";
-  }
+  const left = Math.max(0, limit - current.length);
 
   async function add(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!file) return;
-    if (!file.type.startsWith("image/")) return setMsg("Please choose a photo (JPG or PNG).");
-    if (file.size > MAX_BYTES) return setMsg("That photo is over 5 MB. Please choose a smaller one.");
-    if (current.length >= MAX_PHOTOS) return setMsg(`You can add up to ${MAX_PHOTOS} photos. Remove one first.`);
+    if (!files.length) return;
+    if (left === 0) return setMsg(`Your plan allows ${limit} photo${limit === 1 ? "" : "s"}. Remove one first, or upgrade for more.`);
+
+    const notes: string[] = [];
+    const images = files.filter((f) => f.type.startsWith("image/"));
+    if (images.length < files.length) notes.push("Some files were not photos and were skipped.");
+    const small = images.filter((f) => f.size <= MAX_BYTES);
+    if (small.length < images.length) notes.push("Photos over 5 MB were skipped.");
+    const chosen = small.slice(0, left);
+    if (small.length > left) notes.push(`Your plan allows ${limit} photo${limit === 1 ? "" : "s"}, so only the first ${left} ${left === 1 ? "was" : "were"} added.`);
+    if (!chosen.length) return setMsg(notes.join(" ") || "No photos were added.");
+
     setBusy(true);
     setMsg("");
     const sb = createClient();
     const { data: { user } } = await sb.auth.getUser();
     if (!user) { setBusy(false); return setMsg("Please sign in again."); }
-    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const path = `${user.id}/work-${Date.now()}.${ext || "jpg"}`;
-    const { error } = await sb.storage.from("logos").upload(path, file, { upsert: true });
-    if (error) { setBusy(false); return setMsg(error.message); }
-    const { data } = sb.storage.from("logos").getPublicUrl(path);
-    const err = await save([...current, data.publicUrl]);
+
+    const stamp = Date.now();
+    const results = await Promise.all(chosen.map(async (file, i) => {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+      const path = `${user.id}/work-${stamp}-${i}.${ext}`;
+      const { error } = await sb.storage.from("logos").upload(path, file, { upsert: true });
+      return error ? null : sb.storage.from("logos").getPublicUrl(path).data.publicUrl;
+    }));
+    const uploaded = results.filter((u): u is string => Boolean(u));
+    if (uploaded.length < chosen.length) notes.push(`${chosen.length - uploaded.length} photo${chosen.length - uploaded.length === 1 ? "" : "s"} could not be uploaded.`);
+
+    if (uploaded.length) {
+      const res = await setWorkPhotos([...current, ...uploaded]);
+      if (!res.ok) { setBusy(false); return setMsg(res.error); }
+      notes.unshift(`${uploaded.length} photo${uploaded.length === 1 ? "" : "s"} added and saved.`);
+    }
     setBusy(false);
-    setMsg(err || "Photo added.");
+    setMsg(notes.join(" "));
     router.refresh();
   }
 
   async function remove(url: string) {
     setBusy(true);
-    const err = await save(current.filter((u) => u !== url));
+    const res = await setWorkPhotos(current.filter((u) => u !== url));
     setBusy(false);
-    setMsg(err || "Photo removed.");
+    setMsg(res.ok ? "Photo removed and saved." : res.error);
     router.refresh();
   }
 
@@ -66,13 +77,18 @@ export default function WorkPhotos({ current }: { current: string[] }) {
           ))}
         </ul>
       )}
-      {current.length < MAX_PHOTOS && (
+      {left > 0 && (
         <label className="mt-3 inline-flex min-h-11 cursor-pointer items-center rounded-full border border-yebo/30 bg-white px-4 text-sm font-bold text-yebo">
-          {busy ? "Uploading..." : current.length ? "Add another photo" : "Add a photo of your work"}
-          <input type="file" accept="image/*" onChange={add} disabled={busy} className="sr-only" aria-label="Add a photo of past work" />
+          {busy ? "Uploading..." : current.length ? `Add more photos (${left} left)` : left > 1 ? `Choose up to ${left} photos` : "Choose a photo"}
+          <input type="file" accept="image/*" multiple={left > 1} onChange={add} disabled={busy} className="sr-only" aria-label="Add photos of past work" />
         </label>
       )}
-      <p className="mt-2 text-xs text-yebo-deep/50">{current.length} of {MAX_PHOTOS} photos. Clients see these on the page where they accept your quote.</p>
+      <p className="mt-2 text-xs text-yebo-deep/50">
+        {current.length} of {limit} photo{limit === 1 ? "" : "s"} used. Photos save automatically, so you do not need to press Save for them.
+      </p>
+      {limit < 6 && (
+        <p className="mt-1 text-xs text-yebo-deep/50">The Side-Hustler shows 1 photo, The Real Business 3 and The Industry King 6.</p>
+      )}
       {msg && <p role="status" className="mt-2 text-xs font-medium text-yebo-deep">{msg}</p>}
     </div>
   );
