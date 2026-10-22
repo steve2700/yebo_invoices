@@ -24,8 +24,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <nav className="flex items-center gap-1">
             <InstallPrompt />
             <Link href="/app/documents" className={`${link} hidden sm:inline-flex`}>Documents</Link>
+            <Link href="/app/tenders" className={`${link} hidden sm:inline-flex`}>Tenders</Link>
             <Link href="/app/reports/vat" className={`${link} hidden sm:inline-flex`}>Reports</Link>
             <Link href="/app/settings" className={`${link} hidden sm:inline-flex`}>Settings</Link>
+            {/* Phones: Tenders and Reports are in the bottom bar, and Settings is this gear. */}
+            <Link href="/app/settings" aria-label="Settings" className={`${link} inline-flex items-center sm:hidden`}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 5v4M6 15v4" /></svg>
+            </Link>
             <Link href="/app/quotes/new" className="ml-1 hidden rounded-full bg-yebo px-4 py-1.5 text-sm font-bold text-white hover:bg-yebo-deep sm:inline-flex">New quote</Link>
             <form action={signOut}><button className={`${link} text-xs sm:text-sm`}>Sign out</button></form>
           </nav>

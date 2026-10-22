@@ -398,6 +398,7 @@ In **Authentication → Providers**, enable Google (and keep Email on for magic 
 | Landing page sections | `src/components/` |
 | The three plans, their prices and limits (one place to change them) | `src/lib/plans.ts` |
 | Plan access rules and usage limits | `src/lib/access.ts`, `src/lib/subscription.ts` |
+| Tender hub (feed, preferences, start a bid) and the daily feed job | `src/app/app/tenders/hub/`, `src/app/api/cron/tender-feed/route.ts`, `src/lib/tender-feed.ts` |
 | VAT sales summary (page, CSV download, and the maths) | `src/app/app/reports/vat/`, `src/lib/vat-report.ts`, `src/lib/vat-data.ts` |
 | Subscribe step, checkout and confirmation page | `src/app/app/subscribe/` |
 | Subscription payment confirmation from PayFast | `src/app/api/subscriptions/notify/route.ts` |
@@ -436,6 +437,15 @@ Three monthly plans, all paid through PayFast, defined in `src/lib/plans.ts`:
 - **Limits, stated on the page:** it covers sales only. It has no purchases (input tax), so it is not a VAT201 return, and there are no credit notes yet.
 - **Safe by design:** money is built with integer maths, the CSV defuses spreadsheet formulas in client names, drafts are never included, dates use South African time, and more than 1000 rows are read in pages.
 
+### Tender hub and auto-draft (The Industry King)
+
+- **Where:** Tenders in the bottom bar (phones) or top menu (desktop), then **Tender hub**, at `/app/tenders/hub`.
+- **What it does:** shows live public tenders from National Treasury's eTenders, filtered to the trades and provinces the owner picked. Tenders that have closed never show, and the daily job deletes any that closed over a week ago. **Start a bid** opens a tender with the details filled in, plus links to the tender documents. The owner then imports the BOQ, checks every line against the original, adds rates and approves. Nothing is sent without the owner.
+- **Auto-draft:** when switched on in "My trades and area", the daily job opens a draft (max 5 a day) for each new matching tender and emails the owner once.
+- **How it is fed:** `/api/cron/tender-feed` (daily, see `vercel.json`) reads the last 3 days of tenders from the eTenders OCDS API into the `tender_feed` table. It needs `CRON_SECRET` and `SUPABASE_SERVICE_ROLE_KEY`. If the source address or parameters change, set `ETENDERS_API_URL` in Vercel. Opening the route with the header `Authorization: Bearer <CRON_SECRET>` returns a summary (`source`, `fetched`, `saved`, `purged`, `drafts`, `emails`) so it can be tested by hand.
+- **Trade and province** are worked out from the tender's text (`src/lib/tender-feed.ts`). If a tender is put in the wrong trade, add the missing words to the rules in that file.
+- **Database:** run `supabase/migrations/0012_tender_hub.sql` after 0011.
+
 ### Going live with billing (checklist)
 
 1. Create and get approved for Yebo's own **live** PayFast merchant account. In its Integration settings, set a passphrase, enable ITN notifications, and ask PayFast to enable recurring billing and the API if they are not already on.
@@ -467,6 +477,8 @@ Run this after deploying, on a phone as well as a desktop browser. Payment confi
 14. **Voice:** record a quote that includes a client name, a phone number and a price in thousands. Check the phone number appears, a price like "one point eight" is flagged with a "Use R1 800" button, and fixing the words and tapping "Rebuild" works.
 15. **VAT summary:** on a Industry King (or free-access) account, open Reports, pick last month, check the totals match your invoices, download the CSV and open it in Excel. Check a name starting with "=" does not turn into a formula.
 16. **Plans (sandbox):** subscribe, check the plan switches on, create documents until you reach the limit and see the upgrade message, change plan, and cancel.
+17. **Phone navigation:** on a phone, the bottom bar shows Home, Documents, the big + button, Tenders and Reports, and the gear at the top opens Settings. Tap Reports and check the VAT summary opens.
+18. **Tender hub:** run `0012_tender_hub.sql`, then open `/api/cron/tender-feed` with the `Authorization: Bearer <CRON_SECRET>` header. Open Tenders, then Tender hub, pick your trades, and check matching open tenders appear and closed ones do not. Tap **Start a bid** and check the tender opens with its details and document links. Switch on auto-draft, run the job again, and check a draft appears and one email arrives.
 
 ---
 
