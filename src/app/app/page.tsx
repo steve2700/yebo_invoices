@@ -92,7 +92,7 @@ export default async function Dashboard() {
     supabase.from("documents").select("source_quote_id").not("source_quote_id", "is", null),
     supabase
       .from("payments")
-      .select("amount_cents")
+      .select("amount_cents,provider_reference")
       .gte("paid_at", monthStart.toISOString())
       .lt("paid_at", nextMonthStart.toISOString()),
     supabase.rpc("followups_due"),
@@ -103,7 +103,7 @@ export default async function Dashboard() {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: recentPaymentRows } = await supabase
     .from("payments")
-    .select("id,amount_cents,method,paid_at,documents(number,public_token,clients(name,whatsapp_number))")
+    .select("id,amount_cents,method,paid_at,documents(number,type,public_token,clients(name,whatsapp_number))")
     .is("thanked_at", null)
     .gte("paid_at", sevenDaysAgo)
     .order("paid_at", { ascending: false })
@@ -116,7 +116,7 @@ export default async function Dashboard() {
     if (!paidDocument || !paidClient) continue;
     const firstName = greetingName(paidClient.name);
     const amountText = formatRand(Number(row.amount_cents));
-    const message = `Hi ${firstName}, thank you for your payment of ${amountText} for invoice ${paidDocument.number}. We've received it and really appreciate it! Your receipt: ${appUrl()}/d/${paidDocument.public_token}`;
+    const message = `Hi ${firstName}, thank you for your payment of ${amountText} for ${paidDocument.type === "quote" ? "quote" : "invoice"} ${paidDocument.number}. We've received it and really appreciate it! Your receipt: ${appUrl()}/d/${paidDocument.public_token}`;
     recentPayments.push({
       id: row.id,
       clientName: paidClient.name ?? "Your client",
@@ -172,7 +172,10 @@ export default async function Dashboard() {
   const readyQuotes = documents.filter(
     (document) => document.type === "quote" && document.status === "accepted" && !convertedQuoteIds.has(document.id),
   );
-  const paidThisMonth = (monthPayments ?? []).reduce((total, payment) => total + Number(payment.amount_cents), 0);
+  // A deposit paid on a quote is copied onto the invoice when the quote becomes one ("from-quote:..."). Count the money once.
+  const paidThisMonth = (monthPayments ?? [])
+    .filter((payment) => !String(payment.provider_reference ?? "").startsWith("from-quote:"))
+    .reduce((total, payment) => total + Number(payment.amount_cents), 0);
 
   // This month's targets and progress. If this month has no target yet, last month's is carried over.
   // If the 0007 migration has not been run yet these queries return nothing and the card shows its "set a target" state.

@@ -3,13 +3,14 @@ import { useEffect, useState, useTransition } from "react";
 import { createQuote, updateDraft } from "./actions";
 import { formatRand } from "@/lib/money";
 import { greetingName } from "@/lib/names";
+import { OPTION_KEYS, OPTION_LABELS, type OptionKey } from "@/lib/quote-options";
 import VoiceQuoteAssistant, { type ApplyMode, type VoiceQuoteDraft } from "./VoiceQuoteAssistant";
 
 type Client = { id: string; name: string; whatsapp_number: string | null; address: string | null; preferred_payment: string | null };
 type Item = { description: string; default_price_cents: number };
 type Plan = "after" | "deposit" | "full";
 type MessageTone = "friendly" | "professional" | "short";
-type Line = { description: string; quantity: number; price: number; pricingMode?: "unit" | "line_total" };
+type Line = { description: string; quantity: number; price: number; pricingMode?: "unit" | "line_total"; option?: "all" | OptionKey };
 type Fields = {
   title: string;
   location: string;
@@ -55,7 +56,7 @@ function isTidySuggestion(value: unknown): value is TidySuggestion {
     && candidate.items.every((item) => typeof item === "string");
 }
 
-type Initial = { clientId: string; f: Fields; lines: Line[] };
+type Initial = { clientId: string; f: Fields; lines: Line[]; useOptions?: boolean };
 
 export default function QuoteForm({ clients, items, vatRegistered, docType = "quote", documentId, initial, voiceLeft = null }: { clients: Client[]; items: Item[]; vatRegistered: boolean; docType?: "quote" | "invoice"; documentId?: string; initial?: Initial; voiceLeft?: number | null }) {
   const isInvoice = docType === "invoice";
@@ -74,6 +75,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
     note: "",
   });
   const [lines, setLines] = useState<Line[]>(initial?.lines ?? [{ description: "", quantity: 1, price: 0 }]);
+  const [useOptions, setUseOptions] = useState<boolean>(!isInvoice && Boolean(initial?.useOptions));
   const [error, setError] = useState("");
   const [noteTone, setNoteTone] = useState<MessageTone>("friendly");
   const [draftingNote, setDraftingNote] = useState<MessageTone | null>(null);
@@ -93,8 +95,15 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
 
   const validLines = lines.filter((line) => line.description.trim() && line.price > 0 && line.quantity > 0).length;
   const hasClient = clientId === "new" ? Boolean(newClient.name.trim()) : Boolean(clientId);
-  const canSubmit = validLines > 0 && hasClient;
-  const subtotalCents = lines.reduce((sum, line) => sum + getLineTotalCents(line), 0);
+  // Good / Better / Best: lines marked for one option only count in that option, "all" lines count in every option.
+  const pricedLine = (line: Line) => Boolean(line.description.trim()) && line.price > 0 && line.quantity > 0;
+  const sharedCents = lines.filter((line) => (!line.option || line.option === "all") && pricedLine(line)).reduce((sum, line) => sum + getLineTotalCents(line), 0);
+  const optionRows = OPTION_KEYS
+    .filter((key) => lines.some((line) => line.option === key && pricedLine(line)))
+    .map((key) => ({ key, subtotal: sharedCents + lines.filter((line) => line.option === key && pricedLine(line)).reduce((sum, line) => sum + getLineTotalCents(line), 0) }));
+  const optionsReady = !useOptions || optionRows.length >= 2;
+  const canSubmit = validLines > 0 && hasClient && optionsReady;
+  const subtotalCents = useOptions && optionRows.length ? Math.min(...optionRows.map((row) => row.subtotal)) : lines.reduce((sum, line) => sum + getLineTotalCents(line), 0);
   const vatCents = vatRegistered ? Math.round((subtotalCents * 15) / 100) : 0;
   const totalCents = subtotalCents + vatCents;
   const clientName = clients.find((client) => client.id === clientId)?.name ?? newClient.name;
@@ -113,7 +122,9 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
       ? clientId === "new" ? "Enter the client’s name to continue." : "Choose a client to continue."
       : validLines === 0
         ? "Add an item with a price to continue."
-        : "";
+        : !optionsReady
+          ? "Give at least two options (Good, Better or Best) an item each, or switch options off."
+          : "";
 
   useEffect(() => {
     try {
@@ -389,6 +400,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         newClient: clientId === "new" ? newClient : null,
         ...fields,
         docType,
+        useOptions: !isInvoice && useOptions,
         items: lines,
         send,
       };
@@ -448,6 +460,15 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
             </p>
           </div>
         </div>
+        {!isInvoice && (
+          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl bg-white/10 p-3 text-sm">
+            <input type="checkbox" checked={useOptions} onChange={(event) => setUseOptions(event.target.checked)} className="mt-0.5 size-5 shrink-0 accent-lime" />
+            <span>
+              <b className="block text-paper">Offer Good / Better / Best options</b>
+              <span className="mt-0.5 block text-xs leading-5 text-paper/65">Let your client choose between two or three prices. Mark each item for one option, or for all of them if every option includes it.</span>
+            </span>
+          </label>
+        )}
         <datalist id="saved-items">
           {items.map((item) => <option key={item.description} value={item.description} />)}
         </datalist>
@@ -472,6 +493,15 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
                 <span className="block min-w-0 text-right text-sm font-black text-lime">{formatRand(getLineTotalCents(line))}</span>
               </div>
             </div>
+            {useOptions && !isInvoice && (
+              <div className="mt-2">
+                <label className="mb-1 block text-[10px] font-bold text-paper/60" htmlFor={`option-${index}`}>Applies to</label>
+                <select id={`option-${index}`} value={line.option ?? "all"} onChange={(event) => updateLine(index, { option: event.target.value as Line["option"] })} className="w-full rounded-xl border-0 bg-white px-3 py-3 text-sm text-ink">
+                  <option value="all">All options</option>
+                  {OPTION_KEYS.map((key) => <option key={key} value={key}>{OPTION_LABELS[key]} only</option>)}
+                </select>
+              </div>
+            )}
             {lines.length > 1 && (
               <button type="button" className="mt-2 min-h-10 text-xs font-semibold text-paper/60 underline underline-offset-2" onClick={() => setLines((current) => current.filter((_, lineIndex) => lineIndex !== index))}>
                 Remove item
@@ -529,8 +559,17 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
             </div>
           )}
         </div>
+        {useOptions && optionRows.length > 0 && (
+          <div className="mt-6 border-t border-white/15 pt-4 text-sm">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-paper/55">Your client will choose from</p>
+            {optionRows.map((row) => {
+              const vat = vatRegistered ? Math.round((row.subtotal * 15) / 100) : 0;
+              return <div key={row.key} className="flex justify-between py-1 text-paper/85"><span>{OPTION_LABELS[row.key]}</span><span className="font-black text-lime">{formatRand(row.subtotal + vat)}</span></div>;
+            })}
+          </div>
+        )}
         <div className="mt-6 border-t border-white/15 pt-4 text-sm">
-          <div className="flex justify-between py-1 text-paper/65"><span>Subtotal</span><span>{formatRand(subtotalCents)}</span></div>
+          <div className="flex justify-between py-1 text-paper/65"><span>{useOptions ? "Lowest option, subtotal" : "Subtotal"}</span><span>{formatRand(subtotalCents)}</span></div>
           <div className="flex justify-between py-1 text-paper/65"><span>VAT</span><span>{vatRegistered ? formatRand(vatCents) : "Not applicable"}</span></div>
           <div className="flex justify-between py-1 text-lg font-black"><span>Total</span><span className="text-lime">{formatRand(totalCents)}</span></div>
         </div>

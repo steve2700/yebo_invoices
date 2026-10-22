@@ -68,20 +68,20 @@ Yebo is built around one rule: **a new user should send their first quote within
 - [x] **A Save changes button in every Settings section** (brand identity, contact details, banking, build trust, quote defaults), so owners never have to scroll to the bottom. They all save the same form, so any of them saves everything on the page. Logo and work photos save on their own as soon as they are chosen
 - [x] The page where a client accepts a quote shows "Why hire ..." (year started, about line, work photos). The photos are on that page only, not in the PDF
 - [x] Fixed a duplicate "Reports" link in the top menu, and tightened the quote PDF again so the totals and payment box fit on page 1 when there is room
-- [ ] Fully automatic reminders (scheduled, no tap needed)
+- [x] **Deposit after a quote is accepted.** Once a client accepts a quote that asks for a deposit (or full payment upfront), the quote page shows a "Pay your deposit" box with the exact amount. Businesses with PayFast connected get a **Pay online** button (card or instant EFT; the deposit is recorded automatically and the owner and client are emailed). Businesses **without PayFast** show their bank details with the deposit amount and the quote number as the reference, plus an **I have paid the deposit by EFT** button that emails the owner so they can check their bank. The owner confirms with **Deposit received (EFT)** or **Paid cash** on the quote. When the quote becomes an invoice, the deposit is credited to it, so the client only pays the balance. Files: `src/lib/deposit.ts`, `src/app/d/[token]/page.tsx`, `src/app/d/[token]/pay/route.ts`, `src/app/api/payfast/notify/route.ts`, `src/app/app/documents/actions.ts`
+- [x] **Good / Better / Best options on one quote.** In the quote form, switch on options and mark each item for one option or for all. The client sees each option with its own total, picks one and taps Accept; the quote's total is then fixed to that option on the server (`choose_quote_option`) and the invoice is made from it. The PDF shows each option with its own total until one is chosen, and the header says "From". No plan limit. Files: `src/lib/quote-options.ts`, `src/app/app/quotes/new/QuoteForm.tsx`, `src/app/app/quotes/new/actions.ts`
+- [x] **Trust badges and customer reviews (Settings → Build trust).** Tick what is true (fully insured, certified, licensed, registered, references on request, safety compliant), add up to 5 real customer reviews (first name, suburb, what they said) and an optional Google reviews link. They appear in the "Why hire ..." card on the quote page, under "From past customers", with a note that the details are provided by the business. Not shown on the PDF. No plan limit yet; to limit reviews per plan, add a number to each plan in `src/lib/plans.ts` the way `workPhotos` works. Files: `src/lib/trust.ts`, `src/app/app/settings/page.tsx`
+- [x] **Automatic email reminders.** Businesses on a plan with reminders (The Real Business and The Industry King, or everyone while billing is off) can tick **Send reminders for me automatically** in Settings → Quote defaults. A daily job (`vercel.json`, 06:00 UTC, which is 08:00 in South Africa) emails clients who have gone quiet on a quote, or whose invoice is due soon or overdue, using the same rules as the dashboard (3 days apart, at most 3). It sends from the business name with replies going to the business email, skips clients with no email, and records each reminder so nobody is emailed twice. Needs `CRON_SECRET` (see below). WhatsApp reminders stay one-tap, because automatic WhatsApp needs the official WhatsApp Business API. Files: `src/app/api/cron/reminders/route.ts`, `vercel.json`
 
 ### Planned
 
-- [ ] Trust badges the owner can switch on (insured, certified, registered), and customer reviews on the quote page (real, attributable reviews only)
-- [ ] Good / Better / Best options on one quote
 - [ ] Let higher plans hide the Yebo promo strip on their PDFs
 - [ ] "Get found" page for businesses that want a website, Google Business Profile or Google Ads
 - [ ] Rate limits on the AI routes
-- [ ] Pay a quote's deposit online, and part payments
+- [ ] Part payments (pay the invoice in instalments)
 - [ ] A confirmation email to the client when they accept a quote
 - [ ] Ozow or Stitch for instant EFT
 - [ ] "Repeat last invoice" for recurring clients
-- [ ] Good / Better / Best quote options
 - [ ] Website "Request a quote" form that feeds into the app
 - [ ] Data-driven tips from the user's own history
 - [ ] Tip dismissals saved to the database (currently saved in the browser)
@@ -324,6 +324,7 @@ Run the migrations **in order** in the Supabase SQL Editor (copies are in `supab
 | `0007_monthly_targets.sql` | Monthly money and quote targets for each business |
 | `0008_subscriptions.sql` | Subscriptions, subscription payments and voice quote usage |
 | `0009_trust_profile.sql` | Year started, "about us" line and up to 6 work photos on each business, and the same fields on the public client page |
+| `0010_deposit_options_reviews_reminders.sql` | "I have paid the deposit" claim, Good / Better / Best options on quotes, trust badges, reviews and Google link, and the automatic reminders switch |
 
 Supabase may warn about "destructive operations" on some of these. They only drop and recreate policies or functions, and do not touch your data.
 
@@ -339,6 +340,8 @@ GROQ_API_KEY=
 
 RESEND_API_KEY=
 RESEND_EMAIL_DOMAIN=yeboinvoices.com
+
+CRON_SECRET=                      # any long random text. Vercel sends it to the daily reminders job. Without it, automatic reminders do not run
 
 # Shown on the Privacy Notice and Terms pages (required before launch)
 # Billing. Leave BILLING_ENFORCED unset (or false) until you are ready to charge, so nobody is locked out.

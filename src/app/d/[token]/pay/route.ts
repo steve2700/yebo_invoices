@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { appUrl } from "@/lib/url";
 import { buildPayfastCheckout, MIN_ONLINE_PAYMENT_CENTS } from "@/lib/payfast";
+import { depositCents } from "@/lib/deposit";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ const pageStyle = "font-family:system-ui,-apple-system,sans-serif;display:grid;p
 
 function messagePage(title: string, message: string, status: number, backHref?: string) {
   const back = backHref
-    ? `<p style="margin-top:20px"><a href="${escapeHtml(backHref)}" style="color:#0f8a5f;font-weight:700">Back to your invoice</a></p>`
+    ? `<p style="margin-top:20px"><a href="${escapeHtml(backHref)}" style="color:#0f8a5f;font-weight:700">Go back</a></p>`
     : "";
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title></head><body style="${pageStyle}"><main style="max-width:420px;text-align:center"><h1 style="font-size:22px;margin:0 0 8px">${escapeHtml(title)}</h1><p style="line-height:1.6;color:#44574e;margin:0">${escapeHtml(message)}</p>${back}</main></body></html>`;
   return new Response(html, { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
@@ -39,21 +40,27 @@ export async function POST(_request: Request, { params }: { params: Promise<{ to
 
   const { data: document } = await admin
     .from("documents")
-    .select("id,number,type,status,total_cents,business_id")
+    .select("id,number,type,status,total_cents,business_id,payment_plan,deposit_percent")
     .eq("public_token", token)
     .maybeSingle();
   if (!document || document.status === "draft") {
     return messagePage("Page not found", "We could not find that invoice.", 404);
   }
-  if (document.type !== "invoice" || !OPEN_STATUSES.includes(document.status)) {
-    return messagePage("Nothing to pay", "This invoice is not waiting for payment.", 409, back);
+  // Two things can be paid here: an open invoice, or the deposit on a quote the client has accepted.
+  const isQuoteDeposit = document.type === "quote";
+  const payable = isQuoteDeposit
+    ? document.status === "accepted" && depositCents(document) > 0
+    : document.type === "invoice" && OPEN_STATUSES.includes(document.status);
+  if (!payable) {
+    return messagePage("Nothing to pay", isQuoteDeposit ? "There is no deposit waiting for payment on this quote." : "This invoice is not waiting for payment.", 409, back);
   }
 
   const { data: payments } = await admin.from("payments").select("amount_cents").eq("document_id", document.id);
   const paidCents = (payments ?? []).reduce((total, payment) => total + Number(payment.amount_cents), 0);
-  const balanceCents = Math.max(Number(document.total_cents) - paidCents, 0);
+  const dueCents = isQuoteDeposit ? depositCents(document) : Number(document.total_cents);
+  const balanceCents = Math.max(dueCents - paidCents, 0);
   if (balanceCents <= 0) {
-    return messagePage("Already paid", "This invoice has been paid in full. Thank you!", 409, back);
+    return messagePage("Already paid", isQuoteDeposit ? "The deposit has been paid. Thank you!" : "This invoice has been paid in full. Thank you!", 409, back);
   }
   if (balanceCents < MIN_ONLINE_PAYMENT_CENTS) {
     return messagePage("Amount too small for online payment", "Please use the bank details on the invoice for this amount.", 409, back);
@@ -99,7 +106,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ to
     notifyUrl: `${base}/api/payfast/notify`,
     paymentId: attempt.id,
     amountCents: balanceCents,
-    itemName: `Invoice ${document.number}`,
+    itemName: `${isQuoteDeposit ? "Deposit for quote" : "Invoice"} ${document.number}`,
     itemDescription: `Payment to ${business?.name ?? "the business"}`,
   });
 

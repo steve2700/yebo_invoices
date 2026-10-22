@@ -3,6 +3,7 @@ import { appUrl } from "@/lib/url";
 import { formatRand } from "@/lib/money";
 import { formatDate, waLink } from "@/lib/dates";
 import { greetingName } from "@/lib/names";
+import { depositCents } from "@/lib/deposit";
 import { isEmail, renderEmail, sendEmail } from "@/lib/email";
 import {
   amountToCents,
@@ -68,10 +69,11 @@ export async function POST(request: Request) {
 
   const { data: document } = await admin
     .from("documents")
-    .select("id,number,type,status,total_cents,business_id,client_id,public_token")
+    .select("id,number,type,status,total_cents,business_id,client_id,public_token,payment_plan,deposit_percent")
     .eq("id", attempt.document_id)
     .maybeSingle();
-  if (!document || document.type !== "invoice") return reject("attempt is not for an invoice", attemptId);
+  if (!document || (document.type !== "invoice" && document.type !== "quote")) return reject("attempt is not for an invoice or a quote deposit", attemptId);
+  const isQuote = document.type === "quote";
 
   const { data: settings } = await admin
     .from("payfast_settings")
@@ -140,10 +142,12 @@ export async function POST(request: Request) {
 
   const { data: allPayments } = await admin.from("payments").select("amount_cents").eq("document_id", document.id);
   const totalPaid = (allPayments ?? []).reduce((sum, payment) => sum + Number(payment.amount_cents), 0);
-  const fullyPaid = totalPaid >= Number(document.total_cents);
-  const alreadyPaidBefore = totalPaid - paidCents >= Number(document.total_cents);
+  // For a quote, "paid" means the deposit is in. The quote itself stays accepted until it becomes an invoice.
+  const target = isQuote ? depositCents(document) : Number(document.total_cents);
+  const fullyPaid = totalPaid >= target;
+  const alreadyPaidBefore = totalPaid - paidCents >= target;
   const newStatus = fullyPaid ? "paid" : "partially_paid";
-  if (document.status !== newStatus) {
+  if (!isQuote && document.status !== newStatus) {
     await admin.from("documents").update({ status: newStatus }).eq("id", document.id);
   }
 
@@ -153,7 +157,7 @@ export async function POST(request: Request) {
   }
 
   // ---- 6. Tell the client and the business owner (each at most once). ----
-  await notifyEveryone({ admin, attemptId, document, paidCents, fullyPaid, alreadyPaidBefore, data });
+  await notifyEveryone({ admin, attemptId, document, paidCents, fullyPaid, alreadyPaidBefore, data, isQuote });
   return ok();
 }
 
@@ -165,9 +169,16 @@ type NotifyInput = {
   fullyPaid: boolean;
   alreadyPaidBefore: boolean;
   data: Record<string, string>;
+  isQuote: boolean;
 };
 
-async function notifyEveryone({ admin, attemptId, document, paidCents, fullyPaid, alreadyPaidBefore, data }: NotifyInput) {
+async function notifyEveryone({ admin, attemptId, document, paidCents, fullyPaid, alreadyPaidBefore, data, isQuote }: NotifyInput) {
+  const docWord = isQuote ? "quote" : "invoice";
+  const docLabel = isQuote ? "Quote" : "Invoice";
+  const payWord = isQuote ? "deposit" : "payment";
+  const statusText = isQuote
+    ? (fullyPaid ? "Deposit paid in full" : "Part of the deposit received")
+    : (fullyPaid ? "Paid in full" : "Part payment received");
   const [{ data: business }, { data: client }] = await Promise.all([
     admin.from("businesses").select("name,email,brand_color,owner_id").eq("id", document.business_id).maybeSingle(),
     admin.from("clients").select("name,email,whatsapp_number").eq("id", document.client_id).maybeSingle(),
@@ -187,17 +198,17 @@ async function notifyEveryone({ admin, attemptId, document, paidCents, fullyPaid
       fromName: businessName,
       replyTo,
       idempotencyKey: `payment-client/${attemptId}`,
-      subject: `Payment received: invoice ${document.number}`,
+      subject: `${isQuote ? "Deposit" : "Payment"} received: ${docWord} ${document.number}`,
       html: renderEmail({
         brandColor: business.brand_color,
-        heading: "Thank you. Your payment has been received.",
-        intro: `Hi ${greetingName(client.name)}, ${businessName} has received your payment. Here are the details for your records.`,
+        heading: `Thank you. Your ${payWord} has been received.`,
+        intro: `Hi ${greetingName(client.name)}, ${businessName} has received your ${payWord}. Here are the details for your records.`,
         rows: [
           ["Amount paid", amount],
-          ["Invoice", document.number],
+          [docLabel, document.number],
           ["Paid on", today],
           ["Paid with", "Online payment (PayFast)"],
-          ["Status", fullyPaid ? "Paid in full" : "Part payment received"],
+          ["Status", statusText],
         ],
         buttonLabel: "View your receipt",
         buttonUrl: `${base}/d/${document.public_token}`,
@@ -218,24 +229,24 @@ async function notifyEveryone({ admin, attemptId, document, paidCents, fullyPaid
     const netCents = amountToCents(data.amount_net);
     const rows: [string, string][] = [
       ["Client", client?.name ?? "Your client"],
-      ["Invoice", document.number],
+      [docLabel, document.number],
       ["Amount paid", amount],
     ];
     if (feeCents !== null && netCents !== null) {
       rows.push(["PayFast fee", formatRand(Math.abs(feeCents))], ["Goes to your PayFast account", formatRand(netCents)]);
     }
-    rows.push(["Invoice status", fullyPaid ? "Paid in full" : "Part payment received"]);
+    rows.push([`${docLabel} status`, statusText]);
 
-    const thanks = `Hi ${greetingName(client?.name)}, thank you for your payment of ${amount} for invoice ${document.number}. We've received it and really appreciate it! Your receipt: ${base}/d/${document.public_token}`;
+    const thanks = `Hi ${greetingName(client?.name)}, thank you for your ${payWord} of ${amount} for ${docWord} ${document.number}. We've received it and really appreciate it! Your receipt: ${base}/d/${document.public_token}`;
     const sent = await sendEmail({
       to: ownerEmail,
       fromName: "Yebo Invoices",
       idempotencyKey: `payment-owner/${attemptId}`,
-      subject: `You've been paid ${amount} by ${client?.name ?? "a client"}`,
+      subject: `You've been paid ${amount} by ${client?.name ?? "a client"}${isQuote ? " (deposit)" : ""}`,
       html: renderEmail({
         brandColor: business.brand_color,
         heading: `You've been paid ${amount}`,
-        intro: `${client?.name ?? "Your client"} paid invoice ${document.number} online. The invoice has been updated automatically.`,
+        intro: `${client?.name ?? "Your client"} paid ${isQuote ? "the deposit on quote" : "invoice"} ${document.number} online. ${isQuote ? "The quote now shows the deposit as received, and it will be credited to the invoice when you create it." : "The invoice has been updated automatically."}`,
         rows,
         note: alreadyPaidBefore
           ? "Heads up: this invoice was already fully paid before this payment arrived, so the client may have paid twice. You may want to refund one payment in your PayFast account."

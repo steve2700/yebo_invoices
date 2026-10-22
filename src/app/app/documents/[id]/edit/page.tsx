@@ -12,7 +12,7 @@ export default async function EditDraft({ params }: { params: Promise<{ id: stri
 
   const [{ data: biz }, { data: lines }, { data: clients }, { data: items }] = await Promise.all([
     sb.from("businesses").select("vat_registered").single(),
-    sb.from("document_lines").select("description,quantity,unit_price_cents").eq("document_id", id).order("sort_order"),
+    sb.from("document_lines").select("description,quantity,unit_price_cents,option_key").eq("document_id", id).order("sort_order"),
     sb.from("clients").select("id,name,whatsapp_number,address,preferred_payment").order("name"),
     sb.from("items").select("description,default_price_cents").order("times_used", { ascending: false }),
   ]);
@@ -26,7 +26,8 @@ export default async function EditDraft({ params }: { params: Promise<{ id: stri
       jobDateTbd: !!d.job_date_tbd, laborOnly: !!d.labour_only, plan: plan as "after" | "deposit" | "full",
       pct: d.deposit_percent ?? 50, terms: d.payment_terms ?? (d.type === "invoice" ? "within 7 days" : "on completion"), note: d.note ?? "",
     },
-    lines: (lines ?? []).map((l) => ({ description: l.description, quantity: Number(l.quantity), price: l.unit_price_cents / 100 })),
+    useOptions: Boolean(d.has_options),
+    lines: (lines ?? []).map((l) => ({ description: l.description, quantity: Number(l.quantity), price: l.unit_price_cents / 100, option: (l.option_key ?? "all") as "all" | "good" | "better" | "best" })),
   };
 
   return (

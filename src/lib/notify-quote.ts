@@ -113,3 +113,59 @@ export async function notifyQuoteAnswered(token: string, answer: "accepted" | "d
     console.error("[quote-answer] could not notify the owner:", error);
   }
 }
+
+
+// Tells the owner by email that the client says they have paid the deposit by EFT, so they can check their bank.
+export async function notifyDepositClaimed(token: string): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const { data: document } = await admin
+      .from("documents")
+      .select("id,number,type,status,total_cents,business_id,client_id,payment_plan,deposit_percent")
+      .eq("public_token", token)
+      .maybeSingle();
+    if (!document || document.type !== "quote" || document.status !== "accepted") return;
+
+    const [{ data: business }, { data: client }] = await Promise.all([
+      admin.from("businesses").select("name,email,brand_color,owner_id").eq("id", document.business_id).maybeSingle(),
+      admin.from("clients").select("name,whatsapp_number").eq("id", document.client_id).maybeSingle(),
+    ]);
+    if (!business) return;
+    let ownerEmail: string | null = isEmail(business.email) ? business.email.trim() : null;
+    if (!ownerEmail && business.owner_id) {
+      const { data: owner } = await admin.auth.admin.getUserById(business.owner_id);
+      ownerEmail = isEmail(owner?.user?.email) ? owner.user.email.trim() : null;
+    }
+    if (!ownerEmail) return;
+
+    const deposit = document.payment_plan === "full"
+      ? Number(document.total_cents)
+      : Math.round((Number(document.total_cents) * Number(document.deposit_percent ?? 0)) / 100);
+    const clientName = client?.name ?? "Your client";
+    const firstName = greetingName(client?.name);
+    await sendEmail({
+      to: ownerEmail,
+      fromName: "Yebo Invoices",
+      idempotencyKey: `deposit-claimed/${document.id}/${new Date().toISOString().slice(0, 15)}`,
+      subject: `${clientName} says they have paid the ${formatRand(deposit)} deposit`,
+      html: renderEmail({
+        brandColor: business.brand_color,
+        heading: `${clientName} says the deposit is paid`,
+        intro: `${clientName} tapped "I've paid the deposit" on quote ${document.number}. Please check your bank account before you confirm the booking.`,
+        rows: [
+          ["Client", clientName],
+          ["Quote", document.number],
+          ["Deposit", formatRand(deposit)],
+          ["Payment reference", document.number],
+        ],
+        buttonLabel: "Open the quote and confirm",
+        buttonUrl: `${appUrl()}/app/documents/${document.id}`,
+        secondaryButtonLabel: `Message ${firstName} on WhatsApp`,
+        secondaryButtonUrl: waLink(client?.whatsapp_number ?? null, `Hi ${firstName}, thank you! I'll check for the deposit for quote ${document.number} and confirm your booking shortly.`),
+        footer: "Once the money has reached your account, open the quote and tap \"Deposit received\". Yebo never holds your money.",
+      }),
+    });
+  } catch (error) {
+    console.error("[deposit-claim] could not notify the owner:", error);
+  }
+}

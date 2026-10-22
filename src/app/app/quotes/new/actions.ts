@@ -3,13 +3,15 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { checkDocumentAllowance } from "@/lib/subscription";
 import { addDays } from "@/lib/dates";
+import { isOptionKey, lowestSubtotal, optionsPresent } from "@/lib/quote-options";
 
 export type NewQuote = {
   clientId: string;
   newClient: { name: string; whatsapp: string; email: string; address: string } | null;
   title: string; location: string; description: string; jobDate: string; jobDateTbd: boolean;
   laborOnly: boolean; plan: "after" | "deposit" | "full"; pct: number; terms: string; note: string;
-  items: { description: string; quantity: number; price: number; pricingMode?: "unit" | "line_total" }[];
+  items: { description: string; quantity: number; price: number; pricingMode?: "unit" | "line_total"; option?: string }[];
+  useOptions?: boolean; // Good / Better / Best (quotes only)
   send: boolean;
   docType?: "quote" | "invoice";
 };
@@ -26,6 +28,7 @@ export async function createQuote(input: NewQuote): Promise<{ error: string } | 
     if (!biz) return { error: "Set up your business first." };
 
     const docType = input.docType === "invoice" ? "invoice" : "quote";
+    const useOpt = docType === "quote" && Boolean(input.useOptions);
     const termDays = /\d+/.test(input.terms) ? parseInt(input.terms.match(/\d+/)![0], 10) : 0; // "on completion" = due now
 
     let clientId = input.clientId;
@@ -49,12 +52,16 @@ export async function createQuote(input: NewQuote): Promise<{ error: string } | 
         const unit = i.pricingMode === "line_total" ? Math.round(amountCents / quantity) : amountCents;
         const lineTotal = i.pricingMode === "line_total" ? amountCents : Math.round(quantity * unit);
         return { description: i.description.trim(), quantity, unit_price_cents: unit,
-          line_total_cents: lineTotal, sort_order: idx };
+          line_total_cents: lineTotal, sort_order: idx,
+          option_key: useOpt && isOptionKey(i.option) ? i.option : null };
       });
     if (!lines.length) return { error: "Add at least one item with a price." };
 
+    if (useOpt && optionsPresent(lines).length < 2) return { error: "Give at least two options (Good, Better or Best) an item each, or switch options off." };
+
     // Totals are always computed on the server, in cents. No VAT unless the business is VAT registered.
-    const subtotal = lines.reduce((a, l) => a + l.line_total_cents, 0);
+    // With options, the quote shows the lowest option until the client chooses one.
+    const subtotal = useOpt ? lowestSubtotal(lines) : lines.reduce((a, l) => a + l.line_total_cents, 0);
     const vatPercent = biz.vat_registered ? 15 : 0;
     const vat = Math.round((subtotal * vatPercent) / 100);
 
@@ -62,6 +69,7 @@ export async function createQuote(input: NewQuote): Promise<{ error: string } | 
     if (nErr) throw nErr;
 
     const { data: doc, error } = await sb.from("documents").insert({
+      has_options: useOpt,
       business_id: biz.id, client_id: clientId, type: docType,
       seq: n[0].doc_seq, number: n[0].doc_number,
       status: input.send ? "sent" : "draft",
@@ -103,6 +111,7 @@ export async function updateDraft(input: NewQuote & { id: string }): Promise<{ e
     const { data: existing } = await sb.from("documents").select("id,type,status").eq("id", input.id).single();
     if (!existing || existing.status !== "draft") return { error: "Only drafts can be edited." };
     const docType = existing.type as "quote" | "invoice";
+    const useOpt = docType === "quote" && Boolean(input.useOptions);
     const termDays = /\d+/.test(input.terms) ? parseInt(input.terms.match(/\d+/)![0], 10) : 0;
 
     let clientId = input.clientId;
@@ -126,15 +135,18 @@ export async function updateDraft(input: NewQuote & { id: string }): Promise<{ e
         const unit = i.pricingMode === "line_total" ? Math.round(amountCents / quantity) : amountCents;
         const lineTotal = i.pricingMode === "line_total" ? amountCents : Math.round(quantity * unit);
         return { description: i.description.trim(), quantity, unit_price_cents: unit,
-          line_total_cents: lineTotal, sort_order: idx };
+          line_total_cents: lineTotal, sort_order: idx,
+          option_key: useOpt && isOptionKey(i.option) ? i.option : null };
       });
     if (!lines.length) return { error: "Add at least one item with a price." };
 
-    const subtotal = lines.reduce((a, l) => a + l.line_total_cents, 0);
+    if (useOpt && optionsPresent(lines).length < 2) return { error: "Give at least two options (Good, Better or Best) an item each, or switch options off." };
+    const subtotal = useOpt ? lowestSubtotal(lines) : lines.reduce((a, l) => a + l.line_total_cents, 0);
     const vatPercent = biz.vat_registered ? 15 : 0;
     const vat = Math.round((subtotal * vatPercent) / 100);
 
     const { error } = await sb.from("documents").update({
+      has_options: useOpt, chosen_option: null,
       client_id: clientId, status: input.send ? "sent" : "draft",
       title: input.title || null, description: input.description || null, location: input.location || null,
       job_date: input.jobDate || null, job_date_tbd: input.jobDateTbd, labour_only: input.laborOnly,

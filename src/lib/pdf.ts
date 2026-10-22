@@ -4,6 +4,7 @@ import { formatRand } from "./money";
 import { formatDate } from "./dates";
 import { readableOn } from "./color";
 import { appUrl } from "./url";
+import { OPTION_LABELS, linesForChoice, optionsPresent, subtotalFor, withVat } from "./quote-options";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Pub = { document: any; lines: any[]; business: any; client: any };
@@ -202,7 +203,7 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
   put(String(c.name ?? ""), M + 17, 10, bold, ink, heroTop - heroHeight + 15);
 
   put("ESTIMATED TOTAL", termsX + 13, 7.5, bold, onBrand, heroTop - 20);
-  const total = formatRand(d.total_cents);
+  const total = (d.has_options && !d.chosen_option ? "From " : "") + formatRand(d.total_cents);
   const amountSize = Math.min(20, Math.max(13, 142 / bold.widthOfTextAtSize(clean(total), 1)));
   putRight(total, R - 12, amountSize, bold, onBrand, heroTop - 52);
   put("Valid through", termsX + 13, 7.5, font, onBrand, heroTop - 74);
@@ -260,7 +261,11 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
   page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 0.8, color: rule });
   y -= 15;
 
-  for (const item of lines ?? []) {
+  // Good / Better / Best: until the client chooses, each option is shown with its own total. Afterwards only the chosen one.
+  const hasOptions = Boolean(d.has_options);
+  const chosen: string | null = d.chosen_option ?? null;
+  const allLines: any[] = lines ?? [];
+  const drawItem = (item: any) => {
     const itemRows = wrap(String(item.description ?? ""), font, 9.5, 235);
     const rowHeight = Math.max(21, itemRows.length * 13 + 8);
     need(rowHeight + 5);
@@ -271,15 +276,40 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
     y -= rowHeight;
     page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 0.5, color: rule });
     y -= 7;
+  
+  };
+  if (hasOptions && !chosen) {
+    const shared = allLines.filter((l) => !l.option_key);
+    if (shared.length) {
+      need(30);
+      put("INCLUDED IN EVERY OPTION", descriptionX, 7.5, bold, mute);
+      y -= 14;
+      shared.forEach(drawItem);
+    }
+    for (const key of optionsPresent(allLines)) {
+      need(70);
+      y -= 4;
+      put(`${OPTION_LABELS[key].toUpperCase()} OPTION`, descriptionX, 9, bold, brand);
+      y -= 15;
+      allLines.filter((l) => l.option_key === key).forEach(drawItem);
+      need(26);
+      putRight(`${OPTION_LABELS[key]} total: ${formatRand(withVat(subtotalFor(allLines, key), Number(d.vat_percent ?? 0)).total)}`, R, 10, bold, brand);
+      y -= 22;
+    }
+  } else {
+    linesForChoice(allLines, chosen).forEach(drawItem);
   }
 
   const totalsX = R - 220;
   const totalsWidth = R - totalsX;
-  const totalsHeight = 87;
+  const showTotals = !(hasOptions && !chosen); // with options the total depends on the option the client picks
+  const totalsHeight = showTotals ? 87 : 0;
   const paymentPlan = d.payment_plan === "full"
     ? "Payment in full is needed to confirm the booking."
     : d.payment_plan === "deposit"
-      ? `A ${d.deposit_percent}% deposit (${formatRand(Math.round((d.total_cents * d.deposit_percent) / 100))}) confirms the booking. The balance is due ${d.payment_terms}.`
+      ? (showTotals
+        ? `A ${d.deposit_percent}% deposit (${formatRand(Math.round((d.total_cents * d.deposit_percent) / 100))}) confirms the booking. The balance is due ${d.payment_terms}.`
+        : `A ${d.deposit_percent}% deposit confirms the booking. The balance is due ${d.payment_terms}.`)
       : `No deposit is needed. Full payment is due ${d.payment_terms}.`;
   const paymentRows = wrap(paymentPlan, font, 9, 300);
   const nextStepHeight = Math.max(72, paymentRows.length * 13 + 34);
@@ -287,6 +317,7 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
   // so the payment box is never left alone on a nearly empty page.
   need(totalsHeight + 12 + nextStepHeight + 6);
   const totalsTop = y;
+  if (showTotals) {
   page.drawRectangle({ x: totalsX, y: totalsTop - totalsHeight, width: totalsWidth, height: totalsHeight, color: rgb(0.985, 0.99, 0.985), borderColor: rule, borderWidth: 0.7 });
   put("Subtotal", totalsX + 12, 8.5, font, mute, totalsTop - 18);
   putRight(formatRand(d.subtotal_cents), R - 12, 8.5, font, ink, totalsTop - 18);
@@ -296,7 +327,8 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
   page.drawRectangle({ x: totalsX + 1, y: totalsTop - 82, width: totalsWidth - 2, height: 33, color: brand });
   put("TOTAL", totalsX + 12, 10, bold, onBrand, totalsTop - 70);
   putRight(formatRand(d.total_cents), R - 12, 12, bold, onBrand, totalsTop - 71);
-  y = totalsTop - totalsHeight - 12;
+  }
+  y = totalsTop - totalsHeight - (showTotals ? 12 : 0);
 
   need(nextStepHeight);
   const nextStepTop = y;

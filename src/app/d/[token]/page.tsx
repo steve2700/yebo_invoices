@@ -8,9 +8,12 @@ import { formatRand } from "@/lib/money";
 import { formatDate, waLink } from "@/lib/dates";
 import { appUrl } from "@/lib/url";
 import { readableOn } from "@/lib/color";
-import { notifyQuoteAnswered } from "@/lib/notify-quote";
+import { notifyDepositClaimed, notifyQuoteAnswered } from "@/lib/notify-quote";
+import { depositCents } from "@/lib/deposit";
+import { OPTION_LABELS, linesForChoice, optionsPresent, subtotalFor, withVat, type OptionKey } from "@/lib/quote-options";
+import { BADGE_LABELS, parseReviews } from "@/lib/trust";
 
-type Line = { description: string; quantity: number; unit_price_cents: number; line_total_cents: number };
+type Line = { description: string; quantity: number; unit_price_cents: number; line_total_cents: number; option_key?: string | null };
 
 export default async function PublicDocument({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ payment?: string }> }) {
   const { token } = await params;
@@ -28,10 +31,28 @@ export default async function PublicDocument({ params, searchParams }: { params:
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
   const expired = isQuote && ["sent", "viewed"].includes(d.status) && d.expiry_date && d.expiry_date < today;
   const canAnswer = isQuote && ["sent", "viewed"].includes(d.status) && !expired;
+  // Good / Better / Best: until the client chooses, the quote shows each option; afterwards only the chosen one.
+  const hasOptions = isQuote && Boolean(d.has_options);
+  const chosen: string | null = d.chosen_option ?? null;
   const unpaidInvoice = !isQuote && d.status !== "paid" && d.status !== "draft";
   const hasBank = b.bank_account_holder && b.bank_account_number && b.bank_branch_code;
   const showBank = hasBank && (!isQuote || d.status === "accepted");
   const canPayOnline = unpaidInvoice && Boolean(b.online_payments);
+  const allLines = lines as Line[];
+  const shownLines = hasOptions && chosen ? linesForChoice(allLines, chosen) : allLines;
+  const showOptionCards = hasOptions && !chosen;
+  const sharedLines = allLines.filter((l) => !l.option_key);
+  const optionCards = optionsPresent(allLines).map((key) => ({ key, lines: allLines.filter((l) => l.option_key === key), total: withVat(subtotalFor(allLines, key), Number(d.vat_percent ?? 0)).total }));
+  const defaultOption: OptionKey | undefined = optionCards.find((card) => card.key === "better")?.key ?? optionCards[0]?.key;
+  // Deposit after acceptance: online with PayFast when the business has it, otherwise by EFT with an "I've paid" button.
+  const depositDue = isQuote && d.status === "accepted" ? depositCents(d) : 0;
+  const depositOutstanding = Math.max(depositDue - Number(data.paid_cents ?? 0), 0);
+  const depositClaimed = Boolean(data.deposit_claimed_at);
+  const depositActive = depositDue > 0;
+  const payDepositOnline = depositOutstanding > 0 && Boolean(b.online_payments) && depositOutstanding >= 500;
+  const badges: string[] = Array.isArray(b.badges) ? (b.badges as string[]).filter((id) => BADGE_LABELS[id]) : [];
+  const reviews = parseReviews(b.reviews);
+  const googleUrl: string | null = typeof b.google_reviews_url === "string" && /^https:\/\//.test(b.google_reviews_url) ? b.google_reviews_url : null;
   const pageUrl = `${appUrl()}/d/${token}`;
   const shareMessage = `Payment received by ${b.name}: ${formatRand(d.total_cents)} for invoice ${d.number}. Receipt: ${pageUrl}`;
   const qr = await QRCode.toDataURL(pageUrl, { margin: 1, width: 240 });
@@ -39,16 +60,31 @@ export default async function PublicDocument({ params, searchParams }: { params:
   const web = b.website ? (/^https?:/.test(b.website) ? b.website : `https://${b.website}`) : null;
   const plan = !isQuote ? `Please pay ${formatRand(d.total_cents)} by ${formatDate(d.due_date)}. Use ${d.number} as your payment reference.` : d.payment_plan === "full" ? "Payment in full is needed to confirm the booking."
     : d.payment_plan === "deposit"
-      ? `A ${d.deposit_percent}% deposit (${formatRand(Math.round((d.total_cents * d.deposit_percent) / 100))}) confirms the booking. The balance is due ${d.payment_terms}.`
+      ? (hasOptions && !chosen
+        ? `A ${d.deposit_percent}% deposit confirms the booking. The balance is due ${d.payment_terms}.`
+        : `A ${d.deposit_percent}% deposit (${formatRand(Math.round((d.total_cents * d.deposit_percent) / 100))}) confirms the booking. The balance is due ${d.payment_terms}.`)
       : `No deposit needed. Full payment is due ${d.payment_terms}.`;
 
   async function answer(formData: FormData) {
     "use server";
     const ev = formData.get("event") === "accepted" ? "accepted" : "declined";
     const sb = await createClient();
+    if (ev === "accepted" && hasOptions) {
+      // The chosen option fixes the quote's total on the server. If that fails, nothing is accepted.
+      const { error: chooseError } = await sb.rpc("choose_quote_option", { p_token: token, p_option: String(formData.get("option") ?? "") });
+      if (chooseError) { revalidatePath(`/d/${token}`); return; }
+    }
     await sb.rpc("record_document_event", { p_token: token, p_event: ev });
     // Email the owner after the response is sent, so the client's tap is not slowed down.
     after(() => notifyQuoteAnswered(token, ev));
+    revalidatePath(`/d/${token}`);
+  }
+
+  async function claimDeposit() {
+    "use server";
+    const sb = await createClient();
+    const { data: isNew } = await sb.rpc("claim_deposit_paid", { p_token: token });
+    if (isNew) after(() => notifyDepositClaimed(token));
     revalidatePath(`/d/${token}`);
   }
 
@@ -76,7 +112,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
             <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">{isQuote ? "Estimated total" : "Amount due"}</p>
-                <p className="mt-1 text-4xl font-black tracking-tight sm:text-5xl">{formatRand(d.total_cents)}</p>
+                <p className="mt-1 text-4xl font-black tracking-tight sm:text-5xl">{showOptionCards && optionCards.length > 1 && <span className="mr-2 text-lg font-bold opacity-75">From</span>}{formatRand(d.total_cents)}</p>
               </div>
               <p className="rounded-full px-3 py-1.5 text-xs font-bold" style={soft}>{isQuote ? `Valid until ${formatDate(d.expiry_date)}` : `Due ${formatDate(d.due_date)}`}</p>
             </div>
@@ -117,29 +153,115 @@ export default async function PublicDocument({ params, searchParams }: { params:
 
           <section className="mt-6">
             <h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">{isQuote ? "Investment breakdown" : "Invoice breakdown"}</h2>
-            <ul className="mt-2 divide-y divide-ink/10">
-              {(lines as Line[]).map((l, i) => (
-                <li key={i} className="flex items-start justify-between gap-4 py-4 text-sm">
-                  <span className="font-semibold">{l.description}{Number(l.quantity) !== 1 && <span className="mt-1 block text-xs font-normal text-ink/50">Qty {Number(l.quantity)} × {formatRand(l.unit_price_cents)}</span>}</span>
-                  <b className="shrink-0">{formatRand(l.line_total_cents)}</b>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-1 border-t border-ink/10 pt-3 text-sm">
-              <div className="flex justify-between py-1 text-ink/55"><span>Subtotal</span><span>{formatRand(d.subtotal_cents)}</span></div>
-              <div className="flex justify-between py-1 text-ink/55"><span>VAT</span><span>{b.vat_registered ? formatRand(d.vat_cents) : "Not applicable"}</span></div>
-              <div className="mt-2 flex justify-between rounded-xl px-3 py-3 text-lg font-black" style={{ background: `${color}12` }}><span>Total</span><span style={{ color }}>{formatRand(d.total_cents)}</span></div>
-            </div>
+            {showOptionCards ? (
+              <>
+                {sharedLines.length > 0 && (
+                  <>
+                    <p className="mt-3 text-xs font-bold text-ink/55">Included in every option</p>
+                    <ul className="mt-1 divide-y divide-ink/10">
+                      {sharedLines.map((l, i) => (
+                        <li key={i} className="flex items-start justify-between gap-4 py-3 text-sm">
+                          <span className="font-semibold">{l.description}{Number(l.quantity) !== 1 && <span className="mt-1 block text-xs font-normal text-ink/50">Qty {Number(l.quantity)} × {formatRand(l.unit_price_cents)}</span>}</span>
+                          <b className="shrink-0">{formatRand(l.line_total_cents)}</b>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                <p className="mt-5 text-xs font-bold text-ink/55">{canAnswer ? "Choose your option, then tap Accept" : "Options"}</p>
+                <div className="mt-2 grid gap-3">
+                  {optionCards.map((card) => (
+                    <label key={card.key} className={`relative block rounded-2xl border border-ink/15 p-4 ${canAnswer ? "cursor-pointer" : ""}`}>
+                      {canAnswer && <input type="radio" name="option" value={card.key} form="answer-form" defaultChecked={card.key === defaultOption} className="absolute right-4 top-4 size-5" style={{ accentColor: color }} />}
+                      <span className="block text-base font-black" style={{ color }}>{OPTION_LABELS[card.key]}</span>
+                      <ul className="mt-2 divide-y divide-ink/10 text-sm">
+                        {card.lines.map((l, i) => (
+                          <li key={i} className="flex items-start justify-between gap-4 py-2.5">
+                            <span className="font-semibold">{l.description}{Number(l.quantity) !== 1 && <span className="mt-1 block text-xs font-normal text-ink/50">Qty {Number(l.quantity)} × {formatRand(l.unit_price_cents)}</span>}</span>
+                            <b className="shrink-0">{formatRand(l.line_total_cents)}</b>
+                          </li>
+                        ))}
+                      </ul>
+                      <span className="mt-3 flex justify-between border-t border-ink/10 pt-3 text-sm"><span className="text-ink/55">{b.vat_registered ? "Total incl. VAT" : "Total"}</span><b className="text-lg" style={{ color }}>{formatRand(card.total)}</b></span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                {hasOptions && chosen && <p className="mt-2 inline-block rounded-full bg-ink/5 px-3 py-1 text-xs font-bold">Option chosen: {OPTION_LABELS[chosen as OptionKey] ?? chosen}</p>}
+                <ul className="mt-2 divide-y divide-ink/10">
+                  {shownLines.map((l, i) => (
+                    <li key={i} className="flex items-start justify-between gap-4 py-4 text-sm">
+                      <span className="font-semibold">{l.description}{Number(l.quantity) !== 1 && <span className="mt-1 block text-xs font-normal text-ink/50">Qty {Number(l.quantity)} × {formatRand(l.unit_price_cents)}</span>}</span>
+                      <b className="shrink-0">{formatRand(l.line_total_cents)}</b>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-1 border-t border-ink/10 pt-3 text-sm">
+                  <div className="flex justify-between py-1 text-ink/55"><span>Subtotal</span><span>{formatRand(d.subtotal_cents)}</span></div>
+                  <div className="flex justify-between py-1 text-ink/55"><span>VAT</span><span>{b.vat_registered ? formatRand(d.vat_cents) : "Not applicable"}</span></div>
+                  <div className="mt-2 flex justify-between rounded-xl px-3 py-3 text-lg font-black" style={{ background: `${color}12` }}><span>Total</span><span style={{ color }}>{formatRand(d.total_cents)}</span></div>
+                </div>
+              </>
+            )}
           </section>
 
           <section className="mt-5 rounded-2xl p-4 text-sm" style={{ background: `${color}1A` }}>
             <b className="block">{isQuote ? "Payment & booking terms" : "How payment works"}</b><span className="mt-0.5 block leading-relaxed">{plan}</span>
           </section>
 
-          {isQuote && (b.year_started || b.about || (Array.isArray(b.work_photos) && b.work_photos.length > 0)) && (
+          {depositActive && (
+            <section id="pay" className="mt-5 rounded-2xl border-2 p-4 text-sm" style={{ borderColor: color }}>
+              {depositOutstanding <= 0 ? (
+                <>
+                  <b className="block text-base">Deposit received. Thank you!</b>
+                  <p className="mt-1 leading-relaxed text-ink/75">{b.name} has your deposit and will be in touch to confirm your booking.</p>
+                </>
+              ) : (
+                <>
+                  <b className="block text-base">{d.payment_plan === "full" ? "Pay to confirm your booking" : "Pay your deposit to confirm your booking"}</b>
+                  <p className="mt-1 text-2xl font-black" style={{ color }}>{formatRand(depositOutstanding)}</p>
+                  {payDepositOnline && (
+                    <form method="post" action={`/d/${token}/pay`} className="mt-3">
+                      <button type="submit" className="min-h-12 w-full rounded-2xl px-4 text-base font-black active:scale-[.98]" style={{ background: color, color: fg }}>Pay {formatRand(depositOutstanding)} online</button>
+                      <p className="mt-2 text-center text-xs text-ink/55">Card or instant EFT. You come straight back here when you are done.</p>
+                    </form>
+                  )}
+                  {hasBank ? (
+                    <div className="mt-4 border-t border-ink/10 pt-3">
+                      <b className="block">{payDepositOnline ? "Or pay by EFT" : "Pay by EFT"}</b>
+                      <dl className="mt-1">
+                        <Row k="Amount" v={formatRand(depositOutstanding)} />
+                        <Row k="Account holder" v={b.bank_account_holder} /><Row k="Bank" v={`${b.bank_name ?? ""} ${b.bank_account_type ?? ""}`.trim()} />
+                        <Row k="Account number" v={b.bank_account_number} /><Row k="Branch code" v={b.bank_branch_code} /><Row k="Reference" v={d.number} />
+                      </dl>
+                      {depositClaimed ? (
+                        <p role="status" className="mt-3 rounded-xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} has been told and will confirm once the money reaches their account.</p>
+                      ) : (
+                        <form action={claimDeposit} className="mt-3">
+                          <button type="submit" className="min-h-12 w-full rounded-2xl border border-black/15 px-4 text-sm font-black active:scale-[.98]">I have paid the deposit by EFT</button>
+                          <p className="mt-2 text-center text-xs text-ink/55">Tap this after you have paid, so {b.name} knows to look for it.</p>
+                        </form>
+                      )}
+                    </div>
+                  ) : !payDepositOnline ? (
+                    <p className="mt-2 leading-relaxed text-ink/75">Please contact {b.name} to arrange the payment{b.phone ? ` on ${b.phone}` : ""}.</p>
+                  ) : null}
+                </>
+              )}
+            </section>
+          )}
+
+          {isQuote && (b.year_started || b.about || badges.length > 0 || reviews.length > 0 || googleUrl || (Array.isArray(b.work_photos) && b.work_photos.length > 0)) && (
             <section className="mt-5 rounded-2xl border border-ink/10 p-4 text-sm">
               <h2 className="text-[10px] font-bold uppercase tracking-[.14em] text-ink/45">Why hire {b.name}</h2>
-              {b.year_started && <div className="mt-3 flex flex-wrap gap-2"><span className="rounded-full bg-ink/5 px-3 py-1 text-xs font-bold">Trading since {b.year_started}</span></div>}
+              {(b.year_started || badges.length > 0) && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {b.year_started && <span className="rounded-full bg-ink/5 px-3 py-1 text-xs font-bold">Trading since {b.year_started}</span>}
+                  {badges.map((id) => <span key={id} className="rounded-full bg-ink/5 px-3 py-1 text-xs font-bold">{BADGE_LABELS[id]}</span>)}
+                </div>
+              )}
               {b.about && <p className="mt-3 leading-relaxed text-ink/80">{b.about}</p>}
               {Array.isArray(b.work_photos) && b.work_photos.length > 0 && (
                 <div className="mt-4">
@@ -153,10 +275,25 @@ export default async function PublicDocument({ params, searchParams }: { params:
                   </ul>
                 </div>
               )}
+              {reviews.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs font-bold text-ink/55">From past customers</p>
+                  <ul className="mt-2 grid gap-3">
+                    {reviews.map((r, i) => (
+                      <li key={i} className="rounded-xl bg-paper/60 p-3">
+                        <p className="leading-relaxed text-ink/80">“{r.text}”</p>
+                        <p className="mt-1.5 text-xs font-bold text-ink/55">{r.name}{r.place ? `, ${r.place}` : ""}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {googleUrl && <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-10 items-center rounded-full border border-ink/15 px-4 text-xs font-bold" style={{ color }}>See our Google reviews</a>}
+              <p className="mt-3 text-[11px] text-ink/40">Details provided by {b.name}.</p>
             </section>
           )}
 
-          {showBank && (
+          {showBank && !depositActive && (
             <section id="pay" className="mt-5 rounded-2xl border border-ink/10 p-4 text-sm">
               <b className="block">Pay by EFT</b>
               <dl className="mt-1">
@@ -187,10 +324,22 @@ export default async function PublicDocument({ params, searchParams }: { params:
           </section>
 
           {canAnswer && (
-            <form action={answer} className={bar}>
+            <form id="answer-form" action={answer} className={bar}>
               <button name="event" value="accepted" className="min-h-12 flex-1 rounded-2xl px-4 text-base font-black active:scale-[.98]" style={{ background: color, color: fg }}>Accept quote</button>
               <button name="event" value="declined" className="min-h-12 rounded-2xl border border-black/15 px-4 text-sm font-bold">Decline</button>
             </form>
+          )}
+          {depositActive && depositOutstanding > 0 && (
+            <div className={bar}>
+              {payDepositOnline ? (
+                <form method="post" action={`/d/${token}/pay`} className="flex-1">
+                  <button type="submit" className="min-h-12 w-full rounded-2xl px-4 text-base font-black active:scale-[.98]" style={{ background: color, color: fg }}>Pay deposit</button>
+                </form>
+              ) : (
+                <a href="#pay" className="grid min-h-12 flex-1 place-items-center rounded-2xl px-4 text-base font-black" style={{ background: color, color: fg }}>Pay deposit</a>
+              )}
+              <a href={`/d/${token}/pdf`} className="hidden min-h-12 flex-1 place-items-center rounded-2xl border border-black/15 px-4 text-sm font-bold sm:grid">Download PDF</a>
+            </div>
           )}
           {unpaidInvoice && (
             <div className={bar}>

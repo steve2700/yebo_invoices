@@ -7,13 +7,14 @@ import { greetingName } from "@/lib/names";
 import { appUrl } from "@/lib/url";
 import { formatSouthAfricaDateTime, southAfricaDate } from "@/lib/time";
 import { entitlement } from "@/lib/subscription";
+import { depositCents } from "@/lib/deposit";
 import SubmitButton from "@/components/SubmitButton";
 import WhatsAppIcon from "@/components/WhatsAppIcon";
 import CopyButton from "../CopyButton";
 import AiMessageComposer from "../AiMessageComposer";
 import SendEmailCard from "../SendEmailCard";
 import ConfirmForm from "../ConfirmForm";
-import { convertToInvoice, deleteDraft, duplicateDocument, markPaid, sendDraft } from "../actions";
+import { convertToInvoice, deleteDraft, duplicateDocument, markDepositReceived, markPaid, sendDraft } from "../actions";
 
 const EVENT_LABELS: Record<string, string> = {
   sent: "Sent to client",
@@ -23,6 +24,7 @@ const EVENT_LABELS: Record<string, string> = {
   declined: "Declined by client",
   reminder_sent: "Reminder sent",
   paid: "Payment received",
+  deposit_claimed: "Client says the deposit is paid",
 };
 
 type StepState = "done" | "current" | "todo" | "bad";
@@ -127,6 +129,10 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const waitingOnQuote = isQuote && (d.status === "sent" || d.status === "viewed") && !expired;
   const waitingOnPayment = !isQuote && !isDraft && d.status !== "paid" && balanceDue > 0;
   const lastEmailed = (events ?? []).find((event) => event.type === "emailed");
+  // Deposit on an accepted quote: what is due, what has arrived, and whether the client says they have paid.
+  const depositDue = isQuote && d.status === "accepted" ? depositCents(d) : 0;
+  const depositOutstanding = Math.max(depositDue - amountPaid, 0);
+  const depositClaimed = depositOutstanding > 0 && (events ?? []).some((event) => event.type === "deposit_claimed");
 
   const reminderMsg = [
     `Hi ${first},`,
@@ -147,6 +153,9 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   // The single most useful thing to do right now, in plain words.
   let next: { tone: "go" | "wait" | "done" | "stop"; title: string; text: string };
   if (isDraft) next = { tone: "go", title: `Next step: send it to ${first}`, text: `Your ${kind} is saved as a draft and ${first} cannot see it yet. Email it or send it on WhatsApp below.` };
+  else if (d.status === "accepted" && depositClaimed) next = { tone: "go", title: `${first} says the deposit is paid`, text: `Check your bank for ${formatRand(depositOutstanding)} with the reference ${d.number}. When it has arrived, tap "Deposit received" below.` };
+  else if (d.status === "accepted" && depositOutstanding > 0) next = { tone: "wait", title: `${first} said yes. Waiting for the ${formatRand(depositOutstanding)} deposit`, text: "They can pay it from the quote page, online or by EFT. You will get an email the moment they do. If they paid you another way, record it below." };
+  else if (d.status === "accepted" && depositDue > 0) next = { tone: "go", title: `${first} said yes and the deposit is in`, text: "Create the invoice below. The deposit is credited to it automatically, so your client only pays the balance." };
   else if (d.status === "accepted") next = { tone: "go", title: `${first} said yes!`, text: "Turn this accepted quote into an invoice in one tap. The job details carry over, so there is no retyping." };
   else if (d.status === "declined") next = { tone: "stop", title: `${first} declined this quote`, text: "A friendly message asking what they would like changed can win it back. You can also duplicate it, adjust it and send a new one." };
   else if (d.status === "paid") next = { tone: "done", title: "Paid in full. Well done.", text: "Nothing more to do. A quick thank you on WhatsApp goes a long way, and your dashboard has already been updated." };
@@ -233,6 +242,23 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       {/* ---------- 3. WHAT TO DO NEXT ---------- */}
       {(d.status === "accepted" && isQuote) || waitingOnQuote || waitingOnPayment ? (
         <Section title="What to do next">
+          {isQuote && d.status === "accepted" && depositOutstanding > 0 && (
+            <ActionCard
+              icon="💰"
+              title={`Deposit: ${formatRand(depositOutstanding)} still to come`}
+              description={`${depositClaimed ? `${first} says they have paid. ` : ""}Payments made online on the quote page are recorded for you automatically. If the deposit reached your bank or you were paid cash, record it here.`}
+            >
+              <form action={markDepositReceived}>
+                <input type="hidden" name="id" value={d.id} /><input type="hidden" name="method" value="eft" />
+                <SubmitButton pendingLabel="Recording deposit…" className={btnPrimary}>Deposit received (EFT)</SubmitButton>
+              </form>
+              <form action={markDepositReceived}>
+                <input type="hidden" name="id" value={d.id} /><input type="hidden" name="method" value="cash" />
+                <SubmitButton pendingLabel="Recording deposit…" className={btnOutline}>Paid cash</SubmitButton>
+              </form>
+            </ActionCard>
+          )}
+
           {isQuote && d.status === "accepted" && (
             <ActionCard icon="🧾" title="Create the invoice" description="Makes an invoice from this accepted quote and sends it to the same client page. The job details carry over, so there is no retyping.">
               <form action={convertToInvoice}>

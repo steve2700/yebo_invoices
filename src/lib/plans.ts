@@ -69,8 +69,9 @@ export const PLANS: Record<PlanId, Plan> = {
       "One-tap WhatsApp reminders for quotes and invoices that go quiet, with the message already written",
       "All your clients and past quotes in one place",
       "Up to 3 photos of your work on your quote link",
+      "Automatic email reminders to clients who go quiet",
     ],
-    comingSoon: ["Google reviews shown on your quote links", "Automatic WhatsApp and SMS reminders"],
+    comingSoon: ["Google reviews pulled in automatically", "Automatic WhatsApp and SMS reminders"],
   },
   king: {
     id: "king",

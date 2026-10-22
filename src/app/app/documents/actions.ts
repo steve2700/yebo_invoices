@@ -8,6 +8,8 @@ import { buildDocumentPdf } from "@/lib/pdf";
 import { appUrl } from "@/lib/url";
 import { isEmail, renderEmail, sendEmail } from "@/lib/email";
 import { checkDocumentAllowance } from "@/lib/subscription";
+import { depositCents } from "@/lib/deposit";
+import { linesForChoice, lowestSubtotal, optionsPresent, subtotalFor, type OptionKey } from "@/lib/quote-options";
 
 type Sb = Awaited<ReturnType<typeof createClient>>;
 
@@ -156,7 +158,15 @@ export async function convertToInvoice(fd: FormData) {
   // A quote becomes one invoice. If it already has one (for example from a double tap), open that instead.
   const { data: already } = await sb.from("documents").select("id").eq("source_quote_id", quoteId).limit(1);
   if (already?.length) redirect(`/app/documents/${already[0].id}`);
-  const { data: lines } = await sb.from("document_lines").select("*").eq("document_id", quoteId);
+  const { data: allLines } = await sb.from("document_lines").select("*").eq("document_id", quoteId);
+  // A quote with options becomes an invoice for the option the client chose (or the cheapest, if none was recorded).
+  let chosen: string | null = q.chosen_option ?? null;
+  if (q.has_options && !chosen) {
+    const present = optionsPresent(allLines ?? []);
+    chosen = present.length ? present.reduce((best: OptionKey, key: OptionKey) => (subtotalFor(allLines ?? [], key) < subtotalFor(allLines ?? [], best) ? key : best), present[0]) : null;
+  }
+  const lines = q.has_options ? linesForChoice(allLines ?? [], chosen) : allLines;
+  const { data: quotePayments } = await sb.from("payments").select("id,amount_cents,method,paid_at,thanked_at").eq("document_id", quoteId);
   const { data: n, error: nErr } = await sb.rpc("next_document_number", { p_business: q.business_id, p_type: "invoice" });
   if (nErr) throw nErr;
   const { data: inv, error } = await sb.from("documents").insert({
@@ -167,14 +177,49 @@ export async function convertToInvoice(fd: FormData) {
     payment_terms: q.payment_terms, source_quote_id: q.id,
   }).select("id").single();
   if (error) throw error;
-  const { error: linesError } = await sb.from("document_lines").insert((lines ?? []).map(({ id: _id, document_id: _d, ...l }) => ({ ...l, document_id: inv.id })));
+  const { error: linesError } = await sb.from("document_lines").insert((lines ?? []).map(({ id: _id, document_id: _d, option_key: _o, ...l }) => ({ ...l, document_id: inv.id })));
   if (linesError) {
     // Do not leave a sent invoice with no line items behind.
     await sb.from("documents").delete().eq("id", inv.id);
     throw new Error(`Could not copy the quote lines: ${linesError.message}`);
   }
   await logEvent(sb, inv.id, "sent");
+
+  // A deposit the client already paid on the quote is credited to the invoice, so they are never asked for it twice.
+  if ((quotePayments ?? []).length) {
+    const credit = (quotePayments ?? []).map((p) => ({
+      document_id: inv.id, amount_cents: p.amount_cents, method: p.method, provider_reference: `from-quote:${p.id}`,
+      paid_at: p.paid_at, thanked_at: p.thanked_at ?? new Date().toISOString(),
+    }));
+    const { error: creditError } = await sb.from("payments").insert(credit);
+    if (creditError) {
+      console.error("Could not credit the quote deposit to the invoice:", creditError.message);
+    } else {
+      const credited = credit.reduce((a, p) => a + Number(p.amount_cents), 0);
+      await sb.from("documents").update({ status: credited >= Number(q.total_cents) ? "paid" : "partially_paid" }).eq("id", inv.id);
+    }
+  }
   redirect(`/app/documents/${inv.id}`);
+}
+
+// The owner confirms the deposit has reached their bank (or was paid in cash).
+export async function markDepositReceived(fd: FormData) {
+  const id = String(fd.get("id"));
+  const method = fd.get("method") === "cash" ? "cash" : "eft";
+  const sb = await createClient();
+  const { data: doc } = await sb.from("documents").select("total_cents,type,status,payment_plan,deposit_percent").eq("id", id).single();
+  if (doc?.type === "quote" && doc.status === "accepted") {
+    const { data: pays } = await sb.from("payments").select("amount_cents").eq("document_id", id);
+    const due = depositCents(doc) - (pays ?? []).reduce((a, p) => a + Number(p.amount_cents), 0);
+    if (due > 0) {
+      const { error } = await sb.from("payments").insert({ document_id: id, amount_cents: due, method });
+      if (error) throw new Error(`Could not record the deposit: ${error.message}`);
+      await logEvent(sb, id, "paid");
+    }
+  }
+  revalidatePath(`/app/documents/${id}`);
+  revalidatePath("/app");
+  redirect(`/app/documents/${id}`);
 }
 
 export async function duplicateDocument(fd: FormData) {
@@ -184,14 +229,15 @@ export async function duplicateDocument(fd: FormData) {
   const { data: d } = await sb.from("documents").select("*").eq("id", id).single();
   const { data: biz } = await sb.from("businesses").select("id,vat_registered,default_expiry_days").single();
   if (!d || !biz) redirect("/app/documents");
-  const { data: src } = await sb.from("document_lines").select("description,quantity,unit_price_cents,line_total_cents,sort_order").eq("document_id", id).order("sort_order");
+  const { data: src } = await sb.from("document_lines").select("description,quantity,unit_price_cents,line_total_cents,sort_order,option_key").eq("document_id", id).order("sort_order");
   const { data: n, error: nErr } = await sb.rpc("next_document_number", { p_business: biz.id, p_type: d.type });
   if (nErr) throw nErr;
 
   // Line totals are copied exactly (recalculating them can lose a cent). Only VAT is recalculated,
   // so a copy always follows the business's current VAT status.
-  const rows = (src ?? []).map((l) => ({ ...l, line_total_cents: Number(l.line_total_cents) }));
-  const subtotal = rows.reduce((a, l) => a + l.line_total_cents, 0);
+  const rows = (src ?? []).map((l) => ({ ...l, line_total_cents: Number(l.line_total_cents), option_key: d.type === "quote" && d.has_options ? l.option_key : null }));
+  const keepOptions = d.type === "quote" && Boolean(d.has_options);
+  const subtotal = keepOptions ? lowestSubtotal(rows) : rows.reduce((a, l) => a + l.line_total_cents, 0);
   const vatPercent = biz.vat_registered ? 15 : 0;
   const vat = Math.round((subtotal * vatPercent) / 100);
   const termDays = /\d+/.test(d.payment_terms ?? "") ? parseInt(String(d.payment_terms).match(/\d+/)![0], 10) : 0;
@@ -201,6 +247,7 @@ export async function duplicateDocument(fd: FormData) {
     title: d.title, description: d.description, location: d.location, job_date: null, job_date_tbd: d.job_date_tbd, labour_only: d.labour_only,
     expiry_date: d.type === "quote" ? addDays(biz.default_expiry_days) : null,
     due_date: d.type === "invoice" ? addDays(termDays) : null,
+    has_options: keepOptions,
     vat_percent: vatPercent, subtotal_cents: subtotal, vat_cents: vat, total_cents: subtotal + vat,
     payment_plan: d.payment_plan, deposit_percent: d.deposit_percent, payment_terms: d.payment_terms, note: d.note,
   }).select("id").single();

@@ -9,6 +9,8 @@ import BankFields from "@/components/BankFields";
 import WorkPhotos from "./WorkPhotos";
 import SubmitButton from "@/components/SubmitButton";
 import { workPhotoLimit } from "@/lib/work-photos";
+import { entitlement } from "@/lib/subscription";
+import { BADGES, MAX_REVIEWS, parseReviews } from "@/lib/trust";
 import { isValidBankName } from "@/lib/sa-banks";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -30,11 +32,24 @@ async function save(fd: FormData) {
   if (year !== null && (!Number.isInteger(year) || year < 1950 || year > thisYear)) {
     redirect(`/app/settings?error=${encodeURIComponent(`The year you started should be between 1950 and ${thisYear}.`)}`);
   }
+  const badgeIds = new Set<string>(BADGES.map((x) => x.id));
+  const badges = fd.getAll("badges").map(String).filter((id) => badgeIds.has(id));
+  const reviews = parseReviews(Array.from({ length: MAX_REVIEWS }, (_, i) => ({
+    name: fd.get(`review_name_${i}`), place: fd.get(`review_place_${i}`), text: fd.get(`review_text_${i}`),
+  })));
+  const googleUrl = t("google_reviews_url");
+  if (googleUrl && !/^https:\/\/\S+$/.test(googleUrl)) {
+    redirect(`/app/settings?error=${encodeURIComponent("Your Google reviews link should start with https://")}`);
+  }
+  // Automatic reminders only run on plans that include reminders (or when billing is off).
+  const entNow = await entitlement(sb);
+  const autoAllowed = !entNow.enforced || Boolean(entNow.plan?.reminders);
   if (email && !EMAIL_PATTERN.test(email)) {
     redirect(`/app/settings?error=${encodeURIComponent("That business email doesn't look right. Please check it and try again.")}`);
   }
   const { error } = await sb.from("businesses").update({
     year_started: year, about: (t("about") ?? "").slice(0, 160) || null,
+    badges, reviews, google_reviews_url: googleUrl, auto_reminders: autoAllowed && fd.get("auto_reminders") === "on",
     email, phone: t("phone"), website: t("website"), address: t("address"),
     bank_name: t("bank_name"), bank_account_type: t("bank_account_type"), bank_account_holder: t("bank_account_holder"),
     bank_account_number: t("bank_account_number"), bank_branch_code: t("bank_branch_code"),
@@ -118,6 +133,11 @@ export default async function Settings({ searchParams }: { searchParams: Promise
     payfastAvailable = false;
   }
   const photoLimit = await workPhotoLimit(sb);
+  const entPage = await entitlement(sb);
+  const remindersAllowed = !entPage.enforced || Boolean(entPage.plan?.reminders);
+  const savedReviews = parseReviews(b.reviews);
+  const reviewSlots = Math.min(MAX_REVIEWS, savedReviews.length + 1);
+  const savedBadges: string[] = Array.isArray(b.badges) ? b.badges : [];
   const SaveRow = () => (
     <div className="mt-7 flex justify-end border-t border-yebo-deep/10 pt-5">
       <SubmitButton pendingLabel="Saving..." className="rounded-xl bg-yebo px-6 py-3 text-sm font-black text-white shadow-lg shadow-yebo/20 transition hover:-translate-y-0.5 hover:bg-yebo-deep focus-visible:outline-none">Save changes <span aria-hidden="true">→</span></SubmitButton>
@@ -219,13 +239,50 @@ export default async function Settings({ searchParams }: { searchParams: Promise
                 </label>
               </div>
               <div className="mt-6">
+                <p className={label}>What you can promise <span className="font-medium normal-case tracking-normal text-yebo-deep/40">(tick only what is true)</span></p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {BADGES.map((badge) => (
+                    <label key={badge.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-yebo-deep/10 bg-yebo-chalk/40 px-3.5 text-sm font-semibold text-yebo-deep">
+                      <input type="checkbox" name="badges" value={badge.id} defaultChecked={savedBadges.includes(badge.id)} className="size-5 accent-yebo" />
+                      {badge.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-6">
+                <p className={label}>Customer reviews <span className="font-medium normal-case tracking-normal text-yebo-deep/40">(optional, up to {MAX_REVIEWS})</span></p>
+                <p className="mt-1 text-xs text-yebo-deep/50">Only add what real customers have told you, with their first name. Clients see these under &ldquo;From past customers&rdquo;. To add another, save and a new box appears.</p>
+                {Array.from({ length: reviewSlots }, (_, i) => (
+                  <div key={i} className="mt-3 grid gap-2 rounded-xl border border-yebo-deep/10 p-3 sm:grid-cols-2">
+                    <input name={`review_name_${i}`} maxLength={60} placeholder="Customer first name" defaultValue={savedReviews[i]?.name ?? ""} className={input} aria-label={`Review ${i + 1} customer name`} />
+                    <input name={`review_place_${i}`} maxLength={60} placeholder="Suburb or town" defaultValue={savedReviews[i]?.place ?? ""} className={input} aria-label={`Review ${i + 1} place`} />
+                    <textarea name={`review_text_${i}`} rows={2} maxLength={240} placeholder="What they said about your work" defaultValue={savedReviews[i]?.text ?? ""} className={`${input} sm:col-span-2`} aria-label={`Review ${i + 1} text`} />
+                  </div>
+                ))}
+                <label className={`${label} mt-4 block`}>Link to your Google reviews <span className="font-medium normal-case tracking-normal text-yebo-deep/40">(optional)</span>
+                  <input name="google_reviews_url" type="url" placeholder="https://g.page/r/..." defaultValue={b.google_reviews_url ?? ""} className={input} />
+                </label>
+              </div>
+              <div className="mt-6">
                 <p className={label}>Photos of past work</p>
                 <div className="mt-3"><WorkPhotos current={Array.isArray(b.work_photos) ? b.work_photos : []} limit={photoLimit} /></div>
               </div>
               <SaveRow />
             </section>
 
-            <section id="defaults" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8"><p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">05 · Your signature</p><h2 className="mt-2 text-xl font-black">Quote defaults</h2><p className="mt-1 text-sm text-yebo-deep/55">Set the details you use most often. You can always change them per quote.</p><div className="mt-6 grid gap-5 sm:grid-cols-2"><label className={label}>Brand colour<div className="mt-2 flex items-center gap-3 rounded-xl border border-yebo-deep/10 bg-yebo-chalk/40 p-2"><input type="color" name="brand_color" defaultValue={b.brand_color} className="size-10 cursor-pointer rounded-lg border-0 bg-transparent" /><span className="text-sm font-semibold">Your accent colour</span></div></label><label className={label}>Workmanship guarantee<select name="guarantee_months" defaultValue={b.guarantee_months ?? ""} className={input}><option value="">None</option>{[3, 6, 12].map((m) => <option key={m} value={m}>{m} months</option>)}</select></label><label className={label}>Quotes are valid for<select name="default_expiry_days" defaultValue={b.default_expiry_days} className={input}>{[7, 14, 30].map((d) => <option key={d} value={d}>{d} days</option>)}</select></label></div><div className="mt-8 flex justify-end border-t border-yebo-deep/10 pt-6"><button className="rounded-xl bg-yebo px-6 py-3 text-sm font-black text-white shadow-lg shadow-yebo/20 transition hover:-translate-y-0.5 hover:bg-yebo-deep focus-visible:outline-none">Save changes <span aria-hidden="true">→</span></button></div></section>
+            <section id="defaults" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8"><p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">05 · Your signature</p><h2 className="mt-2 text-xl font-black">Quote defaults</h2><p className="mt-1 text-sm text-yebo-deep/55">Set the details you use most often. You can always change them per quote.</p><div className="mt-6 grid gap-5 sm:grid-cols-2"><label className={label}>Brand colour<div className="mt-2 flex items-center gap-3 rounded-xl border border-yebo-deep/10 bg-yebo-chalk/40 p-2"><input type="color" name="brand_color" defaultValue={b.brand_color} className="size-10 cursor-pointer rounded-lg border-0 bg-transparent" /><span className="text-sm font-semibold">Your accent colour</span></div></label><label className={label}>Workmanship guarantee<select name="guarantee_months" defaultValue={b.guarantee_months ?? ""} className={input}><option value="">None</option>{[3, 6, 12].map((m) => <option key={m} value={m}>{m} months</option>)}</select></label><label className={label}>Quotes are valid for<select name="default_expiry_days" defaultValue={b.default_expiry_days} className={input}>{[7, 14, 30].map((d) => <option key={d} value={d}>{d} days</option>)}</select></label></div>
+              <label className={`mt-6 flex items-start gap-3 rounded-xl border border-yebo-deep/10 bg-yebo-chalk/40 p-4 text-sm ${remindersAllowed ? "cursor-pointer" : "opacity-70"}`}>
+                <input type="checkbox" name="auto_reminders" defaultChecked={Boolean(b.auto_reminders) && remindersAllowed} disabled={!remindersAllowed} className="mt-0.5 size-5 shrink-0 accent-yebo" />
+                <span>
+                  <b className="block text-yebo-deep">Send reminders for me automatically</b>
+                  <span className="mt-0.5 block text-xs leading-5 text-yebo-deep/60">
+                    {remindersAllowed
+                      ? "Each morning Yebo emails clients who have gone quiet on a quote, or whose invoice is due soon or overdue. It sends from your business name, replies come to your email, and it stops after 3 reminders. Clients without an email address are skipped."
+                      : "Automatic reminders are on The Real Business and The Industry King."}
+                  </span>
+                </span>
+              </label>
+              <div className="mt-8 flex justify-end border-t border-yebo-deep/10 pt-6"><button className="rounded-xl bg-yebo px-6 py-3 text-sm font-black text-white shadow-lg shadow-yebo/20 transition hover:-translate-y-0.5 hover:bg-yebo-deep focus-visible:outline-none">Save changes <span aria-hidden="true">→</span></button></div></section>
           </form>
 
           <form action={savePayfast} id="payments" className="scroll-mt-24 rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8">
