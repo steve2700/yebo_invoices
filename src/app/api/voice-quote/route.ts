@@ -52,7 +52,7 @@ const quoteDraftSchema = z.object({
     quantity: z.number().positive().max(100_000),
     amountRand: z.number().min(0).max(100_000_000).nullable(),
     priceBasis: z.enum(["line_total", "unit_rate", "unknown"]),
-    priceUncertain: z.boolean().optional(),
+    priceUncertain: z.boolean(),
   })).max(12),
 });
 
