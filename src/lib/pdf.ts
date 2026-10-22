@@ -48,16 +48,16 @@ function toLatin1(ch: string): string {
   return "?";
 }
 
-const clean = (s: unknown) =>
+export const clean = (s: unknown) =>
   Array.from(String(s ?? "").replace(/\r/g, "").normalize("NFC")).map(toLatin1).join("");
 
-const hex = (h: string) => {
+export const hex = (h: string) => {
   const m = /^#?([0-9a-f]{6})$/i.exec(h ?? "");
   const n = m ? parseInt(m[1], 16) : 0x0f8a5f;
   return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
 };
 
-function wrap(text: string, font: PDFFont, size: number, max: number): string[] {
+export function wrap(text: string, font: PDFFont, size: number, max: number): string[] {
   const out: string[] = [];
   for (const para of clean(text).split("\n")) {
     let line = "";
