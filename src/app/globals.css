@@ -56,3 +56,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 /* bottom tab bar height on phones (0 on larger screens) */
 :root { --tab-h: calc(4rem + env(safe-area-inset-bottom, 0px)); }
 @media (min-width: 640px) { :root { --tab-h: 0px; } }
+
+/* Safety net: nothing inside the app may make the page scroll sideways (this is what made Tenders "move").
+   `clip` (not `hidden`) keeps position:sticky and position:fixed working. */
+html, body { max-width: 100%; overflow-x: clip; }

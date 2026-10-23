@@ -86,7 +86,7 @@ export default async function TenderHub({ searchParams }: { searchParams: Promis
   const select = "min-h-11 rounded-xl border border-ink/15 bg-white px-3 text-sm text-ink outline-none focus:border-yebo";
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
       <Link href="/app/tenders" className="text-sm font-bold text-yebo">← My tenders</Link>
       <h1 className="mt-3 text-3xl font-black tracking-tight text-ink">Tender hub</h1>
       <p className="mt-1 text-sm leading-6 text-ink/60">Live public tenders from National Treasury&rsquo;s eTenders, matched to your trades. Tenders that have closed are removed automatically.</p>
@@ -100,7 +100,7 @@ export default async function TenderHub({ searchParams }: { searchParams: Promis
         <Link role="tab" aria-selected={view === "all"} href={link({ view: "all" })} className={tab(view === "all")}>All open tenders</Link>
       </div>
 
-      <form method="get" className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
+      <form method="get" className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
         <input type="hidden" name="view" value={view} />
         <input name="q" defaultValue={q} placeholder="Search title, buyer or number" aria-label="Search tenders" className={`${select} w-full`} />
         <select name="category" defaultValue={category} aria-label="Trade" className={select}>
@@ -124,15 +124,15 @@ export default async function TenderHub({ searchParams }: { searchParams: Promis
           </p>
         </div>
       ) : (
-        <ul className="mt-6 grid gap-3">
+        <ul className="mt-6 grid grid-cols-1 gap-3">
           {items.map((t) => {
             const closing = closingInfo(t.closing_at);
             const bid = bidOf.get(t.id);
             const docs = (t.documents ?? []).slice(0, 3);
             return (
-              <li key={t.id} className="rounded-2xl border border-ink/10 bg-white p-4 shadow-sm">
-                <p className="text-base font-extrabold leading-snug text-ink">{t.title}</p>
-                <p className="mt-0.5 text-sm text-ink/60">{[t.reference, t.buyer].filter(Boolean).join(" · ")}</p>
+              <li key={t.id} className="min-w-0 rounded-2xl border border-ink/10 bg-white p-4 shadow-sm">
+                <p className="break-words text-base font-extrabold leading-snug text-ink">{t.title}</p>
+                <p className="mt-0.5 break-words text-sm text-ink/60">{[t.reference, t.buyer].filter(Boolean).join(" · ")}</p>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {t.category && <span className="rounded-full bg-yebo-chalk px-2.5 py-1 text-[11px] font-bold text-yebo-deep">{t.category}</span>}
                   {t.province && <span className="rounded-full bg-yebo-chalk px-2.5 py-1 text-[11px] font-bold text-ink/70">{t.province}</span>}

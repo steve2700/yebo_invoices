@@ -15,5 +15,5 @@ export default function InstallPrompt() {
   }, []);
 
   if (installed || !installEvent?.prompt) return null;
-  return <button onClick={async () => { await installEvent.prompt?.(); setInstalled(true); }} className="rounded-full border border-yebo-deep/15 bg-white px-3 py-2 text-xs font-bold text-yebo-deep shadow-sm transition hover:-translate-y-0.5 hover:border-yebo" aria-label="Install Yebo as an app">Install app</button>;
+  return <button onClick={async () => { await installEvent.prompt?.(); setInstalled(true); }} className="shrink-0 whitespace-nowrap rounded-full border border-yebo-deep/15 bg-white px-3 py-2 text-xs font-bold text-yebo-deep shadow-sm transition hover:-translate-y-0.5 hover:border-yebo" aria-label="Install Yebo as an app">Install app</button>;
 }

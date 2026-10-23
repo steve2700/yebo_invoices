@@ -18,7 +18,7 @@ function TenderCard({ t }: { t: Row }) {
   const closing = closingInfo(t.closing_at);
   const shownClosing = t.status === "submitted" || t.status === "won" || t.status === "lost" ? null : closing;
   return (
-    <Link href={`/app/tenders/${t.id}`} className="block rounded-2xl border border-ink/10 bg-white p-4 shadow-sm transition hover:border-yebo/40">
+    <Link href={`/app/tenders/${t.id}`} className="block min-w-0 rounded-2xl border border-ink/10 bg-white p-4 shadow-sm transition hover:border-yebo/40">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-base font-extrabold text-ink">{t.title}</p>
@@ -58,28 +58,28 @@ export default async function Tenders() {
   const bad = checks.filter((c) => !c.ok);
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-3xl font-black tracking-tight text-ink">Tenders</h1>
-        <Link href="/app/tenders/new" className="inline-flex min-h-11 items-center rounded-full bg-yebo px-5 text-sm font-extrabold text-white hover:bg-yebo-deep">New tender</Link>
+        <h1 className="min-w-0 text-3xl font-black tracking-tight text-ink">Tenders</h1>
+        <Link href="/app/tenders/new" className="inline-flex min-h-11 shrink-0 items-center rounded-full bg-yebo px-5 text-sm font-extrabold text-white hover:bg-yebo-deep">New tender</Link>
       </div>
 
       <Link href="/app/tenders/hub" className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-yebo/25 bg-white p-4 shadow-sm transition hover:border-yebo/50">
-        <span>
+        <span className="min-w-0">
           <span className="block text-xs font-extrabold uppercase tracking-[.14em] text-yebo">Tender hub</span>
           <span className="mt-1 block text-sm font-bold text-ink">Find live tenders that match your trades, and start a bid in one tap</span>
         </span>
-        <span aria-hidden="true" className="text-xl text-yebo">→</span>
+        <span aria-hidden="true" className="shrink-0 text-xl text-yebo">→</span>
       </Link>
 
       <Link href="/app/tenders/vault" className={`mt-3 flex items-center justify-between gap-3 rounded-2xl border p-4 ${isCompliant(checks) ? "border-yebo/25 bg-lime/20" : "border-orange/40 bg-orange/10"}`}>
-        <span>
+        <span className="min-w-0">
           <span className="block text-xs font-extrabold uppercase tracking-[.14em] text-yebo-deep/70">Compliance vault</span>
           <span className="mt-1 block text-sm font-bold text-ink">
             {isCompliant(checks) ? "All documents are valid. You can submit bids." : `Needs attention: ${bad.map((c) => c.label).join(", ")}`}
           </span>
         </span>
-        <span aria-hidden="true" className="text-xl text-yebo">→</span>
+        <span aria-hidden="true" className="shrink-0 text-xl text-yebo">→</span>
       </Link>
 
       {rows.length === 0 && (
@@ -90,9 +90,9 @@ export default async function Tenders() {
         </div>
       )}
 
-      {open.length > 0 && (<section className="mt-8"><h2 className="text-xs font-extrabold uppercase tracking-[.16em] text-ink/50">Open ({open.length})</h2><div className="mt-3 grid gap-3">{open.map((t) => <TenderCard key={t.id} t={t} />)}</div></section>)}
-      {sent.length > 0 && (<section className="mt-8"><h2 className="text-xs font-extrabold uppercase tracking-[.16em] text-ink/50">Submitted ({sent.length})</h2><div className="mt-3 grid gap-3">{sent.map((t) => <TenderCard key={t.id} t={t} />)}</div></section>)}
-      {done.length > 0 && (<section className="mt-8"><h2 className="text-xs font-extrabold uppercase tracking-[.16em] text-ink/50">Won and lost ({done.length})</h2><div className="mt-3 grid gap-3">{done.map((t) => <TenderCard key={t.id} t={t} />)}</div></section>)}
+      {open.length > 0 && (<section className="mt-8"><h2 className="text-xs font-extrabold uppercase tracking-[.16em] text-ink/50">Open ({open.length})</h2><div className="mt-3 grid grid-cols-1 gap-3">{open.map((t) => <TenderCard key={t.id} t={t} />)}</div></section>)}
+      {sent.length > 0 && (<section className="mt-8"><h2 className="text-xs font-extrabold uppercase tracking-[.16em] text-ink/50">Submitted ({sent.length})</h2><div className="mt-3 grid grid-cols-1 gap-3">{sent.map((t) => <TenderCard key={t.id} t={t} />)}</div></section>)}
+      {done.length > 0 && (<section className="mt-8"><h2 className="text-xs font-extrabold uppercase tracking-[.16em] text-ink/50">Won and lost ({done.length})</h2><div className="mt-3 grid grid-cols-1 gap-3">{done.map((t) => <TenderCard key={t.id} t={t} />)}</div></section>)}
     </main>
   );
 }
