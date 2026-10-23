@@ -35,7 +35,7 @@ const jsonLd = {
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web, Android, iOS",
       description,
-      offers: { "@type": "Offer", price: "499", priceCurrency: "ZAR", url: `${appUrl()}/#pricing` },
+      offers: { "@type": "Offer", price: "499", priceCurrency: "ZAR", url: `${appUrl()}/pricing` },
       areaServed: "ZA",
     },
     {
@@ -138,7 +138,7 @@ export default function TendersPage() {
               <h2 className="text-3xl font-black tracking-tight sm:text-5xl">One plan for contractors who bid.</h2>
               <p className="mt-6 text-7xl font-black tracking-tight sm:text-8xl">R499<span className="ml-2 text-2xl font-semibold text-yebo-deep/55">a month</span></p>
               <p className="mt-4 text-lg text-yebo-deep/65">One tender you would have missed pays for years of this.</p>
-              <Link href="/#pricing" className="mt-6 inline-flex min-h-12 items-center rounded-full bg-yebo px-7 text-sm font-extrabold text-white transition hover:bg-yebo-deep">See The Industry King plan</Link>
+              <Link href="/pricing" className="mt-6 inline-flex min-h-12 items-center rounded-full bg-yebo px-7 text-sm font-extrabold text-white transition hover:bg-yebo-deep">See The Industry King plan</Link>
             </div>
             <ul className="space-y-3 text-yebo-deep/80">
               {[

@@ -21,7 +21,7 @@ export default function LandingHero() {
             <Link className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-yebo px-6 py-3 text-sm font-bold text-white shadow-lg shadow-yebo/15 transition hover:-translate-y-0.5 hover:bg-yebo-deep sm:min-h-13 sm:w-auto sm:py-3.5" href="/login">
               Get started <span aria-hidden="true" className="ml-2">→</span>
             </Link>
-            <Link className="inline-flex min-h-10 items-center justify-center px-2 text-sm font-bold text-yebo-deep underline decoration-yebo-deep/25 underline-offset-4 transition hover:decoration-yebo-deep sm:min-h-12" href="#workflow">
+            <Link className="inline-flex min-h-10 items-center justify-center px-2 text-sm font-bold text-yebo-deep underline decoration-yebo-deep/25 underline-offset-4 transition hover:decoration-yebo-deep sm:min-h-12" href="/how-it-works">
               See how it works
             </Link>
           </div>

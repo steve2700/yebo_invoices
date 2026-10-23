@@ -1,6 +1,6 @@
 import Reveal from "@/components/Reveal";
 
-const questions = [
+export const questions = [
   { q: "Do my clients need an account?", a: "No. They open a link on any phone, view the quote, accept it, and pay. There is nothing for them to install or sign up for." },
   { q: "Can I use it on my phone?", a: "Yes. Yebo is built for phones, and you can add it to your home screen so it opens like an app." },
   { q: "What happens when I send a quote?", a: "You choose email or WhatsApp. Yebo shows you straight away that it was sent, and tells you when your client opens, accepts or pays." },

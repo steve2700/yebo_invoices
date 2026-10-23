@@ -8,9 +8,9 @@ export default function LandingFooter() {
         <Logo />
         <p>Made in South Africa for small business.</p>
         <nav aria-label="Footer navigation" className="flex flex-wrap items-center gap-5 font-semibold text-yebo-deep/70">
-          <Link className="transition-colors hover:text-yebo" href="/#workflow">How it works</Link>
+          <Link className="transition-colors hover:text-yebo" href="/how-it-works">How it works</Link>
           <Link className="transition-colors hover:text-yebo" href="/tenders">Tenders</Link>
-          <Link className="transition-colors hover:text-yebo" href="/#pricing">Pricing</Link>
+          <Link className="transition-colors hover:text-yebo" href="/pricing">Pricing</Link>
           <Link className="transition-colors hover:text-yebo" href="/privacy">Privacy</Link>
           <Link className="transition-colors hover:text-yebo" href="/terms">Terms</Link>
           <Link className="transition-colors hover:text-yebo" href="/login">Sign in</Link>
