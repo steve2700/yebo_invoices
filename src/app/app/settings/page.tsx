@@ -14,6 +14,7 @@ import { BADGES, MAX_REVIEWS, parseReviews } from "@/lib/trust";
 import { isValidBankName } from "@/lib/sa-banks";
 import { signOut } from "../account-actions";
 import Icon from "../icons";
+import AlertSoundToggle from "./AlertSoundToggle";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -342,6 +343,8 @@ export default async function Settings({ searchParams }: { searchParams: Promise
               <button disabled={!payfastAvailable} className="rounded-xl bg-yebo px-6 py-3 text-sm font-black text-white shadow-lg shadow-yebo/20 transition hover:-translate-y-0.5 hover:bg-yebo-deep focus-visible:outline-none disabled:opacity-50">Save PayFast details <span aria-hidden="true">→</span></button>
             </div>
           </form>
+
+          <AlertSoundToggle />
 
           <form action={signOut} className="flex justify-center pb-2">
             <button className="inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-bold text-yebo-deep/60 transition hover:bg-white hover:text-yebo-deep">

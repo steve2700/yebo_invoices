@@ -4,9 +4,11 @@ import InstallPrompt from "./InstallPrompt";
 import BottomNav from "./BottomNav";
 import { billingBanner } from "@/lib/subscription";
 import Icon from "./icons";
+import AttentionChime from "./AttentionChime";
+import { loadAttention } from "@/lib/attention";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const banner = await billingBanner();
+  const [banner, attention] = await Promise.all([billingBanner(), loadAttention()]);
   const link = "rounded-full px-3 py-1.5 text-sm font-semibold text-yebo-deep/70 hover:bg-yebo-deep/5 hover:text-yebo-deep";
   return (
     <>
@@ -34,6 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       )}
       <div className="min-w-0 pb-[var(--tab-h)]">{children}</div>
       <BottomNav />
+      {attention && <AttentionChime signature={attention.signature} count={attention.overdue + attention.closingSoon} />}
     </>
   );
 }
