@@ -20,7 +20,7 @@ const jsonLd = {
 
 export default function Faq() {
   return (
-    <InfoPage eyebrow="Questions" title="Good questions, straight answers" intro="Everything people ask before they send their first quote on Yebo." jsonLd={jsonLd}>
+    <InfoPage eyebrow="Questions" title="Good questions, straight answers" intro="Everything people ask before they send their first quote on Yebo." roast="Asking questions before you commit? Already more organised than your last quote." jsonLd={jsonLd}>
       <FaqSection />
     </InfoPage>
   );

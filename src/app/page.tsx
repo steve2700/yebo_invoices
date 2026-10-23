@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import LandingHeader from "@/components/LandingHeader";
 import { appUrl } from "@/lib/url";
 import LandingHero from "@/components/LandingHero";
+import RoastSection from "@/components/RoastSection";
+import ScreenShowcase from "@/components/ScreenShowcase";
 import WorkflowSection from "@/components/WorkflowSection";
 import ProductStorySection from "@/components/ProductStorySection";
 import WhyNotAChatbot from "@/components/WhyNotAChatbot";
@@ -45,6 +47,8 @@ export default function Home() {
       <LandingHeader />
       <main>
         <LandingHero />
+        <RoastSection />
+        <ScreenShowcase />
         <WorkflowSection />
         <WhyNotAChatbot />
         <ProductStorySection />

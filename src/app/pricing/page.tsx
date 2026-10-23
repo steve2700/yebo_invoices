@@ -25,7 +25,7 @@ const jsonLd = {
 
 export default function Pricing() {
   return (
-    <InfoPage eyebrow="Pricing" title="Pick the plan that fits a normal month" intro="Start small and change plan any time. Every plan includes quotes, invoices, online payments and your own logo and colours. Cancel from Settings whenever you like." jsonLd={jsonLd}>
+    <InfoPage eyebrow="Pricing" title="Pick the plan that fits a normal month" intro="Start small and change plan any time. Every plan includes quotes, invoices, online payments and your own logo and colours. Cancel from Settings whenever you like." roast="Cheaper than the one client who “forgot” to pay you last month." jsonLd={jsonLd}>
       <PricingSection />
     </InfoPage>
   );
