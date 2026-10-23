@@ -251,6 +251,34 @@ export default function TenderEditor({ tender, initialLines, checks, pastRates, 
     setMsg({ ok: n > 0, text: n > 0 ? `Filled ${n} line${n === 1 ? "" : "s"} with the rate you used before. Check them.` : "No matching rates from your earlier tenders." });
   }
 
+  // The same item number twice usually means the BOQ lists the item in the specification AND in the pricing schedule.
+  // The pricing schedule comes last, so by default we keep the later copy.
+  const itemKey = (l: TenderLine) => l.itemNo.trim().replace(/\.+$/, "");
+  const dupeCount = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const l of lines) if (l.kind === "item" && itemKey(l)) seen.set(itemKey(l), (seen.get(itemKey(l)) ?? 0) + 1);
+    let n = 0;
+    for (const c of seen.values()) if (c > 1) n += c - 1;
+    return n;
+  }, [lines]);
+  const blankUnits = useMemo(() => lines.filter((l) => l.kind === "item" && !l.unit.trim() && l.quantity != null).length, [lines]);
+
+  function removeEarlierCopies() {
+    const lastIndex = new Map<string, number>();
+    lines.forEach((l, i) => { if (l.kind === "item" && itemKey(l)) lastIndex.set(itemKey(l), i); });
+    setUndo(lines);
+    setLines(lines.filter((l, i) => l.kind !== "item" || !itemKey(l) || lastIndex.get(itemKey(l)) === i));
+    setDirty(true);
+    setMsg({ ok: true, text: `Removed ${dupeCount} earlier cop${dupeCount === 1 ? "y" : "ies"}. Check the lines that are left against the original.` });
+  }
+
+  function setBlankUnitsToNo() {
+    setUndo(lines);
+    setLines((ls) => ls.map((l) => (l.kind === "item" && !l.unit.trim() && l.quantity != null ? { ...l, unit: "No" } : l)));
+    setDirty(true);
+    setMsg({ ok: true, text: `Set the unit to "No" on ${blankUnits} line${blankUnits === 1 ? "" : "s"}. Use this when the BOQ counts whole items.` });
+  }
+
   function applyMarkup() {
     const pct = Number(markup.replace(",", "."));
     if (!Number.isFinite(pct) || pct <= -90 || pct > 500) { setMsg({ ok: false, text: "Type a percentage between -90 and 500." }); return; }
@@ -423,6 +451,24 @@ export default function TenderEditor({ tender, initialLines, checks, pastRates, 
           </div>
           {undo && <button type="button" onClick={() => { setLines(undo); setUndo(null); setDirty(true); }} className="min-h-10 rounded-xl px-3 text-sm font-bold text-orange">Undo</button>}
         </div>
+        {(dupeCount > 0 || blankUnits > 0) && (
+          <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-orange/40 bg-orange/10 p-3 text-sm text-ink" role="note">
+            {dupeCount > 0 && (
+              <div>
+                <p className="font-extrabold">{dupeCount} item number{dupeCount === 1 ? " appears" : "s appear"} twice</p>
+                <p className="mt-0.5 text-ink/75">This usually means the item is listed in the specification and again in the pricing schedule. You only price it once. The pricing schedule comes last, so keep that copy.</p>
+                <button type="button" onClick={removeEarlierCopies} className="mt-2 min-h-10 rounded-xl border border-yebo-deep/20 bg-white px-3.5 text-sm font-bold text-ink hover:border-yebo">Keep the later copy of each</button>
+              </div>
+            )}
+            {blankUnits > 0 && (
+              <div>
+                <p className="font-extrabold">{blankUnits} line{blankUnits === 1 ? " has" : "s have"} a quantity but no unit</p>
+                <p className="mt-0.5 text-ink/75">Pricing schedules for goods often leave the unit out because each one is a single item.</p>
+                <button type="button" onClick={setBlankUnitsToNo} className="mt-2 min-h-10 rounded-xl border border-yebo-deep/20 bg-white px-3.5 text-sm font-bold text-ink hover:border-yebo">Set blank units to &ldquo;No&rdquo;</button>
+              </div>
+            )}
+          </div>
+        )}
         {msg && <p role="status" className={`mt-3 rounded-xl px-3 py-2 text-sm font-semibold ${msg.ok ? "bg-lime/25 text-ink" : "bg-orange/10 text-ink"}`}>{msg.text}</p>}
       </section>
 

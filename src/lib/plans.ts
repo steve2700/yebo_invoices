@@ -90,6 +90,8 @@ export const PLANS: Record<PlanId, Plan> = {
       "Unlimited voice quotes",
       "Everything in The Real Business",
       "VAT sales summary for your accountant: every invoice and payment for any period, with the VAT on it, as a CSV file",
+      "Tender hub: live eTenders matched to your trade and province, with a draft bid opened for you",
+      "Tender engine: reads Excel and PDF BOQs into lines you can check and change, keeps your CSD, SARS, B-BBEE and COIDA papers valid, and emails the bid in one go",
       "Up to 6 photos of your work on your quote link",
       "Priority support and a one-to-one setup call",
     ],

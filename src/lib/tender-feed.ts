@@ -80,10 +80,14 @@ const str = (v: unknown, max = 500): string | null => {
   const s = String(v).replace(/\s+/g, " ").trim();
   return s ? s.slice(0, max) : null;
 };
+// eTenders writes times as South African local time. When a time carries no zone ("2026-10-29T11:00:00"), it must be read as
+// South African time (UTC+2), not as UTC, or every closing time would show two hours late.
+const HAS_ZONE = /(Z|[+-]\d{2}:?\d{2})$/i;
 const iso = (v: unknown): string | null => {
   const s = str(v, 40);
   if (!s) return null;
-  const t = new Date(s);
+  const withZone = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s) && !HAS_ZONE.test(s) ? `${s}+02:00` : s;
+  const t = new Date(withZone);
   return Number.isNaN(t.getTime()) ? null : t.toISOString();
 };
 const EMAIL = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
