@@ -31,11 +31,11 @@ export default function PricingSection() {
       <div className="mx-auto max-w-6xl px-5 sm:px-8 lg:px-12">
         <Reveal>
           <p className="text-xs font-extrabold uppercase tracking-[.2em] text-yebo">Pricing</p>
-          <h2 className="mt-4 max-w-3xl text-4xl font-extrabold leading-[.98] tracking-[-.06em] text-yebo-deep sm:text-5xl">
-            Three plans, {PRICE_RANGE_LABEL} a month. Pick the one that matches your business.
+          <h2 className="mt-4 max-w-3xl text-balance text-4xl font-extrabold leading-[.98] tracking-[-.05em] text-yebo-deep sm:text-5xl">
+            Three plans. <span className="text-yebo-deep/40">Cheaper than chasing one bad debt.</span>
           </h2>
           <p className="mt-5 max-w-2xl text-base leading-7 text-yebo-deep/65">
-            Pay monthly, cancel any time, and keep access until the end of the month you have paid for. Not sure? Pick the plan that matches what you earn in a normal month. You can change it whenever your business changes.
+            {PRICE_RANGE_LABEL} a month. Pay monthly, cancel any time, and keep access until the end of the month you have paid for. Not sure? Pick the plan that matches what you earn in a normal month. You can change it whenever your business changes.
           </p>
         </Reveal>
 
@@ -47,7 +47,7 @@ export default function PricingSection() {
         <Reveal className="mt-20">
           <p className="text-xs font-extrabold uppercase tracking-[.2em] text-yebo">The old way vs the Yebo way</p>
           <h3 className="mt-3 max-w-2xl text-3xl font-extrabold leading-tight tracking-[-.04em] text-yebo-deep sm:text-4xl">Same job. Very different Tuesday.</h3>
-          <div className="mt-8 overflow-hidden rounded-3xl border border-yebo-deep/10 bg-white">
+          <div className="mt-8 overflow-hidden rounded-[1.75rem] border border-yebo-deep/10 bg-white shadow-[0_24px_60px_-40px_rgba(12,59,46,.45)]">
             <div className="hidden grid-cols-[170px_1fr_1fr] gap-4 border-b border-yebo-deep/10 bg-yebo-chalk/60 px-6 py-3 text-[11px] font-extrabold uppercase tracking-[.1em] text-yebo-deep/50 sm:grid">
               <span />
               <span>The old way</span>
