@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InstallAppButton } from "@/app/app/InstallPrompt";
 import PhoneFrame from "@/components/PhoneFrame";
 
 const proof = [
@@ -40,7 +41,13 @@ export default function LandingHero() {
               See the real app
             </Link>
           </div>
-          <p className="mt-5 text-xs font-semibold text-yebo-deep/50">No laptop. No Excel. No &ldquo;sorry, the PDF won&apos;t open.&rdquo;</p>
+          <div className="fade-up mt-4" style={{ "--d": ".3s" } as React.CSSProperties}>
+            <InstallAppButton className="press inline-flex min-h-11 items-center gap-2 rounded-full px-1 text-sm font-bold text-yebo transition hover:text-yebo-deep">
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2" width="10" height="20" rx="2.5" /><path d="M12 8v6M9.5 11.5 12 14l2.5-2.5" /></svg>
+              Add Yebo to your phone. Free, no app store.
+            </InstallAppButton>
+          </div>
+          <p className="mt-3 text-xs font-semibold text-yebo-deep/50">No laptop. No Excel. No &ldquo;sorry, the PDF won&apos;t open.&rdquo;</p>
         </div>
 
         <div className="relative mx-auto flex w-full max-w-md justify-center lg:max-w-none" aria-label="Screenshots of the Yebo app on a phone">

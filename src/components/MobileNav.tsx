@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_LINKS } from "@/lib/nav-links";
+import { InstallAppButton } from "@/app/app/InstallPrompt";
 
 export default function MobileNav() {
   const [open, setOpen] = useState(false);
@@ -46,6 +47,7 @@ export default function MobileNav() {
           <Link href="/login" className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-full border-2 border-yebo-deep/15 text-sm font-bold text-yebo-deep">
             Sign in
           </Link>
+          <InstallAppButton className="press mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-yebo text-sm font-extrabold text-white">Install the app</InstallAppButton>
         </nav>
       )}
     </div>

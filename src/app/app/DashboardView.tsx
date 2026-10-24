@@ -79,12 +79,14 @@ function ArrowIcon() {
 }
 
 function MetricCard({
+  delay = 0,
   label,
   value,
   detail,
   featured = false,
   alert = false,
 }: {
+  delay?: number;
   label: string;
   value: string;
   detail: string;
@@ -93,7 +95,8 @@ function MetricCard({
 }) {
   return (
     <article
-      className={`rounded-3xl p-4 sm:p-5 ${
+      style={{ "--d": `${delay}s` } as React.CSSProperties}
+      className={`fade-up press rounded-3xl p-4 sm:p-5 ${
         featured
           ? "col-span-2 bg-ink text-paper shadow-[0_18px_45px_-26px_rgba(17,45,35,.75)] sm:col-span-1"
           : "border border-ink/10 bg-white text-ink shadow-[0_8px_30px_-24px_rgba(17,45,35,.35)]"
@@ -104,7 +107,7 @@ function MetricCard({
           {label}
         </p>
         {!featured && (
-          <span className={`size-2 rounded-full ${alert ? "bg-orange" : "bg-yebo/70"}`} aria-hidden="true" />
+          <span className={`size-2 rounded-full ${alert ? "soft-pulse bg-orange" : "bg-yebo/70"}`} aria-hidden="true" />
         )}
       </div>
       <p className={`mt-3 truncate font-extrabold leading-none tracking-[-0.045em] tabular-nums ${featured ? "text-3xl sm:text-[2rem]" : "text-[1.7rem] sm:text-3xl"}`}>
@@ -117,7 +120,7 @@ function MetricCard({
   );
 }
 
-function AttentionRow({ item }: { item: DashboardActionItem }) {
+function AttentionRow({ item, index = 0 }: { item: DashboardActionItem; index?: number }) {
   const style = actionStyle[item.kind];
   const documentLabel = item.type === "invoice" ? "invoice" : "quote";
   const remindLabel = item.kind === "overdue"
@@ -127,7 +130,7 @@ function AttentionRow({ item }: { item: DashboardActionItem }) {
       : "Send a friendly heads-up";
 
   return (
-    <li>
+    <li className="fade-up" style={{ "--d": `${0.35 + Math.min(index, 6) * 0.06}s` } as React.CSSProperties}>
       <Link
         href={`/app/documents/${item.id}`}
         aria-label={`Open ${documentLabel} ${item.number} for ${item.clientName}`}
@@ -199,7 +202,7 @@ export default function DashboardView({
   return (
     <main className="min-h-full bg-paper px-4 pb-10 pt-6 text-ink sm:px-6 sm:pt-8 lg:px-8 lg:pt-10">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 sm:gap-8">
-        <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+        <header className="fade-up flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-yebo">
               Your workspace <span className="mx-1.5 text-ink/25" aria-hidden="true">/</span>
@@ -215,13 +218,13 @@ export default function DashboardView({
           <div className="grid grid-cols-2 gap-2.5 sm:flex sm:shrink-0">
             <Link
               href="/app/quotes/new"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-yebo px-4 text-sm font-extrabold text-white shadow-[0_8px_22px_-12px_rgba(15,138,95,.75)] transition hover:-translate-y-0.5 hover:bg-yebo-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2"
+              className="press inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-yebo px-4 text-sm font-extrabold text-white shadow-[0_8px_22px_-12px_rgba(15,138,95,.75)] transition hover:-translate-y-0.5 hover:bg-yebo-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2"
             >
               <span className="text-lg leading-none" aria-hidden="true">+</span> New quote
             </Link>
             <Link
               href="/app/quotes/new?type=invoice"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-ink/15 bg-white px-4 text-sm font-bold text-ink transition hover:border-ink/30 hover:bg-yebo-chalk/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2"
+              className="press inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-ink/15 bg-white px-4 text-sm font-bold text-ink transition hover:border-ink/30 hover:bg-yebo-chalk/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2"
             >
               <span className="text-lg leading-none text-yebo" aria-hidden="true">+</span> New invoice
             </Link>
@@ -232,17 +235,20 @@ export default function DashboardView({
 
         <section aria-label="Business overview" className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
           <MetricCard
+            delay={0.1}
             label="Collected this month"
             value={formatRand(collectedCents)}
             detail="Payments received so far"
             featured
           />
           <MetricCard
+            delay={0.17}
             label="Outstanding"
             value={formatRand(outstandingCents)}
             detail={`${openInvoiceCount} open invoice${openInvoiceCount === 1 ? "" : "s"}`}
           />
           <MetricCard
+            delay={0.24}
             label="Overdue"
             value={formatRand(overdueCents)}
             detail={overdueInvoiceCount ? `${overdueInvoiceCount} invoice${overdueInvoiceCount === 1 ? "" : "s"} past due` : "You're all caught up"}
@@ -251,7 +257,7 @@ export default function DashboardView({
         </section>
 
         {recentPayments.length > 0 && (
-          <section aria-labelledby="paid-heading" className="rounded-3xl border border-lime/70 bg-lime/20 p-4 sm:p-6">
+          <section aria-labelledby="paid-heading" className="pop-in rounded-3xl border border-lime/70 bg-lime/20 p-4 sm:p-6">
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-yebo">Good news</p>
             <h2 id="paid-heading" className="mt-1.5 text-xl font-extrabold tracking-tight text-ink sm:text-2xl">You&apos;ve been paid</h2>
             <ul className="mt-4 flex flex-col gap-2.5">
@@ -269,7 +275,7 @@ export default function DashboardView({
         )}
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(17rem,.75fr)] lg:gap-5">
-          <section aria-labelledby="attention-heading" className="min-w-0 rounded-3xl border border-ink/10 bg-white p-4 shadow-[0_12px_40px_-32px_rgba(17,45,35,.45)] sm:p-6">
+          <section aria-labelledby="attention-heading" style={{ "--d": ".3s" } as React.CSSProperties} className="fade-up min-w-0 rounded-3xl border border-ink/10 bg-white p-4 shadow-[0_12px_40px_-32px_rgba(17,45,35,.45)] sm:p-6">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-yebo">Your next steps</p>
@@ -282,7 +288,7 @@ export default function DashboardView({
 
             {actionItems.length ? (
               <ul className="mt-5 flex flex-col gap-2.5">
-                {actionItems.map((item) => <AttentionRow key={item.id} item={item} />)}
+                {actionItems.map((item, i) => <AttentionRow key={item.id} item={item} index={i} />)}
               </ul>
             ) : (
               <div className="mt-5 flex min-h-40 items-center justify-between gap-3 overflow-hidden rounded-2xl bg-yebo-chalk/60 px-4 py-4 sm:min-h-48 sm:px-6">
@@ -306,7 +312,7 @@ export default function DashboardView({
             )}
           </section>
 
-          <section aria-labelledby="pipeline-heading" className="rounded-3xl border border-ink/10 bg-white p-4 shadow-[0_12px_40px_-32px_rgba(17,45,35,.45)] sm:p-6">
+          <section aria-labelledby="pipeline-heading" style={{ "--d": ".4s" } as React.CSSProperties} className="fade-up rounded-3xl border border-ink/10 bg-white p-4 shadow-[0_12px_40px_-32px_rgba(17,45,35,.45)] sm:p-6">
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-orange">Quote pipeline</p>
             <h2 id="pipeline-heading" className="mt-1.5 text-xl font-extrabold tracking-tight text-ink sm:text-2xl">Keep work moving</h2>
             <div className="mt-2 divide-y divide-ink/10">

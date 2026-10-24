@@ -11,6 +11,7 @@ import PricingSection from "@/components/PricingSection";
 import FaqSection from "@/components/FaqSection";
 import ClosingSection from "@/components/ClosingSection";
 import LandingFooter from "@/components/LandingFooter";
+import { StandaloneRedirect } from "@/app/app/InstallPrompt";
 
 const description =
   "Quotes and invoices for South African small businesses. Speak a quote, send it in one tap, see when your client opens it, get paid online and track your monthly targets.";
@@ -44,6 +45,7 @@ export const metadata: Metadata = {
 export default function Home() {
   return (
     <>
+      <StandaloneRedirect />
       <LandingHeader />
       <main>
         <LandingHero />

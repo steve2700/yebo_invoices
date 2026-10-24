@@ -1,18 +1,22 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import Logo from "@/components/Logo";
 import InstallPrompt, { InstallBanner } from "./InstallPrompt";
 import BottomNav from "./BottomNav";
 import { billingBanner } from "@/lib/subscription";
 import Icon from "./icons";
 import AttentionChime from "./AttentionChime";
+import Splash from "./Splash";
 import { loadAttention } from "@/lib/attention";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const [banner, attention] = await Promise.all([billingBanner(), loadAttention()]);
+  const [banner, attention, jar] = await Promise.all([billingBanner(), loadAttention(), cookies()]);
+  const showSplash = !jar.get("yebo_splash");
   const link = "rounded-full px-3 py-1.5 text-sm font-semibold text-yebo-deep/70 hover:bg-yebo-deep/5 hover:text-yebo-deep";
   return (
     <>
-      <header className="sticky top-0 z-20 border-b border-yebo-deep/10 bg-yebo-chalk/90 backdrop-blur">
+      {showSplash && <Splash />}
+      <header className="header-in sticky top-0 z-20 border-b border-yebo-deep/10 bg-yebo-chalk/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
           <div className="shrink-0"><Logo href="/app" /></div>
           <nav aria-label="Account" className="flex min-w-0 items-center gap-1">
@@ -22,10 +26,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Link href="/app/reports/vat" className={`${link} hidden sm:inline-flex`}>Reports</Link>
             <Link href="/app/settings" className={`${link} hidden sm:inline-flex`}>Settings</Link>
             {/* Phones: Documents, Tenders and Reports live in the bottom bar, and Settings is this gear. */}
-            <Link href="/app/settings" aria-label="Settings" className="inline-flex size-10 items-center justify-center rounded-full text-yebo-deep/70 hover:bg-yebo-deep/5 hover:text-yebo-deep sm:hidden">
-              <Icon name="settings" size={22} />
+            <Link href="/app/settings" aria-label="Settings" className="inline-flex size-10 items-center justify-center rounded-full text-yebo-deep/70 hover:bg-yebo-deep/5 hover:text-yebo-deep sm:hidden group">
+              <span className="transition-transform duration-500 group-hover:rotate-90 group-active:rotate-180"><Icon name="settings" size={22} /></span>
             </Link>
-            <Link href="/app/quotes/new" className="ml-1 hidden rounded-full bg-yebo px-4 py-1.5 text-sm font-bold text-white hover:bg-yebo-deep sm:inline-flex">New quote</Link>
+            <Link href="/app/quotes/new" className="press ml-1 hidden rounded-full bg-yebo px-4 py-1.5 text-sm font-bold text-white hover:bg-yebo-deep sm:inline-flex">New quote</Link>
           </nav>
         </div>
       </header>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import Logo from "@/components/Logo";
 import MobileNav from "@/components/MobileNav";
 import { NAV_LINKS } from "@/lib/nav-links";
+import { InstallAppButton } from "@/app/app/InstallPrompt";
 
 export default function LandingHeader() {
   return (
@@ -16,6 +17,7 @@ export default function LandingHeader() {
           ))}
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
+          <span className="hidden lg:inline-flex"><InstallAppButton className="press rounded-full border border-yebo-deep/15 bg-white px-4 py-2 text-sm font-bold text-yebo-deep transition hover:border-yebo hover:bg-yebo-chalk">Install app</InstallAppButton></span>
           <Link className="hidden rounded-full px-3 py-2 text-sm font-semibold text-yebo-deep transition-colors hover:bg-yebo-deep/5 sm:inline-flex" href="/login">Sign in</Link>
           <Link className="inline-flex min-h-11 items-center rounded-full bg-yebo-deep px-5 py-2.5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-yebo" href="/login">
             Get started <span aria-hidden="true" className="ml-2">↗</span>

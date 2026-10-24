@@ -21,6 +21,7 @@ function useInstall() {
   const [installed, setInstalled] = useState(false);
   const [platform, setPlatform] = useState<Platform>("desktop");
   const [ready, setReady] = useState(false);
+  const [justInstalled, setJustInstalled] = useState(false);
 
   useEffect(() => {
     const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
@@ -28,7 +29,7 @@ function useInstall() {
     setPlatform(detectPlatform());
     setReady(true);
     const onPrompt = (e: Event) => { e.preventDefault(); setEvent(e as InstallEvent); };
-    const onInstalled = () => { setInstalled(true); setEvent(undefined); };
+    const onInstalled = () => { setInstalled(true); setJustInstalled(true); setEvent(undefined); };
     window.addEventListener("beforeinstallprompt", onPrompt);
     window.addEventListener("appinstalled", onInstalled);
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => undefined);
@@ -40,12 +41,12 @@ function useInstall() {
     if (event?.prompt) {
       await event.prompt();
       const choice = await event.userChoice?.catch(() => undefined);
-      if (choice?.outcome === "accepted") setInstalled(true);
+      if (choice?.outcome === "accepted") { setInstalled(true); setJustInstalled(true); }
       setEvent(undefined);
     } else showSteps();
   }, [event]);
 
-  return { ready, installed, platform, install };
+  return { ready, installed, platform, install, justInstalled, dismissDone: () => setJustInstalled(false) };
 }
 
 const Step = ({ n, children }: { n: number; children: React.ReactNode }) => (
@@ -102,14 +103,35 @@ function HowToSheet({ platform, onClose }: { platform: Platform; onClose: () => 
   );
 }
 
+
+// Shown right after a successful install. A website cannot launch the installed app by itself, so we say exactly where it is.
+function DoneSheet({ platform, onClose }: { platform: Platform; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 sm:items-center sm:p-4" onClick={onClose} role="presentation">
+      <div role="dialog" aria-modal="true" aria-label="Yebo is installed" onClick={(e) => e.stopPropagation()} className="pop-in w-full max-w-md rounded-t-3xl bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-center shadow-2xl sm:rounded-3xl">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/icon-192.png" alt="" width={72} height={72} className="mx-auto size-[72px] rounded-2xl shadow-lg" />
+        <h2 className="mt-4 text-xl font-black text-yebo-deep">Yebo is installed</h2>
+        <p className="mt-2 text-sm leading-6 text-yebo-deep/65">
+          {platform === "desktop"
+            ? "Yebo now opens in its own window, like any other program. Look for it in your Start menu or Applications."
+            : "Close this tab and tap the orange Y named Yebo on your home screen or in your apps. From now on it opens straight into the app, with no browser bar."}
+        </p>
+        <button type="button" onClick={onClose} className="press mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-yebo text-sm font-extrabold text-white hover:bg-yebo-deep">Got it</button>
+      </div>
+    </div>
+  );
+}
+
 // Top-bar button. Shown to everyone who has not installed yet, including iPhone, which never offers an install prompt.
 export default function InstallPrompt() {
-  const { ready, installed, platform, install } = useInstall();
+  const { ready, installed, platform, install, justInstalled, dismissDone } = useInstall();
   const [steps, setSteps] = useState(false);
-  if (!ready || installed) return null;
+  if (!ready) return null;
+  if (installed) return justInstalled ? <DoneSheet platform={platform} onClose={dismissDone} /> : null;
   return (
     <>
-      <button type="button" onClick={() => install(() => setSteps(true))} className="shrink-0 whitespace-nowrap rounded-full border border-yebo-deep/15 bg-white px-3 py-2 text-xs font-bold text-yebo-deep shadow-sm transition hover:-translate-y-0.5 hover:border-yebo" aria-label="Install Yebo as an app">Install app</button>
+      <button type="button" onClick={() => install(() => setSteps(true))} className="press shrink-0 whitespace-nowrap rounded-full border border-yebo-deep/15 bg-white px-3 py-2 text-xs font-bold text-yebo-deep shadow-sm transition hover:-translate-y-0.5 hover:border-yebo" aria-label="Install Yebo as an app">Install app</button>
       {steps && <HowToSheet platform={platform} onClose={() => setSteps(false)} />}
     </>
   );
@@ -117,7 +139,7 @@ export default function InstallPrompt() {
 
 // A friendly card for phones that explains the benefit. "Not now" hides it for two weeks, and it never shows once installed.
 export function InstallBanner() {
-  const { ready, installed, platform, install } = useInstall();
+  const { ready, installed, platform, install, justInstalled, dismissDone } = useInstall();
   const [steps, setSteps] = useState(false);
   const [hidden, setHidden] = useState(true);
 
@@ -128,7 +150,9 @@ export function InstallBanner() {
     } catch { setHidden(false); }
   }, []);
 
-  if (!ready || installed || hidden || platform === "desktop") return null;
+  if (!ready) return null;
+  if (installed) return justInstalled ? <DoneSheet platform={platform} onClose={dismissDone} /> : null;
+  if (hidden || platform === "desktop") return null;
   const dismiss = () => { setHidden(true); try { localStorage.setItem(DISMISS_KEY, String(Date.now())); } catch { /* ignore */ } };
   return (
     <>
@@ -141,7 +165,7 @@ export function InstallBanner() {
             <p className="text-xs leading-5 text-yebo-deep/60">Open it in one tap, like any other app.</p>
           </div>
           <div className="flex shrink-0 flex-col items-stretch gap-1">
-            <button type="button" onClick={() => install(() => setSteps(true))} className="min-h-9 rounded-full bg-yebo px-4 text-xs font-extrabold text-white hover:bg-yebo-deep">{platform === "android" ? "Install" : "Show me how"}</button>
+            <button type="button" onClick={() => install(() => setSteps(true))} className="press min-h-9 rounded-full bg-yebo px-4 text-xs font-extrabold text-white hover:bg-yebo-deep">{platform === "android" ? "Install" : "Show me how"}</button>
             <button type="button" onClick={dismiss} className="text-[11px] font-semibold text-yebo-deep/50 hover:text-yebo-deep">Not now</button>
           </div>
         </div>
@@ -149,4 +173,27 @@ export function InstallBanner() {
       {steps && <HowToSheet platform={platform} onClose={() => setSteps(false)} />}
     </>
   );
+}
+
+// For public pages (landing page): a button in whatever style the page passes in. Hidden once Yebo is installed.
+export function InstallAppButton({ className, children }: { className?: string; children?: React.ReactNode }) {
+  const { ready, installed, platform, install, justInstalled, dismissDone } = useInstall();
+  const [steps, setSteps] = useState(false);
+  if (!ready) return null;
+  if (installed) return justInstalled ? <DoneSheet platform={platform} onClose={dismissDone} /> : null;
+  return (
+    <>
+      <button type="button" onClick={() => install(() => setSteps(true))} className={className}>{children ?? "Install the app"}</button>
+      {steps && <HowToSheet platform={platform} onClose={() => setSteps(false)} />}
+    </>
+  );
+}
+
+// Inside the installed app, the marketing page is pointless: go straight to the app (it sends signed-out people to sign in).
+export function StandaloneRedirect() {
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    if (standalone) window.location.replace("/app");
+  }, []);
+  return null;
 }

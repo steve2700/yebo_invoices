@@ -19,8 +19,8 @@ export default function BottomNav() {
       {tabs.map((t) => {
         const active = t.href === "/app" ? path === "/app" : path.startsWith(t.href);
         return (
-          <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={`flex h-12 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-0.5 text-[10px] font-bold leading-none transition-colors ${active ? "text-yebo-deep" : "text-ink/45"}`}>
-            <Icon name={t.icon} size={22} />
+          <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={`press flex h-12 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-0.5 text-[10px] font-bold leading-none transition-colors ${active ? "text-yebo-deep" : "text-ink/45"}`}>
+            <span key={active ? "on" : "off"} className={active ? "tab-bounce" : ""}><Icon name={t.icon} size={22} /></span>
             <span className="w-full truncate text-center">{t.label}</span>
             <span className={`h-[3px] w-4 rounded-full ${active ? "bg-orange" : "bg-transparent"}`} />
           </Link>
