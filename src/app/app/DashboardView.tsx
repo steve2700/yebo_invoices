@@ -3,6 +3,7 @@ import Link from "next/link";
 import { formatRand } from "@/lib/money";
 import ThankClientButton from "./ThankClientButton";
 import MonthlyTargets, { type MonthlyStats } from "./MonthlyTargets";
+import PaymentConfetti from "./PaymentConfetti";
 
 export type DashboardActionItem = {
   id: string;
@@ -258,6 +259,7 @@ export default function DashboardView({
 
         {recentPayments.length > 0 && (
           <section aria-labelledby="paid-heading" className="pop-in rounded-3xl border border-lime/70 bg-lime/20 p-4 sm:p-6">
+            <PaymentConfetti ids={recentPayments.map((p) => p.id)} />
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-yebo">Good news</p>
             <h2 id="paid-heading" className="mt-1.5 text-xl font-extrabold tracking-tight text-ink sm:text-2xl">You&apos;ve been paid</h2>
             <ul className="mt-4 flex flex-col gap-2.5">

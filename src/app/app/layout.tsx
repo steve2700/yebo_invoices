@@ -7,6 +7,7 @@ import { billingBanner } from "@/lib/subscription";
 import Icon from "./icons";
 import AttentionChime from "./AttentionChime";
 import Splash from "./Splash";
+import PullToRefresh from "./PullToRefresh";
 import { loadAttention } from "@/lib/attention";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -38,6 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {banner.text} <Link href="/app/settings#billing" className="underline underline-offset-2">Manage plan</Link>
         </div>
       )}
+      <PullToRefresh />
       <InstallBanner />
       <div className="min-w-0 pb-[var(--tab-h)]">{children}</div>
       <BottomNav />
