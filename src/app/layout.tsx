@@ -11,9 +11,11 @@ export const metadata: Metadata = {
   description: "Create professional quotes and invoices for South African small businesses. Draft from a voice note, share a clear client link and turn accepted quotes into invoices.",
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/apple-icon.png", sizes: "1024x1024", type: "image/png" }],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }, { url: "/apple-icon.png", sizes: "1024x1024", type: "image/png" }],
   },
   manifest: "/manifest.webmanifest",
+  // On iPhone this is the name under the home-screen icon and makes the app open full screen.
+  appleWebApp: { capable: true, title: "Yebo", statusBarStyle: "default" },
 };
 export const viewport: Viewport = { themeColor: "#0C3B2E" };
 

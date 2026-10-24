@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Logo from "@/components/Logo";
-import InstallPrompt from "./InstallPrompt";
+import InstallPrompt, { InstallBanner } from "./InstallPrompt";
 import BottomNav from "./BottomNav";
 import { billingBanner } from "@/lib/subscription";
 import Icon from "./icons";
@@ -34,6 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {banner.text} <Link href="/app/settings#billing" className="underline underline-offset-2">Manage plan</Link>
         </div>
       )}
+      <InstallBanner />
       <div className="min-w-0 pb-[var(--tab-h)]">{children}</div>
       <BottomNav />
       {attention && <AttentionChime signature={attention.signature} count={attention.overdue + attention.closingSoon} />}
