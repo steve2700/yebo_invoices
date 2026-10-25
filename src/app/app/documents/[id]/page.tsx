@@ -128,6 +128,8 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const expired = isQuote && d.expiry_date && d.expiry_date < today;
   const waitingOnQuote = isQuote && (d.status === "sent" || d.status === "viewed") && !expired;
   const waitingOnPayment = !isQuote && !isDraft && d.status !== "paid" && balanceDue > 0;
+  const views = (events ?? []).filter((event) => event.type === "viewed");
+  const viewsText = views.length ? `Opened ${views.length} time${views.length === 1 ? "" : "s"} · last ${formatSouthAfricaDateTime(views[0].created_at)}` : null;
   const lastEmailed = (events ?? []).find((event) => event.type === "emailed");
   // Deposit on an accepted quote: what is due, what has arrived, and whether the client says they have paid.
   const depositDue = isQuote && d.status === "accepted" ? depositCents(d) : 0;
@@ -182,6 +184,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       <div role="status" className={`fade-up mt-6 rounded-2xl border p-4 ${toneClasses}`}>
         <p className="font-extrabold text-ink">{next.title}</p>
         <p className="mt-1 text-sm leading-6 text-ink/70">{next.text}</p>
+        {viewsText && !isDraft && <p className="mt-2 inline-flex rounded-full bg-ink/5 px-3 py-1 text-xs font-bold text-ink/70">👀 {viewsText}</p>}
       </div>
 
       {/* ---------- 1. SEND ---------- */}
@@ -235,7 +238,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           </ActionCard>
         )}
         <ActionCard icon="👀" title="See it as your client does" description="Opens the client page in a new tab. Looking at it yourself will not count as your client opening it.">
-          <a href={link} target="_blank" rel="noreferrer" className={btnOutline}>Open client view</a>
+          <a href={`${link}?preview=1`} target="_blank" rel="noreferrer" className={btnOutline}>Open client view</a>
         </ActionCard>
       </Section>
 

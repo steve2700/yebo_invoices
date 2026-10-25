@@ -12,6 +12,7 @@ import { notifyDepositClaimed, notifyQuoteAnswered } from "@/lib/notify-quote";
 import { depositCents } from "@/lib/deposit";
 import { OPTION_LABELS, linesForChoice, optionsPresent, subtotalFor, withVat, type OptionKey } from "@/lib/quote-options";
 import { BADGE_LABELS, parseReviews } from "@/lib/trust";
+import ViewBeacon from "./ViewBeacon";
 
 type Line = { description: string; quantity: number; unit_price_cents: number; line_total_cents: number; option_key?: string | null };
 
@@ -21,7 +22,6 @@ export default async function PublicDocument({ params, searchParams }: { params:
   const supabase = await createClient();
   const { data } = await supabase.rpc("get_public_document", { p_token: token });
   if (!data) notFound();
-  await supabase.rpc("record_document_event", { p_token: token, p_event: "viewed" });
 
   const { document: d, lines, business: b, client: c } = data as any;
   const isQuote = d.type === "quote";
@@ -94,6 +94,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
 
   return (
     <main className="min-h-dvh bg-paper pb-28 text-ink md:pb-12">
+      <ViewBeacon token={token} />
       {/* header: colours come from the business's logo */}
       <div className="px-5 pb-16 pt-6 md:pb-20" style={{ background: color, color: fg }}>
         <div className="mx-auto max-w-2xl">
