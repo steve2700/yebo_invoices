@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { TENDER_BUCKET, UUID_RE, tenderAccess } from "@/lib/tender-access";
 import { chunkText, parseBoqGrid, parseCsv, type ParsedLine } from "@/lib/boq-grid";
 import { extractPdfText, gridToText, readWorkbookGrids } from "@/lib/boq-read";
+import { nextOrder, saveChunks, saveInfo, saveParsed } from "@/lib/tender-ingest";
+import { classifyDoc, describePages, extractTenderInfo, pickPricingPages, readPricingTable } from "@/lib/tender-docs";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -49,50 +51,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } else return fail("Choose a file or paste the BOQ text.");
 
   // ---- where new lines start ----
-  let baseOrder = 0;
-  if (mode === "append") {
-    const { data: last } = await sb.from("tender_lines").select("sort_order").eq("tender_id", id).order("sort_order", { ascending: false }).limit(1);
-    baseOrder = (last?.[0]?.sort_order ?? -1) + 1;
-  }
-  const clearOld = async () => {
-    // Adding to a tender keeps every line already there. Replacing removes them all.
-    if (mode === "replace") await sb.from("tender_lines").delete().eq("tender_id", id);
-    await sb.from("tender_sources").delete().eq("tender_id", id);
-  };
-
-  const saveLines = async (lines: ParsedLine[]) => {
-    const limited = lines.slice(0, MAX_LINES);
-    await clearOld();
-    for (let i = 0; i < limited.length; i += 400) {
-      const rows = limited.slice(i, i + 400).map((l, j) => ({
-        tender_id: id,
-        sort_order: baseOrder + i + j,
-        kind: l.kind,
-        item_no: l.itemNo || null,
-        description: l.description.slice(0, 2000),
-        unit: l.unit || null,
-        quantity: l.quantity,
-        rate_cents: l.rateCents,
-        est_rate_cents: l.estRateCents,
-        raw: l.raw.slice(0, 1500),
-        ai_unsure: l.aiUnsure,
-        source_ref: l.sourceRef,
-      }));
-      const { error } = await sb.from("tender_lines").insert(rows);
-      if (error) throw new Error(error.message);
-    }
-    await sb.from("tenders").update({ source_filename: filename, updated_at: new Date().toISOString() }).eq("id", id);
-    return limited.length;
-  };
-
+  const baseOrder = await nextOrder(sb, id, mode);
+  const saveLines = (lines: ParsedLine[]) => saveParsed(sb, id, lines, filename, mode, baseOrder);
   const startChunks = async (text: string) => {
-    const chunks = chunkText(text, 6000);
-    if (!chunks.length) return fail("We found no text in that file.", 422);
-    await clearOld();
-    const { error } = await sb.from("tender_sources").insert({ tender_id: id, filename, chunks });
-    if (error) return fail("We could not store that document for reading. Please try again.", 500);
-    await sb.from("tenders").update({ source_filename: filename, updated_at: new Date().toISOString() }).eq("id", id);
-    return NextResponse.json({ kind: "chunks", chunks: chunks.length, baseOrder });
+    const r = await saveChunks(sb, id, text, filename, mode);
+    if (!r.ok) return fail(r.error, r.error.startsWith("We found") ? 422 : 500);
+    return NextResponse.json({ kind: "chunks", chunks: r.chunks, baseOrder });
   };
 
   try {
@@ -141,10 +105,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (text.replace(/--- Page \d+ ---/g, "").trim().length < 40) {
         return fail("This PDF looks like a scan (pictures of pages), so there is no text to read. Ask the client for the Excel BOQ, or use a PDF that was saved from Word or Excel.", 422);
       }
-      const res = await startChunks(text);
-      if (res instanceof NextResponse && res.status === 200 && pages > readPages) {
+      // Read the document the way a bidder does: find the pricing pages, read what the tender says about submitting.
+      const docKind = classifyDoc(filename);
+      const info = await saveInfo(sb, id, extractTenderInfo([{ name: filename, kind: docKind, text }]));
+      const pick = docKind === "pricing" ? { text, pages: [] as number[], totalPages: pages, targeted: false } : pickPricingPages(text);
+      const table = readPricingTable(pick.text);
+      const where = pick.targeted ? ` Pricing found on page${pick.pages.length > 1 ? "s" : ""} ${describePages(pick.pages)} of ${pick.totalPages}.` : "";
+      if (table.confident) {
+        const lines: ParsedLine[] = table.lines.map((l) => ({
+          kind: "item", itemNo: l.itemNo, description: l.description, unit: l.unit, quantity: l.quantity, rateCents: null, estRateCents: null,
+          raw: l.raw, aiUnsure: l.unsure, sourceRef: "table",
+        }));
+        const n = await saveLines(lines);
+        return NextResponse.json({ kind: "lines", itemCount: n, baseOrder, info, note: where.trim() || undefined });
+      }
+      const res = await startChunks(pick.text);
+      if (res instanceof NextResponse && res.status === 200) {
         const json = await res.json();
-        return NextResponse.json({ ...json, note: `Only the first ${readPages} of ${pages} pages were read.` });
+        const cut = pages > readPages ? ` Only the first ${readPages} of ${pages} pages were read.` : "";
+        return NextResponse.json({ ...json, info, note: `${where}${cut}`.trim() || undefined });
       }
       return res;
     }

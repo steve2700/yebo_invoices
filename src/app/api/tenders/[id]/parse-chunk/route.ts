@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { UUID_RE, tenderAccess } from "@/lib/tender-access";
 import { checkAiAccess } from "@/lib/subscription";
+import { tidyAiLines } from "@/lib/tender-docs";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -89,7 +90,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Safe to run twice: this piece's old lines are removed before the new ones go in.
   const ref = `src:${source?.id}:${index}`;
   await sb.from("tender_lines").delete().eq("tender_id", id).eq("source_ref", ref);
-  const rows = lines.map((l, i) => ({
+  const tidy = tidyAiLines(lines, chunk);
+  const rows = tidy.map((l, i) => ({
     tender_id: id,
     sort_order: baseOrder + index * 100_000 + i,
     kind: l.kind,

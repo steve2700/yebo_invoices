@@ -6,6 +6,8 @@ type Props = {
   tenderId: string;
   /** "add" keeps the lines already on the tender. "replace" clears them first. */
   hasLines: boolean;
+  /** True when the tender came from the hub and has documents Yebo can read itself. */
+  canAuto?: boolean;
   onDone: () => void;
 };
 
@@ -29,7 +31,7 @@ type ImportReply = { kind: "lines"; itemCount: number; sheet?: string } | { kind
 
 // Uploads a BOQ straight to private storage (so big files are fine), then reads it. Big PDFs are read in pieces
 // with a progress bar, and any piece that fails can be retried on its own.
-export default function BoqImporter({ tenderId, hasLines, onDone }: Props) {
+export default function BoqImporter({ tenderId, hasLines, canAuto = false, onDone }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [text, setText] = useState("");
@@ -107,6 +109,28 @@ export default function BoqImporter({ tenderId, hasLines, onDone }: Props) {
     }
   }
 
+  async function auto() {
+    setError(""); setNote(""); setFailed([]);
+    if (hasLines && !window.confirm("This will replace the lines already on this tender, including any rates you typed. Continue?")) return;
+    setBusy(true);
+    try {
+      setPhase({ text: "Reading the tender documents", done: 0, total: 1 });
+      const res = await post<ImportReply & { note?: string }>(`/api/tenders/${tenderId}/auto-import`, {});
+      if (!res.ok) { setError(res.error); return; }
+      if (res.data.kind === "lines") {
+        setPhase(null);
+        setNote(`${res.data.itemCount} items found. ${res.data.note ?? ""} Check each line, then add your rates.`.trim());
+        onDone();
+        return;
+      }
+      if (res.data.note) setNote(res.data.note);
+      setResume({ chunks: res.data.chunks, baseOrder: res.data.baseOrder });
+      const all = Array.from({ length: res.data.chunks }, (_, i) => i);
+      const { bad, items } = await readChunks(all, res.data.chunks, res.data.baseOrder);
+      await finish(bad, items);
+    } finally { setBusy(false); setPhase(null); }
+  }
+
   async function retryFailed() {
     if (!resume) return;
     setBusy(true); setError("");
@@ -121,8 +145,15 @@ export default function BoqImporter({ tenderId, hasLines, onDone }: Props) {
   const pct = phase ? Math.round((phase.done / Math.max(phase.total, 1)) * 100) : 0;
   return (
     <div className="rounded-2xl border border-yebo-deep/10 bg-white p-4 sm:p-5">
-      <p className="text-sm font-black text-ink">Import a BOQ</p>
-      <p className="mt-1 text-sm text-ink/60">Excel (.xlsx), CSV or PDF, up to 50 MB. Excel is read exactly. PDFs are read by AI, so you check each line against the original.</p>
+      {canAuto && (
+        <div className="mb-4 rounded-xl bg-lime/25 p-3">
+          <p className="text-sm font-black text-ink">Let Yebo read the tender documents</p>
+          <p className="mt-1 text-sm text-ink/70">Finds what needs pricing, and how and where to submit. No downloading needed.</p>
+          <button type="button" onClick={auto} disabled={busy} className="mt-2 inline-flex min-h-11 items-center rounded-xl bg-yebo px-5 text-sm font-extrabold text-white hover:bg-yebo-deep disabled:opacity-50">{busy ? "Working…" : "Read the documents for me"}</button>
+        </div>
+      )}
+      <p className="text-sm font-black text-ink">{canAuto ? "Or import a BOQ yourself" : "Import a BOQ"}</p>
+      <p className="mt-1 text-sm text-ink/60">Excel (.xlsx), CSV or PDF, up to 50 MB. Excel is read exactly. Small pricing tables in PDFs are read exactly, longer ones by AI, so check each line against the original.</p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <input ref={fileRef} type="file" accept={ACCEPT} className="sr-only" id={`boq-file-${tenderId}`} onChange={(e) => { setFile(e.target.files?.[0] ?? null); setError(""); }} />
         <label htmlFor={`boq-file-${tenderId}`} className="inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-yebo-deep/15 bg-yebo-chalk px-4 text-sm font-bold text-ink hover:border-yebo">

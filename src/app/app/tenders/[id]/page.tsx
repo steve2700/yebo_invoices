@@ -6,6 +6,7 @@ import { normaliseDescription, vaultChecks, type TenderStatus } from "@/lib/tend
 import { isEmail } from "@/lib/email";
 import { southAfricaDate } from "@/lib/time";
 import TenderUpgrade from "../TenderUpgrade";
+import { parseInfo } from "@/lib/tender-docs";
 import TenderEditor, { type TenderProp } from "../TenderEditor";
 
 export default async function TenderPage({ params }: { params: Promise<{ id: string }> }) {
@@ -20,7 +21,7 @@ export default async function TenderPage({ params }: { params: Promise<{ id: str
 
   const { data: t } = await sb
     .from("tenders")
-    .select("id,reference,title,client_name,category,location,closing_at,submission_email,notes,status,vat_percent,submitted_at,submitted_to,source_filename,feed_id,auto_drafted")
+    .select("id,reference,title,client_name,category,location,closing_at,submission_email,notes,status,vat_percent,submitted_at,submitted_to,source_filename,feed_id,auto_drafted,submission_info")
     .eq("id", id)
     .maybeSingle();
   if (!t) notFound();
@@ -82,7 +83,7 @@ export default async function TenderPage({ params }: { params: Promise<{ id: str
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-      <TenderEditor tender={tender} initialLines={lines} checks={checks} pastRates={pastRates} hasBusinessEmail={isEmail(business.email)} docLinks={docLinks} defaultMarkup={defaultMarkup} />
+      <TenderEditor tender={tender} initialLines={lines} checks={checks} pastRates={pastRates} hasBusinessEmail={isEmail(business.email)} docLinks={docLinks} info={parseInfo(t.submission_info)} defaultMarkup={defaultMarkup} />
     </main>
   );
 }

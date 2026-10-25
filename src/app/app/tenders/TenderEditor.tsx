@@ -3,6 +3,8 @@ import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { deleteTender, saveTender, setTenderOutcome, submitTender, type LineInput, type SubmitResult } from "./actions";
 import BoqImporter from "./BoqImporter";
+import SubmissionCard from "./SubmissionCard";
+import type { TenderInfo } from "@/lib/tender-docs";
 import { toNumber } from "@/lib/boq-grid";
 import {
   TENDER_CATEGORIES, STATUS_LABEL, centsToInput, closingInfo, formatQty, isCompliant, lineFlags, lineTotalCents, lockMessage,
@@ -35,6 +37,7 @@ type Props = {
   pastRates: [string, number][];
   hasBusinessEmail: boolean;
   docLinks?: { title: string; url: string }[];
+  info?: TenderInfo | null;
   defaultMarkup?: string;
 };
 
@@ -174,7 +177,7 @@ function VaultPanel({ checks, onSend, canSend, sending }: { checks: VaultCheck[]
 
 // ---------------------------------------------------------------- the editor
 
-export default function TenderEditor({ tender, initialLines, checks, pastRates, hasBusinessEmail, docLinks = [], defaultMarkup = "10" }: Props) {
+export default function TenderEditor({ tender, initialLines, checks, pastRates, hasBusinessEmail, docLinks = [], info = null, defaultMarkup = "10" }: Props) {
   const [lines, setLines] = useState<TenderLine[]>(initialLines);
   const [details, setDetails] = useState({
     title: tender.title, reference: tender.reference, clientName: tender.clientName, category: tender.category,
@@ -371,9 +374,10 @@ export default function TenderEditor({ tender, initialLines, checks, pastRates, 
 
       {tender.autoDrafted && lines.length === 0 && !submitted && (
         <div className="mt-4 rounded-2xl border border-yebo/25 bg-lime/25 p-4 text-sm font-semibold text-ink">
-          Yebo opened this draft because it matches your trades. Download the tender documents below, import the BOQ, then add your rates and check every line.
+          Yebo opened this draft because it matches your trades. Tap "Read the documents for me" below, then add your rates and check every line.
         </div>
       )}
+      {info && <SubmissionCard info={info} />}
       {docLinks.length > 0 && (
         <section className="mt-4 rounded-2xl border border-ink/10 bg-white p-4 shadow-sm" aria-label="Tender documents">
           <p className="text-xs font-extrabold uppercase tracking-[.14em] text-ink/50">Tender documents</p>
@@ -382,7 +386,7 @@ export default function TenderEditor({ tender, initialLines, checks, pastRates, 
               <li key={d.url} className="min-w-0"><a href={d.url} target="_blank" rel="noopener noreferrer" className="block truncate text-yebo underline underline-offset-2">{d.title}</a></li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-ink/50">Download the BOQ from here, then use Import a BOQ below.</p>
+          <p className="mt-2 text-xs text-ink/50">Yebo can read these for you with the button below. Use Import a BOQ only if you have your own file.</p>
         </section>
       )}
 
@@ -421,7 +425,7 @@ export default function TenderEditor({ tender, initialLines, checks, pastRates, 
             {lines.length ? "Import another BOQ file" : "Import a BOQ"}
           </button>
         ) : (
-          <BoqImporter tenderId={tender.id} hasLines={lines.length > 0} onDone={() => { setDirty(false); window.location.assign(`/app/tenders/${tender.id}`); }} />
+          <BoqImporter tenderId={tender.id} hasLines={lines.length > 0} canAuto={docLinks.length > 0} onDone={() => { setDirty(false); window.location.assign(`/app/tenders/${tender.id}`); }} />
         )}
         {tender.sourceFilename && <p className="mt-2 text-xs text-ink/50">Source: {tender.sourceFilename}</p>}
       </section>
