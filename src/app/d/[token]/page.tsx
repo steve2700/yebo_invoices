@@ -8,11 +8,12 @@ import { formatRand } from "@/lib/money";
 import { formatDate, waLink } from "@/lib/dates";
 import { appUrl } from "@/lib/url";
 import { readableOn } from "@/lib/color";
-import { notifyDepositClaimed, notifyQuoteAnswered } from "@/lib/notify-quote";
+import { notifyDepositClaimed, notifyInvoiceClaimed, notifyQuoteAnswered } from "@/lib/notify-quote";
 import { depositCents } from "@/lib/deposit";
 import { OPTION_LABELS, linesForChoice, optionsPresent, subtotalFor, withVat, type OptionKey } from "@/lib/quote-options";
 import { BADGE_LABELS, parseReviews } from "@/lib/trust";
 import ViewBeacon from "./ViewBeacon";
+import CopyButton from "./CopyButton";
 import AnswerBar, { DECLINE_REASONS } from "./AnswerBar";
 
 type Line = { description: string; quantity: number; unit_price_cents: number; line_total_cents: number; option_key?: string | null };
@@ -92,9 +93,20 @@ export default async function PublicDocument({ params, searchParams }: { params:
     revalidatePath(`/d/${token}`);
   }
 
+  const invoiceBalance = Math.max(Number(d.total_cents) - Number(data.paid_cents ?? 0), 0);
+  const invoiceClaimed = unpaidInvoice && Boolean(data.deposit_claimed_at);
+
+  async function claimInvoice() {
+    "use server";
+    const sb = await createClient();
+    const { data: isNew } = await sb.rpc("claim_invoice_paid", { p_token: token });
+    if (isNew) after(() => notifyInvoiceClaimed(token));
+    revalidatePath(`/d/${token}`);
+  }
+
   const bar = "fixed inset-x-0 bottom-0 z-20 flex gap-3 border-t border-black/10 bg-white/95 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur md:static md:mt-6 md:border-0 md:bg-transparent md:p-0 md:pb-0";
   const soft = { background: fg === "#ffffff" ? "rgba(0,0,0,.2)" : "rgba(255,255,255,.55)" };
-  const Row = ({ k, v }: { k: string; v: string }) => (<div className="flex justify-between gap-4 py-1.5"><dt className="text-ink/55">{k}</dt><dd className="text-right font-semibold">{v}</dd></div>);
+  const Row = ({ k, v, copy }: { k: string; v: string; copy?: string }) => (<div className="flex items-center justify-between gap-4 py-1.5"><dt className="text-ink/55">{k}</dt><dd className="flex items-center text-right font-semibold">{v}{copy && <CopyButton value={copy} label={k.toLowerCase()} />}</dd></div>);
 
   return (
     <main className="min-h-dvh bg-paper pb-28 text-ink md:pb-12">
@@ -253,9 +265,9 @@ export default async function PublicDocument({ params, searchParams }: { params:
                     <div className="mt-4 border-t border-ink/10 pt-3">
                       <b className="block">{payDepositOnline ? "Or pay by EFT" : "Pay by EFT"}</b>
                       <dl className="mt-1">
-                        <Row k="Amount" v={formatRand(depositOutstanding)} />
+                        <Row k="Amount" v={formatRand(depositOutstanding)} copy={(depositOutstanding / 100).toFixed(2)} />
                         <Row k="Account holder" v={b.bank_account_holder} /><Row k="Bank" v={`${b.bank_name ?? ""} ${b.bank_account_type ?? ""}`.trim()} />
-                        <Row k="Account number" v={b.bank_account_number} /><Row k="Branch code" v={b.bank_branch_code} /><Row k="Reference" v={d.number} />
+                        <Row k="Account number" v={b.bank_account_number} copy={String(b.bank_account_number)} /><Row k="Branch code" v={b.bank_branch_code} copy={String(b.bank_branch_code)} /><Row k="Reference" v={d.number} copy={String(d.number)} />
                       </dl>
                       {depositClaimed ? (
                         <p role="status" className="mt-3 rounded-xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} has been told and will confirm once the money reaches their account.</p>
@@ -319,8 +331,19 @@ export default async function PublicDocument({ params, searchParams }: { params:
               <b className="block">Pay by EFT</b>
               <dl className="mt-1">
                 <Row k="Account holder" v={b.bank_account_holder} /><Row k="Bank" v={`${b.bank_name ?? ""} ${b.bank_account_type ?? ""}`.trim()} />
-                <Row k="Account number" v={b.bank_account_number} /><Row k="Branch code" v={b.bank_branch_code} /><Row k="Reference" v={d.number} />
+                {unpaidInvoice && invoiceBalance > 0 && <Row k="Amount" v={formatRand(invoiceBalance)} copy={(invoiceBalance / 100).toFixed(2)} />}
+                <Row k="Account number" v={b.bank_account_number} copy={String(b.bank_account_number)} /><Row k="Branch code" v={b.bank_branch_code} copy={String(b.bank_branch_code)} /><Row k="Reference" v={d.number} copy={String(d.number)} />
               </dl>
+              {unpaidInvoice && (
+                invoiceClaimed ? (
+                  <p role="status" className="mt-3 rounded-xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} has been told and will confirm once the money reaches their account.</p>
+                ) : (
+                  <form action={claimInvoice} className="mt-3">
+                    <button type="submit" className="min-h-12 w-full rounded-2xl border border-black/15 px-4 text-sm font-black active:scale-[.98]">I have paid by EFT</button>
+                    <p className="mt-2 text-center text-xs text-ink/55">Tap this after you have paid, so {b.name} knows to look for it.</p>
+                  </form>
+                )
+              )}
             </section>
           )}
 

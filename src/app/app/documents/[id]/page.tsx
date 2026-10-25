@@ -24,7 +24,7 @@ const EVENT_LABELS: Record<string, string> = {
   declined: "Declined by client",
   reminder_sent: "Reminder sent",
   paid: "Payment received",
-  deposit_claimed: "Client says the deposit is paid",
+  deposit_claimed: "Client says they have paid",
 };
 
 type StepState = "done" | "current" | "todo" | "bad";
@@ -130,6 +130,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const waitingOnPayment = !isQuote && !isDraft && d.status !== "paid" && balanceDue > 0;
   const views = (events ?? []).filter((event) => event.type === "viewed");
   const viewsText = views.length ? `Opened ${views.length} time${views.length === 1 ? "" : "s"} · last ${formatSouthAfricaDateTime(views[0].created_at)}` : null;
+  const invoiceClaimed = !isQuote && !isDraft && d.status !== "paid" && balanceDue > 0 && (events ?? []).some((event) => event.type === "deposit_claimed");
   const lastEmailed = (events ?? []).find((event) => event.type === "emailed");
   // Deposit on an accepted quote: what is due, what has arrived, and whether the client says they have paid.
   const depositDue = isQuote && d.status === "accepted" ? depositCents(d) : 0;
@@ -164,6 +165,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   else if (expired) next = { tone: "stop", title: "This quote has expired", text: `${first} can no longer accept it. Duplicate it to send a fresh one.` };
   else if (d.status === "sent") next = { tone: "wait", title: `Waiting for ${first} to open it`, text: "You will see it here the moment they do. If you have not heard anything in a day or two, send a gentle follow-up." };
   else if (d.status === "viewed" && isQuote) next = { tone: "wait", title: `${first} has opened your quote`, text: "They are looking at it. If you have not heard back in a couple of days, a friendly follow-up helps." };
+  else if (invoiceClaimed) next = { tone: "go", title: `${first} says they have paid`, text: `Check your bank for ${formatRand(balanceDue)} with the reference ${d.number}. When it has arrived, record the payment below. Bank transfers can take a day to show.` };
   else next = { tone: "wait", title: `Waiting for ${first} to pay`, text: `${formatRand(balanceDue)} is still due. Clients can pay online, or by EFT with your reference ${d.number}. A friendly reminder helps if it goes quiet.` };
 
   const toneClasses = {
