@@ -13,6 +13,7 @@ import { depositCents } from "@/lib/deposit";
 import { OPTION_LABELS, linesForChoice, optionsPresent, subtotalFor, withVat, type OptionKey } from "@/lib/quote-options";
 import { BADGE_LABELS, parseReviews } from "@/lib/trust";
 import ViewBeacon from "./ViewBeacon";
+import AnswerBar, { DECLINE_REASONS } from "./AnswerBar";
 
 type Line = { description: string; quantity: number; unit_price_cents: number; line_total_cents: number; option_key?: string | null };
 
@@ -75,8 +76,11 @@ export default async function PublicDocument({ params, searchParams }: { params:
       if (chooseError) { revalidatePath(`/d/${token}`); return; }
     }
     await sb.rpc("record_document_event", { p_token: token, p_event: ev });
+    // Only the listed reasons are accepted, so nothing typed by a stranger ends up in the owner's email.
+    const rawReason = String(formData.get("reason") ?? "");
+    const reason = ev === "declined" && DECLINE_REASONS[rawReason] ? DECLINE_REASONS[rawReason] : undefined;
     // Email the owner after the response is sent, so the client's tap is not slowed down.
-    after(() => notifyQuoteAnswered(token, ev));
+    after(() => notifyQuoteAnswered(token, ev, reason));
     revalidatePath(`/d/${token}`);
   }
 
@@ -123,8 +127,18 @@ export default async function PublicDocument({ params, searchParams }: { params:
 
       <div className="mx-auto -mt-8 max-w-2xl px-4">
         <article className="rounded-3xl bg-white p-5 shadow-xl ring-1 ring-black/5 sm:p-7">
-          {d.status === "accepted" && <p className="mb-5 rounded-2xl bg-lime p-3 text-center font-black">Yebo! Quote accepted. Thank you.</p>}
-          {d.status === "declined" && <p className="mb-5 rounded-2xl bg-ink/5 p-3 text-center font-bold">You declined this quote.</p>}
+          {d.status === "accepted" && (
+            <div className="mb-5 rounded-2xl bg-lime p-3 text-center">
+              <p className="font-black">Yebo! Quote accepted. Thank you.</p>
+              <p className="mt-1 text-sm font-semibold">{b.name} has been told{depositOutstanding > 0 ? ". Pay the deposit below to confirm your booking." : " and will be in touch about the next steps."}</p>
+            </div>
+          )}
+          {d.status === "declined" && (
+            <div className="mb-5 rounded-2xl bg-ink/5 p-3 text-center">
+              <p className="font-bold">You declined this quote.</p>
+              {b.phone && <a href={waLink(b.phone, `Hi, about quote ${d.number}: I would like to talk about changing it.`)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-10 items-center rounded-full bg-white px-4 text-sm font-bold">Changed your mind? Message {b.name}</a>}
+            </div>
+          )}
           {d.status === "paid" && (
             <div className="mb-5 rounded-2xl bg-lime p-3 text-center">
               <p className="font-black">Paid. Thank you!</p>
@@ -135,7 +149,13 @@ export default async function PublicDocument({ params, searchParams }: { params:
               )}
             </div>
           )}
-          {expired && <p className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">This quote has expired. Please contact {b.name} for an updated one.</p>}
+          {expired && (
+            <div className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">
+              <p>This quote has expired. Please contact {b.name} for an updated one.</p>
+              {b.phone && <a href={waLink(b.phone, `Hi, quote ${d.number} has expired. Could you send me an updated one?`)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-10 items-center rounded-full bg-white px-4">Ask for an updated quote</a>}
+            </div>
+          )}
+          {unpaidInvoice && d.due_date && d.due_date < today && <p role="note" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">This invoice was due on {formatDate(d.due_date)}. Please pay as soon as you can, or contact {b.name} if there is a problem.</p>}
           {payment === "cancelled" && unpaidInvoice && <p role="status" className="mb-5 rounded-2xl bg-ink/5 p-3 text-center text-sm font-bold">Your payment was cancelled and you have not been charged. You can try again whenever you are ready.</p>}
           {canPayOnline && b.payments_sandbox && <p role="note" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">Test mode: payments on this page are practice only and no real money will be taken.</p>}
 
@@ -325,10 +345,16 @@ export default async function PublicDocument({ params, searchParams }: { params:
           </section>
 
           {canAnswer && (
-            <form id="answer-form" action={answer} className={bar}>
-              <button name="event" value="accepted" className="min-h-12 flex-1 rounded-2xl px-4 text-base font-black active:scale-[.98]" style={{ background: color, color: fg }}>Accept quote</button>
-              <button name="event" value="declined" className="min-h-12 rounded-2xl border border-black/15 px-4 text-sm font-bold">Decline</button>
-            </form>
+            <AnswerBar
+              action={answer}
+              color={color}
+              fg={fg}
+              total={formatRand(d.total_cents)}
+              businessName={b.name}
+              askHref={b.phone ? waLink(b.phone, `Hi, I have a question about ${isQuote ? "quote" : "invoice"} ${d.number}.`) : null}
+              optionLabels={OPTION_LABELS}
+              barClass={bar}
+            />
           )}
           {depositActive && depositOutstanding > 0 && (
             <div className={bar}>

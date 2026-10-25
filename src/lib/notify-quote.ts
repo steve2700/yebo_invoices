@@ -8,7 +8,7 @@ import { isEmail, renderEmail, sendEmail } from "@/lib/email";
 // Tells the business owner by email when a client accepts or declines a quote, so they are never left
 // wondering. It runs on the server after the client taps the button, and it never throws: a failed email
 // must never stop the client's answer from being saved.
-export async function notifyQuoteAnswered(token: string, answer: "accepted" | "declined"): Promise<void> {
+export async function notifyQuoteAnswered(token: string, answer: "accepted" | "declined", reason?: string): Promise<void> {
   try {
     const admin = createAdminClient();
 
@@ -97,6 +97,7 @@ export async function notifyQuoteAnswered(token: string, answer: "accepted" | "d
             ["Client", clientName],
             ["Quote", document.number],
             ["Total", total],
+            ...(reason ? ([["Reason given", reason]] as [string, string][]) : []),
           ],
           buttonLabel: "View the quote",
           buttonUrl: documentLink,
