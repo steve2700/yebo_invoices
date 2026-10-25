@@ -180,7 +180,7 @@ async function notifyEveryone({ admin, attemptId, document, paidCents, fullyPaid
     ? (fullyPaid ? "Deposit paid in full" : "Part of the deposit received")
     : (fullyPaid ? "Paid in full" : "Part payment received");
   const [{ data: business }, { data: client }] = await Promise.all([
-    admin.from("businesses").select("name,email,brand_color,owner_id").eq("id", document.business_id).maybeSingle(),
+    admin.from("businesses").select("name,email,brand_color,owner_id,google_reviews_url").eq("id", document.business_id).maybeSingle(),
     admin.from("clients").select("name,email,whatsapp_number").eq("id", document.client_id).maybeSingle(),
   ]);
   if (!business) return;
@@ -212,6 +212,9 @@ async function notifyEveryone({ admin, attemptId, document, paidCents, fullyPaid
         ],
         buttonLabel: "View your receipt",
         buttonUrl: `${base}/d/${document.public_token}`,
+        ...(!isQuote && fullyPaid && /^https:\/\//.test(business.google_reviews_url ?? "")
+          ? { secondaryButtonLabel: "Happy with our work? Leave a quick review", secondaryButtonUrl: business.google_reviews_url as string }
+          : {}),
         footer: replyTo ? `Questions? Just reply to this email and it will reach ${businessName}.` : null,
       }),
     });

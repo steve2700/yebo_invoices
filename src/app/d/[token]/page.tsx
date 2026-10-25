@@ -196,6 +196,11 @@ export default async function PublicDocument({ params, searchParams }: { params:
                   Share receipt on WhatsApp
                 </a>
               )}
+              {!isQuote && googleUrl && (
+                <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="mt-2 ml-2 inline-flex min-h-10 items-center rounded-full bg-white/70 px-4 text-sm font-bold">
+                  Happy with the service? Leave a review
+                </a>
+              )}
             </div>
           )}
           {undo === "sign" && <p role="alert" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">Please type your full name to accept the quote.</p>}

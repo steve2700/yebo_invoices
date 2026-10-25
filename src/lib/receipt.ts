@@ -19,7 +19,7 @@ export async function sendPaymentReceipt(documentId: string, amountCents: number
       .maybeSingle();
     if (!doc) return;
     const [{ data: business }, { data: client }, { data: pays }] = await Promise.all([
-      admin.from("businesses").select("name,email,brand_color").eq("id", doc.business_id).maybeSingle(),
+      admin.from("businesses").select("name,email,brand_color,google_reviews_url").eq("id", doc.business_id).maybeSingle(),
       admin.from("clients").select("name,email").eq("id", doc.client_id).maybeSingle(),
       admin.from("payments").select("amount_cents").eq("document_id", doc.id),
     ]);
@@ -49,6 +49,10 @@ export async function sendPaymentReceipt(documentId: string, amountCents: number
         rows,
         buttonLabel: "View it online",
         buttonUrl: `${appUrl()}/d/${doc.public_token}`,
+        // A happy, fully paid customer is the best moment to ask for a Google review.
+        ...(!isQuote && remaining <= 0 && /^https:\/\//.test(business.google_reviews_url ?? "")
+          ? { secondaryButtonLabel: "Happy with our work? Leave a quick review", secondaryButtonUrl: business.google_reviews_url as string }
+          : {}),
         footer: replyTo ? `Questions? Just reply to this email and it will reach ${businessName}.` : null,
       }),
     });

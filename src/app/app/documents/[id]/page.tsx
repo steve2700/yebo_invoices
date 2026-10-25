@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatRand } from "@/lib/money";
-import { formatDate } from "@/lib/dates";
+import { formatDate, waLink } from "@/lib/dates";
 import { greetingName } from "@/lib/names";
 import { appUrl } from "@/lib/url";
 import { formatSouthAfricaDateTime, southAfricaDate } from "@/lib/time";
@@ -109,7 +109,7 @@ export default async function DocumentPage({ params, searchParams }: { params: P
   const { id } = await params;
   const { photos: photosFlag } = await searchParams;
   const sb = await createClient();
-  const { data: d } = await sb.from("documents").select("*,clients(name,email,whatsapp_number)").eq("id", id).single();
+  const { data: d } = await sb.from("documents").select("*,clients(name,email,whatsapp_number,statement_token)").eq("id", id).single();
   if (!d) notFound();
   const [{ data: biz }, { data: events }, { data: payments }, { data: messages }] = await Promise.all([
     sb.from("businesses").select("name,email").single(),
@@ -129,6 +129,7 @@ export default async function DocumentPage({ params, searchParams }: { params: P
       }
     } catch (error) { console.error("[proof links]", error); }
   }
+  const { count: openInvoiceCount } = d.type === "invoice" ? await sb.from("documents").select("id", { count: "exact", head: true }).eq("client_id", d.client_id).eq("type", "invoice").in("status", ["sent", "viewed", "partially_paid"]) : { count: 0 };
   const [{ data: photoRows }, { data: recurring }] = await Promise.all([
     sb.from("document_photos").select("id,path").eq("document_id", id).order("created_at"),
     sb.from("recurring_invoices").select("id,day_of_month,next_run").eq("source_document_id", id).eq("active", true).maybeSingle(),
@@ -308,6 +309,19 @@ export default async function DocumentPage({ params, searchParams }: { params: P
                 <button type="submit" className={`${btnOutline} mt-3`}>Add photos</button>
               </form>
             )}
+          </div>
+        </section>
+      )}
+
+      {!isQuote && !isDraft && (openInvoiceCount ?? 0) >= 2 && client?.statement_token && (
+        <section className="mt-8" aria-label="Statement">
+          <h2 className="text-xs font-extrabold uppercase tracking-[0.16em] text-ink/50">{first} has {openInvoiceCount} open invoices</h2>
+          <div className="mt-3 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-black/5">
+            <p className="text-ink/70">Send one link that lists everything {first} still owes, with a button to pay each one. It is easier than chasing invoice by invoice.</p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <a href={waLink(client?.whatsapp_number ?? null, `Hi ${first}, here is a statement of everything outstanding with ${biz?.name ?? "us"}: ${appUrl()}/s/${client.statement_token}`)} target="_blank" rel="noopener noreferrer" className={btnDark}>Send the statement on WhatsApp</a>
+              <CopyButton text={`${appUrl()}/s/${client.statement_token}`} />
+            </div>
           </div>
         </section>
       )}
