@@ -173,7 +173,7 @@ export async function notifyDepositClaimed(token: string): Promise<void> {
 
 
 // Tells the owner by email that the client says they have paid an invoice by EFT, so they can check their bank.
-export async function notifyInvoiceClaimed(token: string): Promise<void> {
+export async function notifyInvoiceClaimed(token: string, hasProof = false): Promise<void> {
   try {
     const admin = createAdminClient();
     const { data: document } = await admin
@@ -203,12 +203,12 @@ export async function notifyInvoiceClaimed(token: string): Promise<void> {
     await sendEmail({
       to: ownerEmail,
       fromName: "Yebo Invoices",
-      idempotencyKey: `invoice-claimed/${document.id}/${new Date().toISOString().slice(0, 15)}`,
+      idempotencyKey: `invoice-claimed/${document.id}/${hasProof ? "proof" : "claim"}/${new Date().toISOString().slice(0, 15)}`,
       subject: `${clientName} says they have paid ${formatRand(balance)}`,
       html: renderEmail({
         brandColor: business.brand_color,
         heading: `${clientName} says invoice ${document.number} is paid`,
-        intro: `${clientName} tapped "I have paid by EFT" on invoice ${document.number}. Please check your bank account, then record the payment in Yebo.`,
+        intro: `${clientName} tapped "I have paid by EFT" on invoice ${document.number}.${hasProof ? " They attached proof of payment: open the invoice to see it." : ""} Please check your bank account, then record the payment in Yebo.`,
         rows: [
           ["Client", clientName],
           ["Invoice", document.number],
@@ -224,5 +224,57 @@ export async function notifyInvoiceClaimed(token: string): Promise<void> {
     });
   } catch (error) {
     console.error("[invoice-claim] could not notify the owner:", error);
+  }
+}
+
+
+// Tells the owner by email that the client wants something changed on a quote, with the client's own words.
+export async function notifyChangeRequested(token: string, message: string): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const { data: document } = await admin
+      .from("documents")
+      .select("id,number,type,total_cents,business_id,client_id")
+      .eq("public_token", token)
+      .maybeSingle();
+    if (!document || document.type !== "quote") return;
+    const [{ data: business }, { data: client }] = await Promise.all([
+      admin.from("businesses").select("name,email,brand_color,owner_id").eq("id", document.business_id).maybeSingle(),
+      admin.from("clients").select("name,whatsapp_number").eq("id", document.client_id).maybeSingle(),
+    ]);
+    if (!business) return;
+    let ownerEmail: string | null = isEmail(business.email) ? business.email.trim() : null;
+    if (!ownerEmail && business.owner_id) {
+      const { data: owner } = await admin.auth.admin.getUserById(business.owner_id);
+      ownerEmail = isEmail(owner?.user?.email) ? owner.user.email.trim() : null;
+    }
+    if (!ownerEmail) return;
+    const clientName = client?.name ?? "Your client";
+    const firstName = greetingName(client?.name);
+    const text = message.replace(/\s+/g, " ").trim().slice(0, 600);
+    await sendEmail({
+      to: ownerEmail,
+      fromName: "Yebo Invoices",
+      idempotencyKey: `change-requested/${document.id}/${new Date().toISOString().slice(0, 16)}`,
+      subject: `${clientName} wants a change to quote ${document.number}`,
+      html: renderEmail({
+        brandColor: business.brand_color,
+        heading: `${clientName} asked for a change`,
+        intro: `${clientName} did not accept or decline quote ${document.number}. They want something changed.`,
+        rows: [
+          ["Client", clientName],
+          ["Quote", document.number],
+          ["Total", formatRand(Number(document.total_cents))],
+          ["Their message", text],
+        ],
+        buttonLabel: "Open the quote",
+        buttonUrl: `${appUrl()}/app/documents/${document.id}`,
+        secondaryButtonLabel: `Reply to ${firstName} on WhatsApp`,
+        secondaryButtonUrl: waLink(client?.whatsapp_number ?? null, `Hi ${firstName}, thanks for your message about quote ${document.number}. `),
+        footer: "Sent quotes are locked. To change it, duplicate the quote, edit the copy and send that one.",
+      }),
+    });
+  } catch (error) {
+    console.error("[change-request] could not notify the owner:", error);
   }
 }

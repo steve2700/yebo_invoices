@@ -303,3 +303,16 @@ export async function recordReminderSent(
   }
   return { ok };
 }
+
+
+// Puts a declined quote back to "sent" so the client can accept it again.
+export async function reopenQuote(fd: FormData) {
+  const id = String(fd.get("id"));
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return;
+  const sb = await createClient();
+  const { error } = await sb.rpc("owner_reopen_quote", { p_id: id });
+  if (error) console.error("[reopen quote]", error.message);
+  revalidatePath(`/app/documents/${id}`);
+  revalidatePath("/app");
+  redirect(`/app/documents/${id}`);
+}

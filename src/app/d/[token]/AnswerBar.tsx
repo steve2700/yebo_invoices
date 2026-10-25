@@ -29,11 +29,11 @@ function Submit({ name, value, children, style, className }: { name: string; val
 // Accept and Decline for a quote. Both ask once before anything is sent, because an answer cannot be taken back,
 // and a decline asks for a reason so the business can offer what would change the answer.
 export default function AnswerBar({ action, color, fg, total, businessName, askHref, optionLabels = {}, barClass }: Props) {
-  const [open, setOpen] = useState<null | "accept" | "decline">(null);
+  const [open, setOpen] = useState<null | "accept" | "decline" | "change">(null);
   const [reason, setReason] = useState("");
   const [option, setOption] = useState("");
 
-  function show(kind: "accept" | "decline") {
+  function show(kind: "accept" | "decline" | "change") {
     const picked = document.querySelector<HTMLInputElement>('input[name="option"]:checked')?.value ?? "";
     setOption(picked);
     setOpen(kind);
@@ -43,10 +43,11 @@ export default function AnswerBar({ action, color, fg, total, businessName, askH
     <>
       <div className={barClass}>
         <button type="button" onClick={() => show("accept")} className="min-h-12 flex-1 rounded-2xl px-4 text-base font-black active:scale-[.98]" style={{ background: color, color: fg }}>Accept quote</button>
-        <button type="button" onClick={() => show("decline")} className="min-h-12 rounded-2xl border border-black/15 px-4 text-sm font-bold">Decline</button>
+        <button type="button" onClick={() => show("change")} className="min-h-12 rounded-2xl border border-black/15 px-3 text-sm font-bold">Ask for a change</button>
+        <button type="button" onClick={() => show("decline")} className="min-h-12 rounded-2xl border border-black/15 px-3 text-sm font-bold">Decline</button>
       </div>
       {open && (
-        <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={open === "accept" ? "Confirm accepting the quote" : "Decline the quote"} onClick={(e) => { if (e.target === e.currentTarget) setOpen(null); }}>
+        <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={open === "accept" ? "Confirm accepting the quote" : open === "change" ? "Ask for a change" : "Decline the quote"} onClick={(e) => { if (e.target === e.currentTarget) setOpen(null); }}>
           <form id="answer-form" action={action} className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl">
             {open === "accept" ? (
               <>
@@ -57,6 +58,16 @@ export default function AnswerBar({ action, color, fg, total, businessName, askH
                 <input type="hidden" name="option" value={option} />
                 <div className="mt-5 flex flex-col gap-2">
                   <Submit name="event" value="accepted" className="min-h-12 rounded-2xl px-4 text-base font-black active:scale-[.98]" style={{ background: color, color: fg }}>Yes, accept</Submit>
+                  <button type="button" onClick={() => setOpen(null)} className="min-h-11 rounded-2xl px-4 text-sm font-bold text-ink/70">Go back</button>
+                </div>
+              </>
+            ) : open === "change" ? (
+              <>
+                <p className="text-xl font-black">What would you like changed?</p>
+                <p className="mt-2 text-sm text-ink/70">Tell {businessName} in your own words, for example a different quantity, a cheaper option or another date. They will update the quote or get back to you.</p>
+                <textarea name="message" required minLength={2} maxLength={600} rows={4} placeholder="Type your message here" className="mt-3 w-full rounded-xl border border-ink/20 p-3 text-base outline-none focus:border-ink/50" />
+                <div className="mt-5 flex flex-col gap-2">
+                  <Submit name="event" value="change" className="min-h-12 rounded-2xl px-4 text-base font-black active:scale-[.98]" style={{ background: color, color: fg }}>Send to {businessName}</Submit>
                   <button type="button" onClick={() => setOpen(null)} className="min-h-11 rounded-2xl px-4 text-sm font-bold text-ink/70">Go back</button>
                 </div>
               </>

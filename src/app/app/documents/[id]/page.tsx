@@ -14,7 +14,8 @@ import CopyButton from "../CopyButton";
 import AiMessageComposer from "../AiMessageComposer";
 import SendEmailCard from "../SendEmailCard";
 import ConfirmForm from "../ConfirmForm";
-import { convertToInvoice, deleteDraft, duplicateDocument, markDepositReceived, markPaid, sendDraft } from "../actions";
+import { convertToInvoice, deleteDraft, duplicateDocument, markDepositReceived, markPaid, reopenQuote, sendDraft } from "../actions";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const EVENT_LABELS: Record<string, string> = {
   sent: "Sent to client",
@@ -26,6 +27,8 @@ const EVENT_LABELS: Record<string, string> = {
   paid: "Payment received",
   deposit_claimed: "Client says they have paid",
   expiry_reminder: "Expiry reminder emailed to client",
+  change_requested: "Client asked for a change",
+  reopened: "Quote reopened",
 };
 
 type StepState = "done" | "current" | "todo" | "bad";
@@ -105,11 +108,24 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const sb = await createClient();
   const { data: d } = await sb.from("documents").select("*,clients(name,email,whatsapp_number)").eq("id", id).single();
   if (!d) notFound();
-  const [{ data: biz }, { data: events }, { data: payments }] = await Promise.all([
+  const [{ data: biz }, { data: events }, { data: payments }, { data: messages }] = await Promise.all([
     sb.from("businesses").select("name,email").single(),
     sb.from("events").select("type,created_at").eq("document_id", id).order("created_at", { ascending: false }),
     sb.from("payments").select("amount_cents").eq("document_id", id),
+    sb.from("document_messages").select("id,kind,body,file_path,created_at").eq("document_id", id).order("created_at", { ascending: false }).limit(20),
   ]);
+  // These rows only came back because the signed-in user owns this document, so short-lived links to proofs are safe to make.
+  const proofLinks = new Map<string, string>();
+  const proofRows = (messages ?? []).filter((m) => m.kind === "proof" && m.file_path);
+  if (proofRows.length) {
+    try {
+      const admin = createAdminClient();
+      for (const m of proofRows) {
+        const { data: signed } = await admin.storage.from("payment-proofs").createSignedUrl(m.file_path as string, 3600);
+        if (signed?.signedUrl) proofLinks.set(m.id as string, signed.signedUrl);
+      }
+    } catch (error) { console.error("[proof links]", error); }
+  }
   const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
   const ent = await entitlement(sb);
   const remindersAllowed = !ent.enforced || Boolean(ent.plan?.reminders);
@@ -245,7 +261,37 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         </ActionCard>
       </Section>
 
+      {(messages ?? []).length > 0 && (
+        <section className="mt-8" aria-label="Messages from your client">
+          <h2 className="text-xs font-extrabold uppercase tracking-[0.16em] text-ink/50">From {first}</h2>
+          <ul className="mt-3 divide-y rounded-2xl bg-white text-sm shadow-sm ring-1 ring-black/5">
+            {(messages ?? []).map((m) => (
+              <li key={m.id as string} className="p-3">
+                <div className="flex justify-between gap-3">
+                  <span className="font-bold">{m.kind === "proof" ? "Proof of payment" : "Change request"}</span>
+                  <span className="shrink-0 text-ink/50">{formatSouthAfricaDateTime(m.created_at as string)}</span>
+                </div>
+                {m.kind === "change_request" && <p className="mt-1 whitespace-pre-line leading-relaxed text-ink/80">{m.body}</p>}
+                {m.kind === "proof" && (proofLinks.get(m.id as string)
+                  ? <a href={proofLinks.get(m.id as string)} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block font-bold text-yebo underline underline-offset-2">Open the file (link works for 1 hour)</a>
+                  : <p className="mt-1 text-ink/55">The file could not be opened right now.</p>)}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* ---------- 3. WHAT TO DO NEXT ---------- */}
+      {isQuote && d.status === "declined" && !expired && (
+        <Section title="What to do next">
+          <ActionCard icon="↩️" title="Reopen this quote" description={`${first} declined it. If you have talked and they are happy to go ahead, reopen it so they can accept it from the same link.`}>
+            <form action={reopenQuote}>
+              <input type="hidden" name="id" value={d.id} />
+              <SubmitButton pendingLabel="Reopening…" className={btnOutline}>Reopen the quote</SubmitButton>
+            </form>
+          </ActionCard>
+        </Section>
+      )}
       {(d.status === "accepted" && isQuote) || waitingOnQuote || waitingOnPayment ? (
         <Section title="What to do next">
           {isQuote && d.status === "accepted" && depositOutstanding > 0 && (

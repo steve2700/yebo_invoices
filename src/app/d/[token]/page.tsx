@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @next/next/no-img-element */
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import QRCode from "qrcode";
@@ -8,7 +8,7 @@ import { formatRand } from "@/lib/money";
 import { formatDate, waLink } from "@/lib/dates";
 import { appUrl } from "@/lib/url";
 import { readableOn } from "@/lib/color";
-import { notifyDepositClaimed, notifyInvoiceClaimed, notifyQuoteAnswered } from "@/lib/notify-quote";
+import { notifyChangeRequested, notifyDepositClaimed, notifyQuoteAnswered } from "@/lib/notify-quote";
 import { depositCents } from "@/lib/deposit";
 import { OPTION_LABELS, linesForChoice, optionsPresent, subtotalFor, withVat, type OptionKey } from "@/lib/quote-options";
 import { BADGE_LABELS, parseReviews } from "@/lib/trust";
@@ -18,9 +18,9 @@ import AnswerBar, { DECLINE_REASONS } from "./AnswerBar";
 
 type Line = { description: string; quantity: number; unit_price_cents: number; line_total_cents: number; option_key?: string | null };
 
-export default async function PublicDocument({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ payment?: string }> }) {
+export default async function PublicDocument({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ payment?: string; undo?: string; proof?: string }> }) {
   const { token } = await params;
-  const { payment } = await searchParams;
+  const { payment, undo, proof } = await searchParams;
   const supabase = await createClient();
   const { data } = await supabase.rpc("get_public_document", { p_token: token });
   if (!data) notFound();
@@ -69,6 +69,13 @@ export default async function PublicDocument({ params, searchParams }: { params:
 
   async function answer(formData: FormData) {
     "use server";
+    if (formData.get("event") === "change") {
+      const sbc = await createClient();
+      const text = String(formData.get("message") ?? "").slice(0, 600);
+      const { data: sent } = await sbc.rpc("request_quote_change", { p_token: token, p_body: text });
+      if (sent) after(() => notifyChangeRequested(token, text));
+      redirect(`/d/${token}?undo=${sent ? "changed" : "failed"}`);
+    }
     const ev = formData.get("event") === "accepted" ? "accepted" : "declined";
     const sb = await createClient();
     if (ev === "accepted" && hasOptions) {
@@ -96,12 +103,12 @@ export default async function PublicDocument({ params, searchParams }: { params:
   const invoiceBalance = Math.max(Number(d.total_cents) - Number(data.paid_cents ?? 0), 0);
   const invoiceClaimed = unpaidInvoice && Boolean(data.deposit_claimed_at);
 
-  async function claimInvoice() {
+  async function reopen() {
     "use server";
     const sb = await createClient();
-    const { data: isNew } = await sb.rpc("claim_invoice_paid", { p_token: token });
-    if (isNew) after(() => notifyInvoiceClaimed(token));
+    const { data: ok } = await sb.rpc("reopen_declined_quote", { p_token: token });
     revalidatePath(`/d/${token}`);
+    redirect(`/d/${token}${ok ? "" : "?undo=late"}`);
   }
 
   const bar = "fixed inset-x-0 bottom-0 z-20 flex gap-3 border-t border-black/10 bg-white/95 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur md:static md:mt-6 md:border-0 md:bg-transparent md:p-0 md:pb-0";
@@ -148,6 +155,8 @@ export default async function PublicDocument({ params, searchParams }: { params:
           {d.status === "declined" && (
             <div className="mb-5 rounded-2xl bg-ink/5 p-3 text-center">
               <p className="font-bold">You declined this quote.</p>
+              {undo === "late" && <p role="status" className="mt-1 text-sm">This can no longer be undone here. Please message {b.name} instead.</p>}
+              <form action={reopen} className="mt-2"><button type="submit" className="inline-flex min-h-10 items-center rounded-full border border-ink/20 bg-white px-4 text-sm font-bold">Undo, I changed my mind</button></form>
               {b.phone && <a href={waLink(b.phone, `Hi, about quote ${d.number}: I would like to talk about changing it.`)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-10 items-center rounded-full bg-white px-4 text-sm font-bold">Changed your mind? Message {b.name}</a>}
             </div>
           )}
@@ -161,6 +170,8 @@ export default async function PublicDocument({ params, searchParams }: { params:
               )}
             </div>
           )}
+          {undo === "changed" && <p role="status" className="mb-5 rounded-2xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} has your message and will update the quote or get back to you.</p>}
+          {undo === "failed" && <p role="alert" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">We could not send that message. Please try again, or contact {b.name} directly.</p>}
           {expired && (
             <div className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">
               <p>This quote has expired. Please contact {b.name} for an updated one.</p>
@@ -336,11 +347,24 @@ export default async function PublicDocument({ params, searchParams }: { params:
               </dl>
               {unpaidInvoice && (
                 invoiceClaimed ? (
-                  <p role="status" className="mt-3 rounded-xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} has been told and will confirm once the money reaches their account.</p>
+                  <>
+                    <p role="status" className="mt-3 rounded-xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} has been told and will confirm once the money reaches their account.</p>
+                    <form method="post" action={`/d/${token}/proof`} encType="multipart/form-data" className="mt-3">
+                      <label className="block text-xs font-bold text-ink/55">Want to add your proof of payment?
+                        <input type="file" name="file" required accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-1 block w-full text-sm font-normal file:mr-3 file:min-h-10 file:rounded-xl file:border file:border-ink/15 file:bg-white file:px-3 file:font-bold" />
+                      </label>
+                      <button type="submit" className="mt-2 min-h-11 w-full rounded-2xl border border-black/15 px-4 text-sm font-bold">Send proof of payment</button>
+                      {proof === "bad" && <p role="alert" className="mt-2 rounded-xl bg-orange/15 p-2 text-center text-xs font-bold">That file could not be used. Send a photo or PDF under 5 MB.</p>}
+                    </form>
+                  </>
                 ) : (
-                  <form action={claimInvoice} className="mt-3">
-                    <button type="submit" className="min-h-12 w-full rounded-2xl border border-black/15 px-4 text-sm font-black active:scale-[.98]">I have paid by EFT</button>
+                  <form method="post" action={`/d/${token}/proof`} encType="multipart/form-data" className="mt-3">
+                    <label className="block text-xs font-bold text-ink/55">Attach your proof of payment (optional)
+                      <input type="file" name="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-1 block w-full text-sm font-normal file:mr-3 file:min-h-10 file:rounded-xl file:border file:border-ink/15 file:bg-white file:px-3 file:font-bold" />
+                    </label>
+                    <button type="submit" className="mt-3 min-h-12 w-full rounded-2xl border border-black/15 px-4 text-sm font-black active:scale-[.98]">I have paid by EFT</button>
                     <p className="mt-2 text-center text-xs text-ink/55">Tap this after you have paid, so {b.name} knows to look for it.</p>
+                    {proof === "bad" && <p role="alert" className="mt-2 rounded-xl bg-orange/15 p-2 text-center text-xs font-bold">That file could not be used. Send a photo or PDF under 5 MB.</p>}
                   </form>
                 )
               )}
