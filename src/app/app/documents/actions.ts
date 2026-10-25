@@ -10,6 +10,9 @@ import { isEmail, renderEmail, sendEmail } from "@/lib/email";
 import { checkDocumentAllowance } from "@/lib/subscription";
 import { depositCents } from "@/lib/deposit";
 import { sendPaymentReceipt } from "@/lib/receipt";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { DAY_MAX, DAY_MIN, firstRun } from "@/lib/recurring";
+import { southAfricaDate } from "@/lib/time";
 import { linesForChoice, lowestSubtotal, optionsPresent, subtotalFor, type OptionKey } from "@/lib/quote-options";
 
 type Sb = Awaited<ReturnType<typeof createClient>>;
@@ -318,4 +321,47 @@ export async function reopenQuote(fd: FormData) {
   revalidatePath(`/app/documents/${id}`);
   revalidatePath("/app");
   redirect(`/app/documents/${id}`);
+}
+
+
+// Repeat an invoice on the same day every month. Each time, a draft copy is made and the owner is emailed to review it.
+export async function startRecurring(fd: FormData) {
+  const id = String(fd.get("id"));
+  const day = Math.round(Number(fd.get("day")));
+  if (!/^[0-9a-f-]{36}$/i.test(id) || !Number.isFinite(day) || day < DAY_MIN || day > DAY_MAX) redirect(`/app/documents/${id}`);
+  const sb = await createClient();
+  const { data: d } = await sb.from("documents").select("id,business_id,type,status").eq("id", id).maybeSingle();
+  if (d?.type === "invoice" && d.status !== "draft") {
+    const { data: existing } = await sb.from("recurring_invoices").select("id").eq("source_document_id", id).eq("active", true).maybeSingle();
+    if (!existing) {
+      const { error } = await sb.from("recurring_invoices").insert({ business_id: d.business_id, source_document_id: id, day_of_month: day, next_run: firstRun(southAfricaDate(), day) });
+      if (error) console.error("[recurring] could not start:", error.message);
+    }
+  }
+  revalidatePath(`/app/documents/${id}`);
+  redirect(`/app/documents/${id}`);
+}
+
+export async function stopRecurring(fd: FormData) {
+  const id = String(fd.get("id"));
+  const docId = String(fd.get("document"));
+  if (!/^[0-9a-f-]{36}$/i.test(id)) redirect("/app/documents");
+  const sb = await createClient();
+  await sb.from("recurring_invoices").update({ active: false }).eq("id", id);
+  revalidatePath(`/app/documents/${docId}`);
+  redirect(`/app/documents/${docId}`);
+}
+
+export async function deletePhoto(fd: FormData) {
+  const id = String(fd.get("id"));
+  const docId = String(fd.get("document"));
+  if (!/^[0-9a-f-]{36}$/i.test(id) || !/^[0-9a-f-]{36}$/i.test(docId)) redirect("/app/documents");
+  const sb = await createClient();
+  const { data: row } = await sb.from("document_photos").select("path").eq("id", id).maybeSingle(); // only the owner sees it
+  if (row) {
+    await sb.from("document_photos").delete().eq("id", id);
+    try { await createAdminClient().storage.from("quote-photos").remove([row.path]); } catch (e) { console.error("[photos] could not remove the file:", e); }
+  }
+  revalidatePath(`/app/documents/${docId}`);
+  redirect(`/app/documents/${docId}#photos`);
 }

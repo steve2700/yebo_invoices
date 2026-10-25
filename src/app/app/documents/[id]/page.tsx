@@ -14,7 +14,8 @@ import CopyButton from "../CopyButton";
 import AiMessageComposer from "../AiMessageComposer";
 import SendEmailCard from "../SendEmailCard";
 import ConfirmForm from "../ConfirmForm";
-import { convertToInvoice, deleteDraft, duplicateDocument, markDepositReceived, markPaid, reopenQuote, sendDraft } from "../actions";
+import { convertToInvoice, deleteDraft, duplicateDocument, markDepositReceived, markPaid, reopenQuote, sendDraft, startRecurring, stopRecurring, deletePhoto } from "../actions";
+import { ordinal } from "@/lib/recurring";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const EVENT_LABELS: Record<string, string> = {
@@ -104,8 +105,9 @@ const btnPrimary = "inline-flex min-h-11 items-center justify-center rounded-xl 
 const btnDark = "inline-flex min-h-11 items-center justify-center rounded-xl bg-ink px-5 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-ink/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2";
 const btnOutline = "inline-flex min-h-11 items-center justify-center rounded-xl border-2 border-ink/15 px-4 py-2 text-sm font-bold text-ink transition hover:bg-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2";
 
-export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function DocumentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ photos?: string }> }) {
   const { id } = await params;
+  const { photos: photosFlag } = await searchParams;
   const sb = await createClient();
   const { data: d } = await sb.from("documents").select("*,clients(name,email,whatsapp_number)").eq("id", id).single();
   if (!d) notFound();
@@ -126,6 +128,20 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         if (signed?.signedUrl) proofLinks.set(m.id as string, signed.signedUrl);
       }
     } catch (error) { console.error("[proof links]", error); }
+  }
+  const [{ data: photoRows }, { data: recurring }] = await Promise.all([
+    sb.from("document_photos").select("id,path").eq("document_id", id).order("created_at"),
+    sb.from("recurring_invoices").select("id,day_of_month,next_run").eq("source_document_id", id).eq("active", true).maybeSingle(),
+  ]);
+  const photoUrls = new Map<string, string>();
+  if ((photoRows ?? []).length) {
+    try {
+      const admin = createAdminClient();
+      for (const ph of photoRows ?? []) {
+        const { data: signed } = await admin.storage.from("quote-photos").createSignedUrl(ph.path as string, 3600);
+        if (signed?.signedUrl) photoUrls.set(ph.id as string, signed.signedUrl);
+      }
+    } catch (error) { console.error("[photos] links", error); }
   }
   const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
   const ent = await entitlement(sb);
@@ -263,6 +279,69 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           <a href={`${link}?preview=1`} target="_blank" rel="noreferrer" className={btnOutline}>Open client view</a>
         </ActionCard>
       </Section>
+
+      {isQuote && ["draft", "sent", "viewed"].includes(d.status) && (
+        <section id="photos" className="mt-8" aria-label="Photos">
+          <h2 className="text-xs font-extrabold uppercase tracking-[0.16em] text-ink/50">Photos for {first}</h2>
+          <div className="mt-3 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-black/5">
+            <p className="text-ink/70">Add up to 6 photos, such as the site, the old unit or a sketch. {first} sees them on the quote page.</p>
+            {photosFlag === "ok" && <p role="status" className="mt-2 rounded-xl bg-lime p-2 font-bold">Photos added.</p>}
+            {photosFlag === "some" && <p role="status" className="mt-2 rounded-xl bg-orange/15 p-2 font-bold">Some photos were added. Others were too big, not photos, or over the limit of 6.</p>}
+            {photosFlag === "bad" && <p role="alert" className="mt-2 rounded-xl bg-orange/15 p-2 font-bold">Those files could not be used. Send JPG, PNG or WebP photos under 6 MB.</p>}
+            {photosFlag === "full" && <p role="alert" className="mt-2 rounded-xl bg-orange/15 p-2 font-bold">This quote already has 6 photos. Delete one first.</p>}
+            {(photoRows ?? []).length > 0 && (
+              <ul className="mt-3 grid grid-cols-3 gap-2">
+                {(photoRows ?? []).map((ph) => (
+                  <li key={ph.id as string} className="relative aspect-square overflow-hidden rounded-xl bg-ink/5">
+                    {photoUrls.get(ph.id as string) && /* eslint-disable-next-line @next/next/no-img-element */ <img src={photoUrls.get(ph.id as string)} alt="Quote photo" className="size-full object-cover" />}
+                    <form action={deletePhoto} className="absolute right-1 top-1">
+                      <input type="hidden" name="id" value={ph.id as string} /><input type="hidden" name="document" value={d.id} />
+                      <button type="submit" aria-label="Delete this photo" className="grid size-8 place-items-center rounded-full bg-white/90 text-sm font-black shadow">✕</button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {(photoRows ?? []).length < 6 && (
+              <form method="post" action={`/api/documents/${d.id}/photos`} encType="multipart/form-data" className="mt-3">
+                <input type="file" name="photos" multiple required accept="image/jpeg,image/png,image/webp" className="block w-full text-sm file:mr-3 file:min-h-10 file:rounded-xl file:border file:border-ink/15 file:bg-white file:px-3 file:font-bold" />
+                <button type="submit" className={`${btnOutline} mt-3`}>Add photos</button>
+              </form>
+            )}
+          </div>
+        </section>
+      )}
+
+      {!isQuote && !isDraft && (
+        <section className="mt-8" aria-label="Repeat this invoice">
+          <h2 className="text-xs font-extrabold uppercase tracking-[0.16em] text-ink/50">Repeat this invoice</h2>
+          <div className="mt-3 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-black/5">
+            {recurring ? (
+              <>
+                <p className="font-bold">Repeats on the {ordinal(Number(recurring.day_of_month))} of every month. Next: {formatDate(String(recurring.next_run))}.</p>
+                <p className="mt-1 text-ink/70">On that day Yebo makes a draft copy and emails you to check and send it. Nothing goes to {first} without your tap.</p>
+                <form action={stopRecurring} className="mt-3">
+                  <input type="hidden" name="id" value={recurring.id as string} /><input type="hidden" name="document" value={d.id} />
+                  <SubmitButton pendingLabel="Stopping…" className={btnOutline}>Stop repeating</SubmitButton>
+                </form>
+              </>
+            ) : (
+              <>
+                <p className="text-ink/70">Bill {first} the same amount every month, for example a retainer or a service contract. Yebo makes a draft copy each month and emails you to check and send it.</p>
+                <form action={startRecurring} className="mt-3 flex flex-wrap items-end gap-3">
+                  <input type="hidden" name="id" value={d.id} />
+                  <label className="text-xs font-bold text-ink/60">Day of the month
+                    <select name="day" defaultValue="25" className="mt-1 block min-h-11 rounded-xl border border-ink/20 bg-white px-3 text-base font-normal">
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{ordinal(n)}</option>)}
+                    </select>
+                  </label>
+                  <SubmitButton pendingLabel="Saving…" className={btnOutline}>Repeat every month</SubmitButton>
+                </form>
+              </>
+            )}
+          </div>
+        </section>
+      )}
 
       {(messages ?? []).length > 0 && (
         <section className="mt-8" aria-label="Messages from your client">

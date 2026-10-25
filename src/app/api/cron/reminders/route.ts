@@ -6,6 +6,7 @@ import { greetingName } from "@/lib/names";
 import { isEmail, renderEmail, sendEmail } from "@/lib/email";
 import { billingEnforced, hasAccess, planOf } from "@/lib/access";
 import { PLANS } from "@/lib/plans";
+import { runRecurring } from "@/lib/recurring-run";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -190,5 +191,7 @@ export async function GET(request: Request) {
     expiry.sent++;
   }
 
-  return Response.json({ ...result, expiry });
+  // Repeating invoices ride on this same daily run, so no extra scheduled job is needed.
+  const recurring = await runRecurring().catch((e) => { console.error("[recurring] failed:", e); return null; });
+  return Response.json({ ...result, expiry, recurring });
 }

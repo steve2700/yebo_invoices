@@ -13,6 +13,7 @@ import { notifyChangeRequested, notifyDepositClaimed, notifyPromise, notifyQuote
 import { depositCents } from "@/lib/deposit";
 import { OPTION_LABELS, linesForChoice, optionsPresent, subtotalFor, withVat, type OptionKey } from "@/lib/quote-options";
 import { BADGE_LABELS, parseReviews } from "@/lib/trust";
+import { createAdminClient } from "@/lib/supabase/admin";
 import ViewBeacon from "./ViewBeacon";
 import CopyButton from "./CopyButton";
 import AnswerBar, { DECLINE_REASONS } from "./AnswerBar";
@@ -42,6 +43,16 @@ export default async function PublicDocument({ params, searchParams }: { params:
   const hasBank = b.bank_account_holder && b.bank_account_number && b.bank_branch_code;
   const showBank = hasBank && (!isQuote || d.status === "accepted");
   const canPayOnline = unpaidInvoice && Boolean(b.online_payments);
+  // Photos the business attached. The token has already been checked above, so short-lived links are safe to make.
+  const photoLinks: string[] = [];
+  try {
+    const admin = createAdminClient();
+    const { data: photos } = await admin.from("document_photos").select("path").eq("document_id", d.id).order("created_at");
+    for (const ph of photos ?? []) {
+      const { data: signed } = await admin.storage.from("quote-photos").createSignedUrl(ph.path as string, 3600);
+      if (signed?.signedUrl) photoLinks.push(signed.signedUrl);
+    }
+  } catch { /* photos are optional: the page works without them */ }
   const allLines = lines as Line[];
   const shownLines = hasOptions && chosen ? linesForChoice(allLines, chosen) : allLines;
   const showOptionCards = hasOptions && !chosen;
@@ -209,6 +220,18 @@ export default async function PublicDocument({ params, searchParams }: { params:
                 {d.location && <Row k="Where" v={d.location} />}
                 {(d.job_date || d.job_date_tbd) && <Row k="When" v={d.job_date_tbd ? "To be agreed" : formatDate(d.job_date)} />}
               </dl>
+            </section>
+          )}
+          {photoLinks.length > 0 && (
+            <section className="mt-5" aria-label="Photos">
+              <h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">Photos</h2>
+              <ul className="mt-2 grid grid-cols-3 gap-2">
+                {photoLinks.map((url) => (
+                  <li key={url} className="aspect-square overflow-hidden rounded-xl bg-ink/5">
+                    <a href={url} target="_blank" rel="noopener noreferrer"><img src={url} alt={`Photo from ${b.name}`} loading="lazy" className="size-full object-cover" /></a>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
           {d.note && <p className="mt-4 border-l-4 pl-4 text-sm leading-relaxed text-ink/80" style={{ borderColor: color }}>{d.note}</p>}
