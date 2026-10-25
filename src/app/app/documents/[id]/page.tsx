@@ -29,6 +29,7 @@ const EVENT_LABELS: Record<string, string> = {
   expiry_reminder: "Expiry reminder emailed to client",
   change_requested: "Client asked for a change",
   reopened: "Quote reopened",
+  promise_to_pay: "Client promised a payment date",
 };
 
 type StepState = "done" | "current" | "todo" | "bad";
@@ -147,6 +148,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const waitingOnPayment = !isQuote && !isDraft && d.status !== "paid" && balanceDue > 0;
   const views = (events ?? []).filter((event) => event.type === "viewed");
   const viewsText = views.length ? `Opened ${views.length} time${views.length === 1 ? "" : "s"} · last ${formatSouthAfricaDateTime(views[0].created_at)}` : null;
+  const promisedUntil = !isQuote ? ((messages ?? []).find((m) => m.kind === "promise" && String(m.body) >= today)?.body as string | undefined) ?? null : null;
   const invoiceClaimed = !isQuote && !isDraft && d.status !== "paid" && balanceDue > 0 && (events ?? []).some((event) => event.type === "deposit_claimed");
   const lastEmailed = (events ?? []).find((event) => event.type === "emailed");
   // Deposit on an accepted quote: what is due, what has arrived, and whether the client says they have paid.
@@ -183,6 +185,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   else if (d.status === "sent") next = { tone: "wait", title: `Waiting for ${first} to open it`, text: "You will see it here the moment they do. If you have not heard anything in a day or two, send a gentle follow-up." };
   else if (d.status === "viewed" && isQuote) next = { tone: "wait", title: `${first} has opened your quote`, text: "They are looking at it. If you have not heard back in a couple of days, a friendly follow-up helps." };
   else if (invoiceClaimed) next = { tone: "go", title: `${first} says they have paid`, text: `Check your bank for ${formatRand(balanceDue)} with the reference ${d.number}. When it has arrived, record the payment below. Bank transfers can take a day to show.` };
+  else if (promisedUntil) next = { tone: "wait", title: `${first} promised to pay by ${formatDate(promisedUntil)}`, text: "Automatic reminders are paused until that day. If the money has not arrived by then, a friendly message is the next step." };
   else next = { tone: "wait", title: `Waiting for ${first} to pay`, text: `${formatRand(balanceDue)} is still due. Clients can pay online, or by EFT with your reference ${d.number}. A friendly reminder helps if it goes quiet.` };
 
   const toneClasses = {
@@ -268,10 +271,12 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
             {(messages ?? []).map((m) => (
               <li key={m.id as string} className="p-3">
                 <div className="flex justify-between gap-3">
-                  <span className="font-bold">{m.kind === "proof" ? "Proof of payment" : "Change request"}</span>
+                  <span className="font-bold">{m.kind === "proof" ? "Proof of payment" : m.kind === "promise" ? "Promise to pay" : m.kind === "signature" ? "Signature" : "Change request"}</span>
                   <span className="shrink-0 text-ink/50">{formatSouthAfricaDateTime(m.created_at as string)}</span>
                 </div>
                 {m.kind === "change_request" && <p className="mt-1 whitespace-pre-line leading-relaxed text-ink/80">{m.body}</p>}
+                {m.kind === "promise" && <p className="mt-1 text-ink/80">Will pay by <b>{formatDate(String(m.body))}</b></p>}
+                {m.kind === "signature" && <p className="mt-1 text-ink/80">Accepted and signed by <b>{m.body}</b></p>}
                 {m.kind === "proof" && (proofLinks.get(m.id as string)
                   ? <a href={proofLinks.get(m.id as string)} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block font-bold text-yebo underline underline-offset-2">Open the file (link works for 1 hour)</a>
                   : <p className="mt-1 text-ink/55">The file could not be opened right now.</p>)}

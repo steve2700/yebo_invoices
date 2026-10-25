@@ -7,7 +7,7 @@ import { appUrl } from "./url";
 import { OPTION_LABELS, linesForChoice, optionsPresent, subtotalFor, withVat } from "./quote-options";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-type Pub = { document: any; lines: any[]; business: any; client: any };
+type Pub = { document: any; lines: any[]; business: any; client: any; signature?: { name: string; at: string } | null };
 
 // Standard PDF fonts only support Latin-1. Instead of turning every other character into "?",
 // swap common typographic characters (curly quotes, dashes, ellipsis) for plain equivalents,
@@ -111,7 +111,7 @@ function drawYeboPromo(pdf: PDFDocument, page: PDFPage, font: PDFFont, bold: PDF
   page.node.addAnnot(annot);
 }
 
-async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub, link: string): Promise<Uint8Array> {
+async function buildQuotePdf({ document: d, lines, business: b, client: c, signature }: Pub, link: string): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -358,12 +358,21 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c }: Pub
     y -= 8;
   }
 
+  if (d.status === "accepted" && signature?.name) {
+    need(44);
+    put("ACCEPTED BY", M, 8, bold, brand);
+    y -= 14;
+    const when = new Date(signature.at).toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    paragraph(`${signature.name}, ${when}`, 9, font, ink, summaryWidth, 12);
+    y -= 8;
+  }
+
   drawYeboPromo(pdf, page, font, bold, "quote");
   return pdf.save();
 }
 
-export async function buildDocumentPdf({ document: d, lines, business: b, client: c }: Pub, link: string): Promise<Uint8Array> {
-  if (d.type === "quote") return buildQuotePdf({ document: d, lines, business: b, client: c }, link);
+export async function buildDocumentPdf({ document: d, lines, business: b, client: c, signature }: Pub, link: string): Promise<Uint8Array> {
+  if (d.type === "quote") return buildQuotePdf({ document: d, lines, business: b, client: c, signature }, link);
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);

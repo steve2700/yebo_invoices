@@ -6,9 +6,10 @@ import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/server";
 import { formatRand } from "@/lib/money";
 import { formatDate, waLink } from "@/lib/dates";
+import { formatSouthAfricaDateTime } from "@/lib/time";
 import { appUrl } from "@/lib/url";
 import { readableOn } from "@/lib/color";
-import { notifyChangeRequested, notifyDepositClaimed, notifyQuoteAnswered } from "@/lib/notify-quote";
+import { notifyChangeRequested, notifyDepositClaimed, notifyPromise, notifyQuoteAnswered } from "@/lib/notify-quote";
 import { depositCents } from "@/lib/deposit";
 import { OPTION_LABELS, linesForChoice, optionsPresent, subtotalFor, withVat, type OptionKey } from "@/lib/quote-options";
 import { BADGE_LABELS, parseReviews } from "@/lib/trust";
@@ -18,15 +19,16 @@ import AnswerBar, { DECLINE_REASONS } from "./AnswerBar";
 
 type Line = { description: string; quantity: number; unit_price_cents: number; line_total_cents: number; option_key?: string | null };
 
-export default async function PublicDocument({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ payment?: string; undo?: string; proof?: string }> }) {
+export default async function PublicDocument({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ payment?: string; undo?: string; proof?: string; until?: string }> }) {
   const { token } = await params;
-  const { payment, undo, proof } = await searchParams;
+  const { payment, undo, proof, until } = await searchParams;
   const supabase = await createClient();
   const { data } = await supabase.rpc("get_public_document", { p_token: token });
   if (!data) notFound();
 
   const { document: d, lines, business: b, client: c } = data as any;
   const isQuote = d.type === "quote";
+  const { data: signature } = isQuote && d.status === "accepted" ? await supabase.rpc("get_quote_signature", { p_token: token }) : { data: null };
   const color: string = /^#[0-9a-f]{6}$/i.test(b.brand_color) ? b.brand_color : "#0F8A5F";
   const fg = readableOn(color);
   // "Today" in South Africa, so a quote does not expire a couple of hours early or late.
@@ -78,6 +80,11 @@ export default async function PublicDocument({ params, searchParams }: { params:
     }
     const ev = formData.get("event") === "accepted" ? "accepted" : "declined";
     const sb = await createClient();
+    if (ev === "accepted") {
+      // Accepting needs the client's typed name. Without it nothing is accepted.
+      const { data: signed } = await sb.rpc("sign_quote", { p_token: token, p_name: String(formData.get("signature") ?? "") });
+      if (!signed) redirect(`/d/${token}?undo=sign`);
+    }
     if (ev === "accepted" && hasOptions) {
       // The chosen option fixes the quote's total on the server. If that fails, nothing is accepted.
       const { error: chooseError } = await sb.rpc("choose_quote_option", { p_token: token, p_option: String(formData.get("option") ?? "") });
@@ -102,6 +109,15 @@ export default async function PublicDocument({ params, searchParams }: { params:
 
   const invoiceBalance = Math.max(Number(d.total_cents) - Number(data.paid_cents ?? 0), 0);
   const invoiceClaimed = unpaidInvoice && Boolean(data.deposit_claimed_at);
+
+  async function promise(formData: FormData) {
+    "use server";
+    const date = String(formData.get("date") ?? "");
+    const sb = await createClient();
+    const { data: ok } = /^\d{4}-\d{2}-\d{2}$/.test(date) ? await sb.rpc("promise_to_pay", { p_token: token, p_date: date }) : { data: false };
+    if (ok) after(() => notifyPromise(token, date));
+    redirect(`/d/${token}?undo=${ok ? "promised" : "nodate"}${ok ? `&until=${date}` : ""}`);
+  }
 
   async function reopen() {
     "use server";
@@ -149,6 +165,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
           {d.status === "accepted" && (
             <div className="mb-5 rounded-2xl bg-lime p-3 text-center">
               <p className="font-black">Yebo! Quote accepted. Thank you.</p>
+              {signature?.name && <p className="mt-1 text-sm">Signed by <b>{signature.name}</b> on {formatSouthAfricaDateTime(signature.at)}</p>}
               <p className="mt-1 text-sm font-semibold">{b.name} has been told{depositOutstanding > 0 ? ". Pay the deposit below to confirm your booking." : " and will be in touch about the next steps."}</p>
             </div>
           )}
@@ -170,6 +187,9 @@ export default async function PublicDocument({ params, searchParams }: { params:
               )}
             </div>
           )}
+          {undo === "sign" && <p role="alert" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">Please type your full name to accept the quote.</p>}
+          {undo === "promised" && until && /^\d{4}-\d{2}-\d{2}$/.test(until) && <p role="status" className="mb-5 rounded-2xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} knows you will pay by {formatDate(until)}.</p>}
+          {undo === "nodate" && <p role="alert" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">Please pick a date between tomorrow and 30 days from now.</p>}
           {undo === "changed" && <p role="status" className="mb-5 rounded-2xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} has your message and will update the quote or get back to you.</p>}
           {undo === "failed" && <p role="alert" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">We could not send that message. Please try again, or contact {b.name} directly.</p>}
           {expired && (
@@ -336,6 +356,22 @@ export default async function PublicDocument({ params, searchParams }: { params:
               <p className="mt-3 text-[11px] text-ink/40">Details provided by {b.name}.</p>
             </section>
           )}
+
+          {unpaidInvoice && !invoiceClaimed && (() => {
+            const plus = (n: number) => { const [y, m, dd] = today.split("-").map(Number); return new Date(Date.UTC(y, m - 1, dd + n)).toISOString().slice(0, 10); };
+            return (
+              <details className="mt-5 rounded-2xl border border-ink/10 p-4 text-sm">
+                <summary className="cursor-pointer font-bold">Cannot pay today?</summary>
+                <form action={promise} className="mt-3">
+                  <label className="block text-xs font-bold text-ink/60">Tell {b.name} the day you will pay
+                    <input type="date" name="date" required min={plus(1)} max={plus(30)} defaultValue={plus(7)} className="mt-1 block min-h-12 w-full rounded-xl border border-ink/20 px-3 text-base font-normal" />
+                  </label>
+                  <button type="submit" className="mt-3 min-h-12 w-full rounded-2xl border border-black/15 px-4 text-sm font-black active:scale-[.98]">I will pay on this day</button>
+                  <p className="mt-2 text-center text-xs text-ink/55">{b.name} will not send reminders before then.</p>
+                </form>
+              </details>
+            );
+          })()}
 
           {showBank && !depositActive && (
             <section id="pay" className="mt-5 rounded-2xl border border-ink/10 p-4 text-sm">

@@ -57,6 +57,11 @@ export async function notifyQuoteAnswered(token: string, answer: "accepted" | "d
           ? "Full payment upfront"
           : "Payment after the job";
 
+    let signedBy: string | null = null;
+    if (answer === "accepted") {
+      const { data: sig } = await admin.from("document_messages").select("body").eq("document_id", document.id).eq("kind", "signature").order("created_at", { ascending: false }).limit(1).maybeSingle();
+      signedBy = typeof sig?.body === "string" ? sig.body : null;
+    }
     if (answer === "accepted") {
       await sendEmail({
         to: ownerEmail,
@@ -72,6 +77,7 @@ export async function notifyQuoteAnswered(token: string, answer: "accepted" | "d
             ["Quote", document.number],
             ["Total", total],
             ["Payment terms", paymentSummary],
+            ...(signedBy ? ([["Signed by", signedBy]] as [string, string][]) : []),
           ],
           buttonLabel: "Create the invoice",
           buttonUrl: documentLink,
@@ -276,5 +282,52 @@ export async function notifyChangeRequested(token: string, message: string): Pro
     });
   } catch (error) {
     console.error("[change-request] could not notify the owner:", error);
+  }
+}
+
+
+// Tells the owner by email that the client promised to pay an invoice on a date.
+export async function notifyPromise(token: string, date: string): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const { data: document } = await admin
+      .from("documents")
+      .select("id,number,type,total_cents,business_id,client_id")
+      .eq("public_token", token)
+      .maybeSingle();
+    if (!document || document.type !== "invoice") return;
+    const [{ data: business }, { data: client }] = await Promise.all([
+      admin.from("businesses").select("name,email,brand_color,owner_id").eq("id", document.business_id).maybeSingle(),
+      admin.from("clients").select("name,whatsapp_number").eq("id", document.client_id).maybeSingle(),
+    ]);
+    if (!business) return;
+    let ownerEmail: string | null = isEmail(business.email) ? business.email.trim() : null;
+    if (!ownerEmail && business.owner_id) {
+      const { data: owner } = await admin.auth.admin.getUserById(business.owner_id);
+      ownerEmail = isEmail(owner?.user?.email) ? owner.user.email.trim() : null;
+    }
+    if (!ownerEmail) return;
+    const clientName = client?.name ?? "Your client";
+    const firstName = greetingName(client?.name);
+    const when = new Date(`${date}T00:00:00`).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
+    await sendEmail({
+      to: ownerEmail,
+      fromName: "Yebo Invoices",
+      idempotencyKey: `promise/${document.id}/${date}`,
+      subject: `${clientName} promised to pay by ${when}`,
+      html: renderEmail({
+        brandColor: business.brand_color,
+        heading: `${clientName} promised to pay`,
+        intro: `${clientName} said they will pay invoice ${document.number} by ${when}. Automatic reminders for this invoice are paused until then.`,
+        rows: [["Client", clientName], ["Invoice", document.number], ["Total", formatRand(Number(document.total_cents))], ["Promised date", when]],
+        buttonLabel: "Open the invoice",
+        buttonUrl: `${appUrl()}/app/documents/${document.id}`,
+        secondaryButtonLabel: `Message ${firstName} on WhatsApp`,
+        secondaryButtonUrl: waLink(client?.whatsapp_number ?? null, `Hi ${firstName}, thanks for letting me know. I will look out for the payment for invoice ${document.number} on ${when}.`),
+        footer: null,
+      }),
+    });
+  } catch (error) {
+    console.error("[promise] could not notify the owner:", error);
   }
 }

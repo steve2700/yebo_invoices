@@ -9,6 +9,7 @@ import { appUrl } from "@/lib/url";
 import { isEmail, renderEmail, sendEmail } from "@/lib/email";
 import { checkDocumentAllowance } from "@/lib/subscription";
 import { depositCents } from "@/lib/deposit";
+import { sendPaymentReceipt } from "@/lib/receipt";
 import { linesForChoice, lowestSubtotal, optionsPresent, subtotalFor, type OptionKey } from "@/lib/quote-options";
 
 type Sb = Awaited<ReturnType<typeof createClient>>;
@@ -139,11 +140,12 @@ export async function markPaid(fd: FormData) {
     if (due > 0) {
       // The payment is the money record. If it fails we stop here and never flip the status,
       // otherwise the invoice would show as paid with no payment behind it.
-      const { error: payError } = await sb.from("payments").insert({ document_id: id, amount_cents: due, method });
+      const { data: payRow, error: payError } = await sb.from("payments").insert({ document_id: id, amount_cents: due, method }).select("id").single();
       if (payError) throw new Error(`Could not record the payment: ${payError.message}`);
       const { error: statusError } = await sb.from("documents").update({ status: "paid" }).eq("id", id);
       if (statusError) throw new Error(`Payment saved but the status update failed: ${statusError.message}`);
       await logEvent(sb, id, "paid");
+      await sendPaymentReceipt(id, due, method, String(payRow?.id ?? Date.now()));
     }
   }
   redirect(`/app/documents/${id}`);
@@ -212,9 +214,10 @@ export async function markDepositReceived(fd: FormData) {
     const { data: pays } = await sb.from("payments").select("amount_cents").eq("document_id", id);
     const due = depositCents(doc) - (pays ?? []).reduce((a, p) => a + Number(p.amount_cents), 0);
     if (due > 0) {
-      const { error } = await sb.from("payments").insert({ document_id: id, amount_cents: due, method });
+      const { data: payRow, error } = await sb.from("payments").insert({ document_id: id, amount_cents: due, method }).select("id").single();
       if (error) throw new Error(`Could not record the deposit: ${error.message}`);
       await logEvent(sb, id, "paid");
+      await sendPaymentReceipt(id, due, method, String(payRow?.id ?? Date.now()));
     }
   }
   revalidatePath(`/app/documents/${id}`);

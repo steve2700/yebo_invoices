@@ -53,9 +53,12 @@ export default function AnswerBar({ action, color, fg, total, businessName, askH
               <>
                 <p className="text-xl font-black">Accept this quote?</p>
                 <p className="mt-2 text-sm leading-relaxed text-ink/70">
-                  You are saying yes to <b>{total}</b>{option && optionLabels[option] ? <> ({optionLabels[option]} option)</> : null}. {businessName} will be told straight away and will contact you about the next steps.
+                  You are saying yes to <b>{total}</b>{option && optionLabels[option] ? <> ({optionLabels[option]} option)</> : null}. Your name and the time are saved as your signature. {businessName} will be told straight away and will contact you about the next steps.
                 </p>
                 <input type="hidden" name="option" value={option} />
+                <label className="mt-4 block text-xs font-bold text-ink/60">Type your full name to sign
+                  <input name="signature" required minLength={2} maxLength={80} autoComplete="name" placeholder="Your full name" className="mt-1 w-full rounded-xl border border-ink/20 p-3 text-base font-normal outline-none focus:border-ink/50" />
+                </label>
                 <div className="mt-5 flex flex-col gap-2">
                   <Submit name="event" value="accepted" className="min-h-12 rounded-2xl px-4 text-base font-black active:scale-[.98]" style={{ background: color, color: fg }}>Yes, accept</Submit>
                   <button type="button" onClick={() => setOpen(null)} className="min-h-11 rounded-2xl px-4 text-sm font-bold text-ink/70">Go back</button>

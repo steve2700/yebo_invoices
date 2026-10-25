@@ -72,6 +72,13 @@ export async function GET(request: Request) {
     const business = await businessFor(doc.business_id);
     if (!business?.auto_reminders || !(await planAllows(doc.business_id))) { result.skipped++; continue; }
 
+    // A client who promised a date is left alone until that day has passed.
+    if (doc.type === "invoice") {
+      const todaySa = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
+      const { data: promise } = await admin.from("document_messages").select("body").eq("document_id", doc.id).eq("kind", "promise").order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (promise?.body && String(promise.body) >= todaySa) { result.skipped++; continue; }
+    }
+
     const { data: client } = await admin.from("clients").select("name,email").eq("id", doc.client_id).maybeSingle();
     if (!isEmail(client?.email)) { result.skipped++; continue; }
 

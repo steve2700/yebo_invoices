@@ -8,7 +8,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   const sb = await createClient();
   const { data } = await sb.rpc("get_public_document", { p_token: token });
   if (!data) return new Response("Not found", { status: 404 });
-  const bytes = await buildDocumentPdf(data, `${appUrl()}/d/${token}`);
+  const { data: signature } = data.document?.type === "quote" && data.document?.status === "accepted" ? await sb.rpc("get_quote_signature", { p_token: token }) : { data: null };
+  const bytes = await buildDocumentPdf({ ...data, signature }, `${appUrl()}/d/${token}`);
   return new Response(bytes as unknown as BodyInit, {
     headers: {
       "Content-Type": "application/pdf",
