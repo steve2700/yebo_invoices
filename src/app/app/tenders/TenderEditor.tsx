@@ -8,7 +8,7 @@ import type { TenderInfo } from "@/lib/tender-docs";
 import { toNumber } from "@/lib/boq-grid";
 import {
   TENDER_CATEGORIES, STATUS_LABEL, centsToInput, closingInfo, formatQty, isCompliant, lineFlags, lineTotalCents, lockMessage,
-  normaliseDescription, parseRandToCents, randWithCents, summarise, tenderTotals, type TenderLine, type TenderStatus, type VaultCheck,
+  normaliseDescription, parseRandToCents, randWithCents, summarise, tenderTotals, type TenderLine, type TenderStatus, type VaultCheck, VAULT_SOURCES,
 } from "@/lib/tenders";
 import { formatSouthAfricaDateTime } from "@/lib/time";
 
@@ -149,7 +149,13 @@ function VaultPanel({ checks, onSend, canSend, sending }: { checks: VaultCheck[]
         {checks.map((c) => (
           <li key={c.key} className="flex items-start gap-3 text-sm">
             <span aria-hidden="true" className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-[11px] font-black ${c.ok ? "bg-yebo text-white" : "bg-orange text-white"}`}>{c.ok ? "✓" : "✕"}</span>
-            <span><strong className="font-extrabold text-ink">{c.label}:</strong> <span className={c.ok ? "text-ink/70" : "font-semibold text-ink"}>{c.detail}</span></span>
+            <span>
+              <strong className="font-extrabold text-ink">{c.label}:</strong> <span className={c.ok ? "text-ink/70" : "font-semibold text-ink"}>{c.detail}</span>
+              {c.soon && <span className="ml-2 rounded-md bg-orange/15 px-1.5 py-0.5 text-xs font-bold text-ink">Expires in {c.daysLeft} day{c.daysLeft === 1 ? "" : "s"}. Renew it now</span>}
+              {(!c.ok || c.soon) && (
+                <span className="mt-0.5 block text-xs text-ink/60">Get it from <a href={VAULT_SOURCES[c.key].url} target="_blank" rel="noopener noreferrer" className="font-semibold text-yebo underline underline-offset-2">{VAULT_SOURCES[c.key].name}</a>. {VAULT_SOURCES[c.key].how}</span>
+              )}
+            </span>
           </li>
         ))}
       </ul>
@@ -377,7 +383,7 @@ export default function TenderEditor({ tender, initialLines, checks, pastRates, 
           Yebo opened this draft because it matches your trades. Tap "Read the documents for me" below, then add your rates and check every line.
         </div>
       )}
-      {info && <SubmissionCard info={info} />}
+      {info && <SubmissionCard info={info} checks={checks} />}
       {docLinks.length > 0 && (
         <section className="mt-4 rounded-2xl border border-ink/10 bg-white p-4 shadow-sm" aria-label="Tender documents">
           <p className="text-xs font-extrabold uppercase tracking-[.14em] text-ink/50">Tender documents</p>

@@ -158,6 +158,21 @@ export type VaultCheck = {
   detail: string; // e.g. "Supplier number: MAAA0492810" or "EXPIRED on 12 Oct 2026"
   fix: string; // what the user must do
   hasFile: boolean;
+  expiry: string | null;
+  /** Whole days from today to the expiry, or null when there is no expiry date. */
+  daysLeft: number | null;
+  /** Still valid, but lapses within SOON_DAYS. */
+  soon: boolean;
+};
+
+export const SOON_DAYS = 14;
+
+// Where the owner gets each document. These are the official sites; the owner logs in with their own details.
+export const VAULT_SOURCES: Record<VaultCheck["key"], { name: string; url: string; how: string }> = {
+  csd: { name: "National Treasury CSD", url: "https://secure.csd.gov.za", how: "Log in, open your supplier profile and download the summary report." },
+  sars: { name: "SARS eFiling", url: "https://www.sarsefiling.co.za", how: "Log in, request your Tax Compliance Status and keep the PIN and the PDF." },
+  bbbee: { name: "DTIC (affidavit template)", url: "https://www.thedtic.gov.za", how: "Small businesses sign the B-BBEE affidavit in front of a commissioner of oaths." },
+  coida: { name: "Compensation Fund (CompEasy)", url: "https://compeasy.labour.gov.za", how: "Log in and request your Letter of Good Standing." },
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -174,17 +189,23 @@ function expiryCheck(expiry: string | null, today: string, closingDay: string | 
   return { ok: true, detail: `Valid until ${prettyDate(expiry)}` };
 }
 
+function daysBetween(from: string, to: string) {
+  const a = from.split("-").map(Number), b = to.split("-").map(Number);
+  return Math.round((Date.UTC(b[0], b[1] - 1, b[2]) - Date.UTC(a[0], a[1] - 1, a[2])) / 86_400_000);
+}
+
 export const CSD_PATTERN = /^MAAA\d{7}$/;
 
 export function vaultChecks(vault: Vault | null, today: string, closingDay: string | null = null): VaultCheck[] {
   const v = vault;
+  const daysTo = (e: string | null) => (e ? daysBetween(today, e) : null);
   const csdNumber = (v?.csd_number ?? "").trim().toUpperCase();
   const csdOk = CSD_PATTERN.test(csdNumber);
   const sars = expiryCheck(v?.sars_expiry ?? null, today, closingDay);
   const sarsHasPin = Boolean((v?.sars_pin ?? "").trim());
   const bbbee = expiryCheck(v?.bbbee_expiry ?? null, today, closingDay);
   const coida = expiryCheck(v?.coida_expiry ?? null, today, closingDay);
-  return [
+  const checks: VaultCheck[] = [
     {
       key: "csd",
       label: "CSD Summary",
@@ -192,6 +213,9 @@ export function vaultChecks(vault: Vault | null, today: string, closingDay: stri
       detail: csdOk ? `Supplier number: ${csdNumber}${v?.csd_path ? "" : " (no file attached)"}` : csdNumber ? "Supplier number does not look right (MAAA + 7 digits)" : "No supplier number saved",
       fix: csdOk ? "Attach your CSD summary report" : "Add your CSD supplier number and summary report",
       hasFile: Boolean(v?.csd_path),
+      expiry: null,
+      daysLeft: null,
+      soon: false,
     },
     {
       key: "sars",
@@ -200,6 +224,9 @@ export function vaultChecks(vault: Vault | null, today: string, closingDay: stri
       detail: !sarsHasPin ? "No compliance PIN saved" : sars.ok ? `PIN ${v?.sars_pin?.trim()} · ${sars.detail}${v?.sars_path ? "" : " (no file attached)"}` : `PIN ${v?.sars_pin?.trim()}: ${sars.detail}`,
       fix: "Update your SARS Tax Compliance Status in the vault",
       hasFile: Boolean(v?.sars_path),
+      expiry: v?.sars_expiry ?? null,
+      daysLeft: daysTo(v?.sars_expiry ?? null),
+      soon: false,
     },
     {
       key: "bbbee",
@@ -208,6 +235,9 @@ export function vaultChecks(vault: Vault | null, today: string, closingDay: stri
       detail: bbbee.ok ? `${v?.bbbee_level ? `Level ${v.bbbee_level}` : "Level not set"} · ${bbbee.detail}${v?.bbbee_path ? "" : " (no file attached)"}` : bbbee.detail,
       fix: "Update your B-BBEE affidavit in the vault",
       hasFile: Boolean(v?.bbbee_path),
+      expiry: v?.bbbee_expiry ?? null,
+      daysLeft: daysTo(v?.bbbee_expiry ?? null),
+      soon: false,
     },
     {
       key: "coida",
@@ -216,8 +246,12 @@ export function vaultChecks(vault: Vault | null, today: string, closingDay: stri
       detail: coida.ok ? `${coida.detail}${v?.coida_path ? "" : " (no file attached)"}` : coida.detail,
       fix: "Update your COIDA Letter of Good Standing in the vault",
       hasFile: Boolean(v?.coida_path),
+      expiry: v?.coida_expiry ?? null,
+      daysLeft: daysTo(v?.coida_expiry ?? null),
+      soon: false,
     },
   ];
+  return checks.map((c) => ({ ...c, soon: c.ok && c.daysLeft != null && c.daysLeft <= SOON_DAYS }));
 }
 
 export const isCompliant = (checks: VaultCheck[]) => checks.every((c) => c.ok);

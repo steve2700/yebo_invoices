@@ -1,11 +1,20 @@
 import type { TenderInfo } from "@/lib/tender-docs";
+import type { VaultCheck } from "@/lib/tenders";
+
+// Which vault document answers which line of the tender's "return with your bid" list.
+const VAULT_KEY: [RegExp, VaultCheck["key"]][] = [
+  [/^CSD/i, "csd"],
+  [/tax compliance/i, "sars"],
+  [/B-BBEE/i, "bbbee"],
+  [/COIDA/i, "coida"],
+];
 
 const row = "flex justify-between gap-4 py-1.5 text-sm";
 const dt = "shrink-0 text-ink/60";
 const dd = "min-w-0 break-words text-right font-bold text-ink";
 
 // What Yebo read from the tender documents, so the owner can see how to submit without opening them.
-export default function SubmissionCard({ info }: { info: TenderInfo }) {
+export default function SubmissionCard({ info, checks = [] }: { info: TenderInfo; checks?: VaultCheck[] }) {
   const hasAnything = info.submitEmail || info.portalUrl || info.closingText || info.enquiries || info.required.length;
   if (!hasAnything) return null;
   return (
@@ -30,12 +39,28 @@ export default function SubmissionCard({ info }: { info: TenderInfo }) {
         </p>
       )}
       {info.priceNotes.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-ink/80">{info.priceNotes.map((n) => <li key={n}>{n}</li>)}</ul>}
-      {info.required.length > 0 && (
-        <details className="mt-2">
-          <summary className="cursor-pointer text-sm font-semibold text-yebo">Return with your bid ({info.required.length})</summary>
-          <ul className="mt-1 list-disc pl-5 text-sm text-ink/80">{info.required.map((n) => <li key={n}>{n}</li>)}</ul>
-        </details>
-      )}
+      {info.required.length > 0 && (() => {
+        const items = info.required.map((text) => {
+          const key = VAULT_KEY.find(([re]) => re.test(text))?.[1];
+          const check = key ? checks.find((c) => c.key === key) : undefined;
+          return { text, check };
+        });
+        const inVault = items.filter((i) => i.check);
+        const ready = inVault.filter((i) => i.check?.ok).length;
+        return (
+          <div className="mt-3">
+            <p className="text-sm font-extrabold text-ink">Return with your bid{inVault.length > 0 && <span className="ml-2 text-xs font-bold text-ink/60">{ready} of {inVault.length} vault documents ready</span>}</p>
+            <ul className="mt-1.5 space-y-1.5">
+              {items.map(({ text, check }) => (
+                <li key={text} className="flex items-start gap-2 text-sm">
+                  <span aria-hidden="true" className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-[11px] font-black ${check ? (check.ok ? "bg-yebo text-white" : "bg-orange text-white") : "bg-ink/10 text-ink/60"}`}>{check ? (check.ok ? "✓" : "✕") : "•"}</span>
+                  <span className="text-ink/80">{text}{check && !check.ok && <span className="block text-xs font-semibold text-ink">{check.detail}. <a href="/app/tenders/vault" className="text-yebo underline underline-offset-2">Fix in the vault</a></span>}{!check && <span className="block text-xs text-ink/50">Gather this yourself</span>}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })()}
       <p className="mt-2 text-xs text-ink/50">Read from the tender documents. Check it against the original before you send.</p>
     </section>
   );
