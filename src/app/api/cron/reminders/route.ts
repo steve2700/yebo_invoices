@@ -135,5 +135,53 @@ export async function GET(request: Request) {
     result.sent++;
   }
 
-  return Response.json(result);
+  // Quotes that run out in the next 2 days: one last friendly nudge, once per quote. This is separate from the
+  // 3-day follow-ups, and uses the same "Send reminders for me automatically" setting and plan rules.
+  const expiry = { checked: 0, sent: 0 };
+  const saToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
+  const plusDays = (iso: string, n: number) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+  };
+  const { data: expiring } = await admin
+    .from("documents")
+    .select("id,number,total_cents,expiry_date,public_token,business_id,client_id")
+    .eq("type", "quote")
+    .in("status", ["sent", "viewed"])
+    .gte("expiry_date", plusDays(saToday, 1))
+    .lte("expiry_date", plusDays(saToday, 2))
+    .limit(MAX_PER_RUN);
+  for (const doc of expiring ?? []) {
+    expiry.checked++;
+    const business = await businessFor(doc.business_id);
+    if (!business?.auto_reminders || !(await planAllows(doc.business_id))) continue;
+    const { data: already } = await admin.from("events").select("id").eq("document_id", doc.id).eq("type", "expiry_reminder").limit(1);
+    if (already?.length) continue;
+    const { data: client } = await admin.from("clients").select("name,email").eq("id", doc.client_id).maybeSingle();
+    if (!isEmail(client?.email)) continue;
+    const businessName = business.name ?? "Your service provider";
+    const replyTo = isEmail(business.email) ? business.email.trim() : null;
+    const sent = await sendEmail({
+      to: client.email.trim(),
+      fromName: businessName,
+      replyTo,
+      idempotencyKey: `expiry-reminder/${doc.id}`,
+      subject: `Your quote ${doc.number} expires on ${formatDate(doc.expiry_date)}`,
+      html: renderEmail({
+        brandColor: business.brand_color,
+        heading: "Your quote is about to expire",
+        intro: `Hi ${greetingName(client.name)}, quote ${doc.number} from ${businessName} is valid until ${formatDate(doc.expiry_date)}. After that the price may change. If you would like to go ahead, you can accept it now. If you need anything changed, just reply.`,
+        rows: [["Quote", doc.number], ["Total", formatRand(Number(doc.total_cents))], ["Valid until", formatDate(doc.expiry_date)]],
+        buttonLabel: "View and accept the quote",
+        buttonUrl: `${appUrl()}/d/${doc.public_token}`,
+        footer: replyTo ? `Questions? Just reply to this email and it will reach ${businessName}.` : null,
+      }),
+    });
+    if (!sent) continue;
+    const { error: eventError } = await admin.from("events").insert({ document_id: doc.id, type: "expiry_reminder" });
+    if (eventError) console.error("[reminders] could not record the expiry reminder:", eventError.message);
+    expiry.sent++;
+  }
+
+  return Response.json({ ...result, expiry });
 }

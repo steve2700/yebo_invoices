@@ -25,6 +25,7 @@ const EVENT_LABELS: Record<string, string> = {
   reminder_sent: "Reminder sent",
   paid: "Payment received",
   deposit_claimed: "Client says they have paid",
+  expiry_reminder: "Expiry reminder emailed to client",
 };
 
 type StepState = "done" | "current" | "todo" | "bad";
