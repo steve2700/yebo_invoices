@@ -73,6 +73,20 @@ Yebo is built around one rule: **a new user should send their first quote within
 - [x] **Trust badges and customer reviews (Settings → Build trust).** Tick what is true (fully insured, certified, licensed, registered, references on request, safety compliant), add up to 5 real customer reviews (first name, suburb, what they said) and an optional Google reviews link. They appear in the "Why hire ..." card on the quote page, under "From past customers", with a note that the details are provided by the business. Not shown on the PDF. No plan limit yet; to limit reviews per plan, add a number to each plan in `src/lib/plans.ts` the way `workPhotos` works. Files: `src/lib/trust.ts`, `src/app/app/settings/page.tsx`
 - [x] **Automatic email reminders.** Businesses on a plan with reminders (The Real Business and The Industry King, or everyone while billing is off) can tick **Send reminders for me automatically** in Settings → Quote defaults. A daily job (`vercel.json`, 06:00 UTC, which is 08:00 in South Africa) emails clients who have gone quiet on a quote, or whose invoice is due soon or overdue, using the same rules as the dashboard (3 days apart, at most 3). It sends from the business name with replies going to the business email, skips clients with no email, and records each reminder so nobody is emailed twice. Needs `CRON_SECRET` (see below). WhatsApp reminders stay one-tap, because automatic WhatsApp needs the official WhatsApp Business API. Files: `src/app/api/cron/reminders/route.ts`, `vercel.json`
 
+### Added after v1
+
+- [x] **Real "customer viewed" tracking.** A view counts only when a real browser keeps the page open for a moment. Link previews, robots, the owner's own devices and the "Open client view" button are skipped, and repeat opens within 30 minutes count once. The document shows "Opened 3 times, last ...". Files: `src/app/d/[token]/ViewBeacon.tsx`, `src/app/d/[token]/seen/route.ts`, `src/app/app/OwnerMark.tsx`
+- [x] **Safer quote answers.** Accept and decline both ask once. Accepting needs a typed name, which is saved as a signature and shown on the page, the PDF and the owner's email. Declining asks for a reason, offers "ask a question instead", and can be undone by the customer for 24 hours or reopened by the owner at any time. Customers can also **ask for a change**. File: `src/app/d/[token]/AnswerBar.tsx`
+- [x] **Copy buttons on bank details** and **"I have paid by EFT" on invoices**, with optional proof of payment (photo or PDF, private storage, checked by real file type). Files: `src/app/d/[token]/CopyButton.tsx`, `src/app/d/[token]/proof/route.ts`
+- [x] **"I will pay on this day"** on unpaid invoices. Automatic reminders pause until that date
+- [x] **Receipt emails** when the owner records a payment, and a **review request** (Google link from the business profile) once an invoice is fully paid. Files: `src/lib/receipt.ts`, `src/lib/notify-quote.ts`
+- [x] **Quote-expiry reminder.** One friendly email 1 to 2 days before a quote runs out, using the same automatic-reminders setting
+- [x] **Photos on quotes** (up to 6, private storage). File: `src/app/api/documents/[id]/photos/route.ts`
+- [x] **Repeating monthly invoices.** A draft copy is made on the chosen day and the owner is emailed to review and send it. Nothing goes to the customer automatically. Files: `src/lib/recurring.ts`, `src/lib/recurring-run.ts`
+- [x] **Customer statement.** One private link per client listing all their open invoices, with a pay button on each and bank details for paying the total. File: `src/app/s/[token]/page.tsx`
+- [x] **Tender Engine upgrade.** "Read the documents for me" downloads the hub documents, finds the pricing pages, reads small tables exactly, and fills in how and where to submit. A "How to submit" card shows the email or portal, closing time and what to return, matched against the compliance vault. Vault documents warn 14 days before they expire and link to where to get each one. Files: `src/lib/tender-docs.ts`, `src/lib/tender-ingest.ts`, `src/app/api/tenders/[id]/auto-import/route.ts`, `src/app/app/tenders/SubmissionCard.tsx`
+- [x] **App polish.** Install prompt and install button on the landing page, an opening animation, skeleton loading screens, payment confetti, pull to refresh, an alert sound for overdue invoices and closing tenders, and a tidier mobile layout
+
 ### Planned
 
 - [ ] Let higher plans hide the Yebo promo strip on their PDFs
@@ -230,6 +244,245 @@ A reminder is recorded when WhatsApp opens, not when the message is actually sen
 
 ---
 
+## How everything fits together
+
+These diagrams are written in Mermaid, so GitHub draws them for you. If you read this file somewhere that shows plain text, paste a diagram into [mermaid.live](https://mermaid.live) to see it.
+
+### 1. The big picture
+
+```mermaid
+flowchart LR
+  subgraph People
+    O["Business owner<br/>phone or browser, installable app"]
+    C["Customer<br/>opens a link, no login"]
+  end
+
+  subgraph Vercel["Vercel: the Next.js app"]
+    APP["Owner app<br/>/app/..."]
+    PUB["Customer pages<br/>/d/token, /s/token"]
+    API["API routes<br/>/api/..."]
+    CRON["Daily jobs<br/>vercel.json"]
+  end
+
+  subgraph Supabase
+    DB[("Postgres<br/>row level security")]
+    AUTH["Auth<br/>Google and email link"]
+    STO["Private storage<br/>proofs, quote photos, tender files"]
+  end
+
+  PF["PayFast<br/>card and instant EFT"]
+  RS["Resend<br/>email"]
+  AI["Groq AI<br/>voice, tidy, tender reading"]
+  ET["eTenders<br/>public tender feed"]
+
+  O --> APP
+  C --> PUB
+  APP --> DB
+  APP --> AUTH
+  PUB --> DB
+  APP --> API
+  PUB --> API
+  API --> DB
+  API --> STO
+  API --> AI
+  API --> RS
+  API <--> PF
+  CRON --> API
+  CRON --> ET
+  CRON --> RS
+```
+
+The owner app uses the signed-in user, so row level security keeps each business's data private. Customer pages never log in: they use a long random token in the link and call security-definer database functions that return only what that one document needs. The service-role key is used on the server only (`src/lib/supabase/admin.ts`), for jobs and webhooks that have no signed-in user.
+
+### 2. The life of a quote and an invoice
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> draft
+  draft --> sent: owner sends it
+  sent --> viewed: customer really opens it
+  sent --> accepted: customer signs and accepts
+  viewed --> accepted: customer signs and accepts
+  sent --> declined: customer declines, picks a reason
+  viewed --> declined
+  declined --> sent: customer undoes within 24 hours, or owner reopens
+  sent --> expired: expiry date passes
+  accepted --> invoice: owner converts the quote
+  state invoice {
+    [*] --> inv_sent
+    inv_sent --> partially_paid: part payment
+    inv_sent --> paid: full payment
+    partially_paid --> paid
+  }
+  paid --> [*]
+```
+
+A quote that is accepted can take a deposit first (online or EFT). When it becomes an invoice the deposit is credited, so the customer only pays the balance. Sent documents are locked. To correct one, duplicate it, fix the copy and send that.
+
+### 3. What the customer can do on the link
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Own as Owner
+  participant App as Yebo
+  participant Cus as Customer
+  participant Mail as Email
+
+  Own->>App: Send quote (WhatsApp or email with PDF)
+  Cus->>App: Opens /d/token
+  Note over App: A beacon waits 2.5 seconds, then counts one real view.<br/>Robots, link previews and the owner's own devices are skipped.
+  App-->>Own: Status becomes "Opened", views are counted
+  alt Accept
+    Cus->>App: Types full name, confirms
+    App-->>Own: Email: accepted and signed by name
+    App-->>Cus: Pay your deposit
+  else Ask for a change
+    Cus->>App: Writes what to change
+    App-->>Own: Email with the customer's words
+  else Decline
+    Cus->>App: Picks a reason, confirms
+    App-->>Own: Email with the reason
+    Cus->>App: Can undo for 24 hours
+  end
+  Note over Cus,App: Invoices instead offer Pay now, copy bank details,<br/>"I have paid by EFT" with optional proof, or "I will pay on this day".
+```
+
+### 4. How money moves
+
+```mermaid
+flowchart TD
+  A["Customer opens an invoice"] --> B{"How will they pay?"}
+  B -->|"Pay now"| P["Yebo creates a payment attempt<br/>and sends them to PayFast"]
+  P --> N["PayFast calls /api/payfast/notify"]
+  N --> V{"Signature, source and<br/>amount all check out?"}
+  V -->|"No"| X["Rejected and logged"]
+  V -->|"Yes"| R["Payment recorded once<br/>status becomes paid or part paid"]
+  R --> E1["Receipt email to the customer<br/>plus a review request when fully paid"]
+  R --> E2["Alert email to the owner"]
+  B -->|"EFT"| Q["Customer copies the bank details<br/>and uses the invoice number as reference"]
+  Q --> Cl["Taps I have paid by EFT<br/>can attach proof, photo or PDF"]
+  Cl --> M["Owner gets an email and sees the proof<br/>link works for 1 hour"]
+  M --> Chk["Owner checks the bank,<br/>taps They paid by EFT"]
+  Chk --> R2["Payment recorded, status paid"]
+  R2 --> E3["Receipt email to the customer"]
+  B -->|"Cannot pay today"| Pr["Customer picks a date, up to 30 days away"]
+  Pr --> Pause["Automatic reminders pause until that date"]
+```
+
+Yebo never holds money. PayFast pays out to the business's own PayFast account, and EFT goes straight to the business's bank.
+
+### 5. What runs every day
+
+```mermaid
+flowchart TD
+  T0["04:30 UTC, 06:30 in SA<br/>/api/cron/tender-feed"] --> T1["Read the last 3 days of tenders from eTenders"]
+  T1 --> T2["Save to tender_feed<br/>delete tenders closed over a week ago"]
+  T2 --> T3["Auto-draft up to 5 matching tenders per owner<br/>and email them once"]
+
+  R0["06:00 UTC, 08:00 in SA<br/>/api/cron/reminders"] --> R1["followups_due:<br/>quotes with no reply, invoices due soon or overdue<br/>3 days apart, at most 3"]
+  R1 --> R2{"Owner switched on<br/>automatic reminders<br/>and the plan allows it?"}
+  R2 -->|"Yes"| R3["Skip invoices with a promised payment date,<br/>email the customer, record the reminder"]
+  R0 --> R4["Quotes that expire in 1 to 2 days<br/>get one expiry reminder"]
+  R0 --> R5["Repeating invoices due today:<br/>make a draft copy and email the owner to review and send"]
+```
+
+The recurring-invoice job runs inside the reminders job, so it does not use an extra Vercel cron slot. It can also be triggered by hand at `/api/cron/recurring` with the `Authorization: Bearer <CRON_SECRET>` header.
+
+### 6. The Tender Engine
+
+```mermaid
+flowchart TD
+  F["Tender hub<br/>eTenders feed, filtered by trade and province"] --> S["Start a bid<br/>details and document links copied across"]
+  S --> A["Read the documents for me<br/>/api/tenders/id/auto-import"]
+  A --> D["Download each hub document<br/>PDF or Excel, max 8 files, 30 MB each"]
+  D --> K["Classify by name:<br/>pricing, RFQ, scope, other"]
+  K --> I["Read how to submit<br/>email or portal, closing time, RFQ number,<br/>validity, VAT, who to ask, what to return"]
+  K --> X{"Excel BOQ found?"}
+  X -->|"Yes"| XL["Read exactly"]
+  X -->|"No"| PG["Find the pricing pages<br/>inside the RFQ"]
+  PG --> TB{"Small clean pricing table?"}
+  TB -->|"Yes"| EX["Read exactly, no AI"]
+  TB -->|"No"| AIR["AI reads the pricing pages in pieces<br/>then rule-based tidy-up"]
+  XL --> L["Lines saved<br/>unsure ones flagged"]
+  EX --> L
+  AIR --> L
+  I --> CARD["How to submit card<br/>filled only from the documents"]
+  L --> ED["Owner enters rates only,<br/>checks flagged lines"]
+  CARD --> ED
+  ED --> V{"Compliance vault ready?<br/>CSD, SARS, B-BBEE, COIDA<br/>not expiring before closing"}
+  V -->|"No"| W["Warnings and links to where to get each one"]
+  V -->|"Yes"| SUB{"Submit by"}
+  SUB -->|"Email"| EM["Merged bid email with the priced Excel"]
+  SUB -->|"Portal"| PT["Download the priced Excel<br/>upload it on the portal"]
+```
+
+Rules, not training: the reader in `src/lib/tender-docs.ts` is plain code tested against real tender PDFs. It only fills in what is literally written in the documents. The AI is a fallback for large or unusual pricing tables, and every AI-read line is flagged for the owner to check.
+
+### 7. Who counts as a "customer view"
+
+```mermaid
+flowchart TD
+  L["Someone opens the customer link"] --> J{"Is JavaScript running<br/>in a real browser?"}
+  J -->|"No: robot or link preview"| N1["Not counted"]
+  J -->|"Yes"| O{"Marked as the owner's device?<br/>or signed in as the owner?<br/>or the Open client view button?"}
+  O -->|"Yes"| N2["Not counted"]
+  O -->|"No"| W["Wait 2.5 seconds"]
+  W --> D{"Another view in the last 30 minutes?"}
+  D -->|"Yes"| N3["Not counted again"]
+  D -->|"No"| Y["Counted: status Opened, activity feed updated"]
+```
+
+An owner who opens the link in a private window or on someone else's phone is still counted as a customer, because Yebo cannot tell the difference there.
+
+### 8. Data model
+
+```mermaid
+erDiagram
+  businesses ||--o{ clients : has
+  businesses ||--o{ documents : owns
+  businesses ||--o| compliance_vault : keeps
+  businesses ||--o{ tenders : bids
+  businesses ||--o{ recurring_invoices : schedules
+  clients ||--o{ documents : receives
+  documents ||--o{ document_lines : contains
+  documents ||--o{ payments : "paid by"
+  documents ||--o{ events : logs
+  documents ||--o{ document_messages : "client messages"
+  documents ||--o{ document_photos : shows
+  documents ||--o| recurring_invoices : "repeats from"
+  documents ||--o{ payment_attempts : starts
+  tenders ||--o{ tender_lines : prices
+  tenders ||--o{ tender_sources : reads
+  tender_feed ||--o{ tenders : "started from"
+```
+
+`document_messages` holds the customer's change requests, proofs of payment, payment promises and typed signatures. Each business also has `subscriptions`, `monthly_targets`, `payfast_settings` and `tender_preferences`. The full list is in the migrations table below.
+
+### 9. Where the private files live
+
+| Storage bucket | What is in it | Who can open it |
+|---|---|---|
+| `logos` | Business logos and work photos | Public (shown on customer pages) |
+| `payment-proofs` | Proof of payment from customers | Owner only, through a link that lasts 1 hour |
+| `quote-photos` | Photos the owner attaches to a quote | Customer pages and the owner, through links that last 1 hour |
+| `tender-files` | Tender documents and compliance files | The owner who uploaded them |
+
+### 10. Security in one place
+
+| Rule | How it is kept |
+|---|---|
+| One business can never see another's data | Row level security on every table, using `owns_business()` |
+| Customers need no account | A long random token per document (`/d/token`) and per client (`/s/token`), read through security-definer functions |
+| Uploads are checked | The real file type is read from the first bytes. Size and count limits apply |
+| Robots cannot fake views or claims | Views come from a browser beacon, claims and promises are rate limited in the database |
+| Free text from strangers stays out of email | Decline reasons are a fixed list. Change requests are length limited and escaped |
+| Daily jobs are private | They need `Authorization: Bearer <CRON_SECRET>` |
+| Money never passes through Yebo | PayFast pays the business directly. EFT goes to the business's bank |
+
+---
+
 ## Tech stack
 
 | Layer | Choice |
@@ -258,7 +511,11 @@ A reminder is recorded when WhatsApp opens, not when the message is actually sen
 - **payments**: amount, method (`payfast`, `eft`, `cash`), provider reference, `thanked_at`
 - **payment_attempts**: one row per tap of Pay now. Its id is the PayFast `m_payment_id`. Tracks status and whether the receipt and owner alert were sent
 - **payfast_settings**: each business's PayFast credentials (server-only, no browser access)
-- **events**: sent, emailed, viewed, accepted, declined, reminder_sent, paid
+- **events**: sent, emailed, viewed, accepted, declined, reminder_sent, paid, deposit_claimed, expiry_reminder, change_requested, reopened, promise_to_pay
+- **document_messages**: what a customer sends back: change requests, proofs of payment, payment promises and typed signatures
+- **document_photos**: photos the owner attaches to a quote (private storage)
+- **recurring_invoices**: an invoice that repeats on a day of the month, and when it next runs
+- **tenders, tender_lines, tender_sources, tender_feed, tender_preferences, compliance_vault**: the Tender Engine (see the diagram above)
 - **dismissed_tips**: reserved for saving tip dismissals (not used yet; tips use browser storage)
 
 ### Key design decisions
@@ -325,6 +582,16 @@ Run the migrations **in order** in the Supabase SQL Editor (copies are in `supab
 | `0008_subscriptions.sql` | Subscriptions, subscription payments and voice quote usage |
 | `0009_trust_profile.sql` | Year started, "about us" line and up to 6 work photos on each business, and the same fields on the public client page |
 | `0010_deposit_options_reviews_reminders.sql` | "I have paid the deposit" claim, Good / Better / Best options on quotes, trust badges, reviews and Google link, and the automatic reminders switch |
+| `0011_tenders.sql` | Tender Engine tables (tenders, priced lines, sources), the compliance vault and private tender file storage |
+| `0012_tender_hub.sql` | The tender feed from eTenders, each owner's trades and province, and auto-drafts |
+| `0013_tender_submission_info.sql` | Stores what Yebo read from the tender documents (how to submit, closing time, what to return) |
+| `0014_customer_views.sql` | Counts only real customer views, once per 30 minutes |
+| `0015_invoice_paid_claim.sql` | "I have paid by EFT" on invoices |
+| `0016_expiry_reminder_event.sql` | Records that a quote-expiry reminder was sent |
+| `0017_change_requests_proofs_reopen.sql` | Customer change requests, proof-of-payment storage, undo a decline and owner reopen |
+| `0018_promise_signature.sql` | "I will pay on this day" and the typed signature on accepted quotes |
+| `0019_photos_recurring.sql` | Photos on quotes, repeating monthly invoices and system numbering for the daily job |
+| `0020_client_statement.sql` | A private statement link per client listing everything they owe |
 
 Supabase may warn about "destructive operations" on some of these. They only drop and recreate policies or functions, and do not touch your data.
 
@@ -409,6 +676,12 @@ In **Authentication → Providers**, enable Google (and keep Email on for magic 
 | PDF builder (including the Yebo promo strip) | `src/lib/pdf.ts` |
 | South African banks and branch codes | `src/lib/sa-banks.ts`, `src/components/BankFields.tsx` |
 | Build trust: work photos upload, plan limit and saving | `src/app/app/settings/WorkPhotos.tsx`, `src/app/app/settings/actions.ts`, `src/lib/work-photos.ts` |
+| Customer actions on the link (accept, decline, change, undo) | `src/app/d/[token]/AnswerBar.tsx`, `src/app/d/[token]/page.tsx` |
+| Customer statement page | `src/app/s/[token]/page.tsx` |
+| Receipts, quote and payment emails | `src/lib/receipt.ts`, `src/lib/notify-quote.ts` |
+| Repeating invoices (dates and the daily run) | `src/lib/recurring.ts`, `src/lib/recurring-run.ts` |
+| Tender document reading, submission info and the auto-import | `src/lib/tender-docs.ts`, `src/lib/tender-ingest.ts`, `src/app/api/tenders/[id]/` |
+| Compliance vault checks, expiry warnings and where-to-get links | `src/lib/tenders.ts` (`vaultChecks`, `VAULT_SOURCES`), `src/app/app/tenders/vault/` |
 
 ---
 
