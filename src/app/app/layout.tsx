@@ -24,7 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Link href="/app/reports/vat" className={`${link} hidden sm:inline-flex`}>Reports</Link>
             <Link href="/app/help" className={`${link} hidden sm:inline-flex`}>Help</Link>
             <Link href="/app/settings" className={`${link} hidden sm:inline-flex`}>Settings</Link>
-            {/* Phones: Documents, Tenders and Reports live in the bottom bar. Help and Settings are the two round buttons. */}
+            {/* Phones: Documents, Tenders and Reports live in the bottom bar, and Settings is this gear. */}
             <Link href="/app/help" aria-label="Help and support" className="inline-flex size-10 items-center justify-center rounded-full text-yebo-deep/70 hover:bg-yebo-deep/5 hover:text-yebo-deep sm:hidden">
               <Icon name="help" size={22} />
             </Link>
