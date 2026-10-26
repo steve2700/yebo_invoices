@@ -233,6 +233,13 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c, signa
     paragraph(String(d.description), 9.5, font, ink, summaryWidth, 13);
     y -= 4;
   }
+  for (const [key, title] of [["exclusions", "Not included"], ["assumptions", "Assumptions"], ["timeline", "Timeline"]] as const) {
+    if (d[key]) {
+      heading(title);
+      paragraph(String(d[key]), 9.5, font, ink, summaryWidth, 13);
+      y -= 4;
+    }
+  }
   if (d.labour_only) {
     need(22);
     put("Labour only - materials are not included.", M, 9, bold, mute);

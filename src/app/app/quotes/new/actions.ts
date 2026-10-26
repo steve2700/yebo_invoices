@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { checkDocumentAllowance } from "@/lib/subscription";
 import { addDays } from "@/lib/dates";
+import { isValidEmail, saPhoneOk } from "@/lib/contact";
 import { isOptionKey, lowestSubtotal, optionsPresent } from "@/lib/quote-options";
 
 export type NewQuote = {
@@ -11,10 +12,33 @@ export type NewQuote = {
   title: string; location: string; description: string; jobDate: string; jobDateTbd: boolean;
   laborOnly: boolean; plan: "after" | "deposit" | "full"; pct: number; terms: string; note: string;
   items: { description: string; quantity: number; price: number; pricingMode?: "unit" | "line_total"; option?: string }[];
+  exclusions?: string; assumptions?: string; timeline?: string;
+  contactFix?: { email: string; whatsapp: string } | null; // contact details added to an existing client
   useOptions?: boolean; // Good / Better / Best (quotes only)
   send: boolean;
   docType?: "quote" | "invoice";
 };
+
+
+const scope = (value: string | undefined, max: number) => (value ?? "").replace(/\r\n/g, "\n").trim().slice(0, max) || null;
+
+type Sb = Awaited<ReturnType<typeof createClient>>;
+// Saves an email or WhatsApp number added while writing the quote, so the client is easy to reach next time.
+// A bad email is refused. A number that looks unusual is still saved, because it may be a valid foreign number.
+async function applyContactFix(sb: Sb, clientId: string, fix: NewQuote["contactFix"]): Promise<string | null> {
+  if (!fix) return null;
+  const email = (fix.email ?? "").trim();
+  const whatsapp = (fix.whatsapp ?? "").trim().slice(0, 30);
+  if (email && !isValidEmail(email)) return "That email address does not look right. Please check it.";
+  const patch: Record<string, string> = {};
+  if (email) patch.email = email;
+  if (whatsapp && (saPhoneOk(whatsapp) || /^\+?[\d\s().-]{7,20}$/.test(whatsapp))) patch.whatsapp_number = whatsapp;
+  if (Object.keys(patch).length) {
+    const { error } = await sb.from("clients").update(patch).eq("id", clientId);
+    if (error) console.error("[quote] could not save contact details:", error.message);
+  }
+  return null;
+}
 
 export async function createQuote(input: NewQuote): Promise<{ error: string } | void> {
   const sb = await createClient();
@@ -35,6 +59,7 @@ export async function createQuote(input: NewQuote): Promise<{ error: string } | 
     if (input.newClient) {
       const c = input.newClient;
       if (!c.name.trim()) return { error: "Enter the client's name." };
+      if (c.email.trim() && !isValidEmail(c.email)) return { error: "That email address does not look right. Please check it." };
       const { data, error } = await sb.from("clients").insert({
         business_id: biz.id, name: c.name.trim(), whatsapp_number: c.whatsapp || null,
         email: c.email || null, address: c.address || null,
@@ -43,6 +68,10 @@ export async function createQuote(input: NewQuote): Promise<{ error: string } | 
       clientId = data.id;
     }
     if (!clientId) return { error: "Choose a client." };
+    if (!input.newClient) {
+      const contactError = await applyContactFix(sb, clientId, input.contactFix);
+      if (contactError) return { error: contactError };
+    }
 
     const lines = input.items
       .filter((i) => i.description.trim() && Number.isFinite(i.quantity) && i.quantity >= 0.01 && i.quantity <= 100_000 && Number.isFinite(i.price) && i.price > 0)
@@ -81,6 +110,9 @@ export async function createQuote(input: NewQuote): Promise<{ error: string } | 
       payment_plan: docType === "invoice" ? "after" : input.plan,
       deposit_percent: docType === "quote" && input.plan === "deposit" ? input.pct : null,
       payment_terms: docType === "quote" && input.plan === "full" ? null : input.terms, note: input.note || null,
+      exclusions: docType === "quote" ? scope(input.exclusions, 1000) : null,
+      assumptions: docType === "quote" ? scope(input.assumptions, 1000) : null,
+      timeline: docType === "quote" ? scope(input.timeline, 300) : null,
     }).select("id").single();
     if (error) throw error;
     docId = doc.id;
@@ -118,6 +150,7 @@ export async function updateDraft(input: NewQuote & { id: string }): Promise<{ e
     if (input.newClient) {
       const c = input.newClient;
       if (!c.name.trim()) return { error: "Enter the client's name." };
+      if (c.email.trim() && !isValidEmail(c.email)) return { error: "That email address does not look right. Please check it." };
       const { data, error } = await sb.from("clients").insert({
         business_id: biz.id, name: c.name.trim(), whatsapp_number: c.whatsapp || null,
         email: c.email || null, address: c.address || null,
@@ -126,6 +159,10 @@ export async function updateDraft(input: NewQuote & { id: string }): Promise<{ e
       clientId = data.id;
     }
     if (!clientId) return { error: "Choose a client." };
+    if (!input.newClient) {
+      const contactError = await applyContactFix(sb, clientId, input.contactFix);
+      if (contactError) return { error: contactError };
+    }
 
     const lines = input.items
       .filter((i) => i.description.trim() && Number.isFinite(i.quantity) && i.quantity >= 0.01 && i.quantity <= 100_000 && Number.isFinite(i.price) && i.price > 0)
@@ -156,6 +193,9 @@ export async function updateDraft(input: NewQuote & { id: string }): Promise<{ e
       payment_plan: docType === "invoice" ? "after" : input.plan,
       deposit_percent: docType === "quote" && input.plan === "deposit" ? input.pct : null,
       payment_terms: docType === "quote" && input.plan === "full" ? null : input.terms, note: input.note || null,
+      exclusions: docType === "quote" ? scope(input.exclusions, 1000) : null,
+      assumptions: docType === "quote" ? scope(input.assumptions, 1000) : null,
+      timeline: docType === "quote" ? scope(input.timeline, 300) : null,
     }).eq("id", input.id).eq("status", "draft");
     if (error) throw error;
 

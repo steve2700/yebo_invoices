@@ -241,6 +241,9 @@ export default async function PublicDocument({ params, searchParams }: { params:
           )}
           {d.note && <p className="mt-4 border-l-4 pl-4 text-sm leading-relaxed text-ink/80" style={{ borderColor: color }}>{d.note}</p>}
           {d.description && (<section className="mt-6"><h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">{isQuote ? "What is included" : "What you will get"}</h2><p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink/80">{d.description}</p></section>)}
+          {isQuote && d.exclusions && (<section className="mt-5"><h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">Not included</h2><p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink/80">{d.exclusions}</p></section>)}
+          {isQuote && d.assumptions && (<section className="mt-5"><h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">Assumptions</h2><p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink/80">{d.assumptions}</p></section>)}
+          {isQuote && d.timeline && (<section className="mt-5"><h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">Timeline</h2><p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink/80">{d.timeline}</p></section>)}
           {d.labour_only && <p className="mt-3 inline-block rounded-full bg-ink/5 px-3 py-1 text-xs font-bold">No materials needed for this job</p>}
 
           <section className="mt-6">

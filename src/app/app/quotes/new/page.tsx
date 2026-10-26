@@ -10,7 +10,7 @@ export default async function NewDocument({ searchParams }: { searchParams: Prom
   const sb = await createClient();
   const { data: biz } = await sb.from("businesses").select("vat_registered").maybeSingle();
   if (!biz) redirect("/app/onboarding");
-  const { data: clients } = await sb.from("clients").select("id,name,whatsapp_number,address,preferred_payment").order("name");
+  const { data: clients } = await sb.from("clients").select("id,name,email,whatsapp_number,address,preferred_payment").order("name");
   const { data: items } = await sb.from("items").select("description,default_price_cents").order("times_used", { ascending: false });
 
   const voiceLeft = await voiceQuotesLeft(sb);

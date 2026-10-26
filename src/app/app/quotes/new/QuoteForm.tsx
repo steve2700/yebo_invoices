@@ -4,9 +4,11 @@ import { createQuote, updateDraft } from "./actions";
 import { formatRand } from "@/lib/money";
 import { greetingName } from "@/lib/names";
 import { OPTION_KEYS, OPTION_LABELS, type OptionKey } from "@/lib/quote-options";
+import QuoteCheck from "./QuoteCheck";
+import { checkQuote } from "@/lib/quote-check";
 import VoiceQuoteAssistant, { type ApplyMode, type VoiceQuoteDraft } from "./VoiceQuoteAssistant";
 
-type Client = { id: string; name: string; whatsapp_number: string | null; address: string | null; preferred_payment: string | null };
+type Client = { id: string; name: string; email: string | null; whatsapp_number: string | null; address: string | null; preferred_payment: string | null };
 type Item = { description: string; default_price_cents: number };
 type Plan = "after" | "deposit" | "full";
 type MessageTone = "friendly" | "professional" | "short";
@@ -22,6 +24,9 @@ type Fields = {
   pct: number;
   terms: string;
   note: string;
+  exclusions: string;
+  assumptions: string;
+  timeline: string;
 };
 
 const input = "mt-2 w-full rounded-2xl border border-ink/10 bg-paper/60 px-4 py-3 text-sm outline-none transition focus:border-orange focus:bg-white";
@@ -73,6 +78,13 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
     pct: 50,
     terms: isInvoice ? "within 7 days" : "on completion",
     note: "",
+    exclusions: "",
+    assumptions: "",
+    timeline: "",
+  });
+  const [contactFix, setContactFix] = useState(() => {
+    const known = clients.find((client) => client.id === initial?.clientId);
+    return { email: known?.email ?? "", whatsapp: known?.whatsapp_number ?? "" };
   });
   const [lines, setLines] = useState<Line[]>(initial?.lines ?? [{ description: "", quantity: 1, price: 0 }]);
   const [useOptions, setUseOptions] = useState<boolean>(!isInvoice && Boolean(initial?.useOptions));
@@ -108,6 +120,15 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
   const totalCents = subtotalCents + vatCents;
   const clientName = clients.find((client) => client.id === clientId)?.name ?? newClient.name;
   const firstName = greetingName(clientName);
+  const selectedClient = clients.find((client) => client.id === clientId);
+  const contactEmail = clientId === "new" ? newClient.email : contactFix.email;
+  const contactWhatsapp = clientId === "new" ? newClient.whatsapp : contactFix.whatsapp;
+  const checks = checkQuote({
+    isInvoice, firstName, hasClient, email: contactEmail, whatsapp: contactWhatsapp,
+    title: fields.title, location: fields.location, description: fields.description,
+    lines: lines.map((line) => ({ description: line.description, price: line.price, quantity: line.quantity })),
+    exclusions: fields.exclusions, timeline: fields.timeline, note: fields.note,
+  });
   const jobName = (fields.title.trim() || "the job").toLowerCase();
   const paymentSummary = isInvoice
     ? fields.terms
@@ -283,6 +304,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
   function pickClient(id: string) {
     setClientId(id);
     const selected = clients.find((client) => client.id === id);
+    setContactFix({ email: selected?.email ?? "", whatsapp: selected?.whatsapp_number ?? "" });
     if (selected?.address && !fields.location) setField("location", selected.address);
     if (["deposit", "after", "full"].includes(selected?.preferred_payment ?? "")) {
       setField("plan", selected?.preferred_payment as Plan);
@@ -403,6 +425,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         useOptions: !isInvoice && useOptions,
         items: lines,
         send,
+        contactFix: clientId && clientId !== "new" ? contactFix : null,
       };
       const result = documentId ? await updateDraft({ id: documentId, ...payload }) : await createQuote(payload);
       if (result?.error) setError(result.error);
@@ -436,18 +459,18 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         <label className={label} htmlFor="client">Client</label>
         <select id="client" className={input} value={clientId} onChange={(event) => pickClient(event.target.value)}>
           <option value="">Choose a client</option>
-          {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+          {clients.map((client) => <option key={client.id} value={client.id}>{client.name}{!client.email && !client.whatsapp_number ? " (no contact details)" : ""}</option>)}
           <option value="new">+ Add a new client</option>
         </select>
         {clientId === "new" && (
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div id="contact-fix" className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <input aria-label="Client name" autoComplete="name" className={input} placeholder="Client name (required)" value={newClient.name} onChange={(event) => setNewClient({ ...newClient, name: event.target.value })} />
-            <input aria-label="WhatsApp number (optional)" autoComplete="tel" type="tel" className={input} placeholder="WhatsApp (optional)" value={newClient.whatsapp} onChange={(event) => setNewClient({ ...newClient, whatsapp: event.target.value })} />
-            <input aria-label="Email (optional)" autoComplete="email" type="email" className={input} placeholder="Email (optional)" value={newClient.email} onChange={(event) => setNewClient({ ...newClient, email: event.target.value })} />
+            <input aria-label="WhatsApp number (recommended)" autoComplete="tel" type="tel" className={input} placeholder="WhatsApp number (recommended)" value={newClient.whatsapp} onChange={(event) => setNewClient({ ...newClient, whatsapp: event.target.value })} />
+            <input aria-label="Email address (recommended)" autoComplete="email" type="email" className={input} placeholder="Email address (recommended)" value={newClient.email} onChange={(event) => setNewClient({ ...newClient, email: event.target.value })} />
             <input aria-label="Address (optional)" autoComplete="street-address" className={input} placeholder="Address (optional)" value={newClient.address} onChange={(event) => setNewClient({ ...newClient, address: event.target.value })} />
           </div>
         )}
-        {clients.length === 0 && <p className="mt-2 text-xs text-ink/50">Only the client’s name is needed to get started.</p>}
+        {clientId === "new" && <p className="mt-2 rounded-xl bg-lime/20 p-3 text-xs leading-5 text-ink/75"><b>Add both if you can.</b> An email lets you send the PDF. A WhatsApp number gets you a faster answer and one-tap follow-ups. Only the name is needed to save a draft.</p>}
       </section>
 
       <section id="amount-section" className="mt-5 scroll-mt-24 rounded-[2rem] bg-ink p-5 text-paper shadow-[0_16px_60px_rgba(20,42,31,.12)] sm:p-7">
@@ -625,6 +648,32 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         )}
       </section>
 
+      {!isInvoice && (
+        <details id="scope-extras" className="group mt-5 overflow-hidden rounded-[2rem] bg-white shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5" open={Boolean(fields.exclusions || fields.assumptions || fields.timeline)}>
+          <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 p-5 sm:px-7">
+            <span>
+              <span className="block text-xs font-black uppercase tracking-[0.18em] text-orange">Optional · Looks professional</span>
+              <span className="mt-1 block text-lg font-black tracking-tight">What is not included, and when</span>
+            </span>
+            <span aria-hidden="true" className="text-xl text-ink/40 transition group-open:rotate-45">+</span>
+          </summary>
+          <div className="px-5 pb-6 sm:px-7">
+            <label className={label} htmlFor="scope-exclusions">Not included</label>
+            <textarea id="scope-exclusions" rows={3} maxLength={1000} spellCheck lang="en-ZA" autoCapitalize="sentences" className={input} value={fields.exclusions} onChange={(event) => setField("exclusions", event.target.value)} placeholder="e.g. Painting after the plastering. Removing rubble from site." />
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {["Painting and finishing", "Removing rubble", "Permits and certificates", "Extra repairs found once work starts"].map((chip) => (
+                <button key={chip} type="button" className="min-h-10 rounded-full border border-ink/15 px-3 py-2 font-bold" onClick={() => setField("exclusions", fields.exclusions.includes(chip) ? fields.exclusions : fields.exclusions ? `${fields.exclusions.trimEnd()}\n${chip}` : chip)}>+ {chip}</button>
+              ))}
+            </div>
+            <label className={label} htmlFor="scope-assumptions">Assumptions</label>
+            <textarea id="scope-assumptions" rows={3} maxLength={1000} spellCheck lang="en-ZA" autoCapitalize="sentences" className={input} value={fields.assumptions} onChange={(event) => setField("assumptions", event.target.value)} placeholder="e.g. Someone is on site to let us in. Electricity and water are available." />
+            <label className={label} htmlFor="scope-timeline">Timeline</label>
+            <input id="scope-timeline" maxLength={300} spellCheck lang="en-ZA" autoCapitalize="sentences" className={input} value={fields.timeline} onChange={(event) => setField("timeline", event.target.value)} placeholder="e.g. Starts within 5 days of acceptance. Takes about 3 days." />
+            <p className="mt-3 text-xs text-ink/50">These show on the quote page and in the PDF as clear sections.</p>
+          </div>
+        </details>
+      )}
+
       {activeTip && (
         <aside role="note" aria-label="Tip" className="mt-5 rounded-[1.5rem] border border-lime/60 bg-lime/15 p-4">
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange">Tip</p>
@@ -757,6 +806,16 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
           </section>
         </div>
       </details>
+
+      <QuoteCheck items={checks} kind={isInvoice ? "invoice" : "quote"}>
+        {clientId && clientId !== "new" && (
+          <div id="contact-fix" className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <input aria-label={`${firstName}'s WhatsApp number`} autoComplete="tel" type="tel" className={input} placeholder="WhatsApp number" value={contactFix.whatsapp} onChange={(event) => setContactFix({ ...contactFix, whatsapp: event.target.value })} />
+            <input aria-label={`${firstName}'s email address`} autoComplete="email" type="email" className={input} placeholder="Email address" value={contactFix.email} onChange={(event) => setContactFix({ ...contactFix, email: event.target.value })} />
+            <p className="text-xs text-ink/55 sm:col-span-2">Saved to {firstName}&apos;s profile when you save this {isInvoice ? "invoice" : "quote"}.</p>
+          </div>
+        )}
+      </QuoteCheck>
 
       {error && <p role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
 

@@ -256,6 +256,7 @@ export async function duplicateDocument(fd: FormData) {
     has_options: keepOptions,
     vat_percent: vatPercent, subtotal_cents: subtotal, vat_cents: vat, total_cents: subtotal + vat,
     payment_plan: d.payment_plan, deposit_percent: d.deposit_percent, payment_terms: d.payment_terms, note: d.note,
+    exclusions: d.exclusions, assumptions: d.assumptions, timeline: d.timeline,
   }).select("id").single();
   if (error) throw error;
   const { error: linesError } = await sb.from("document_lines").insert(rows.map((l) => ({ ...l, document_id: copy.id })));
