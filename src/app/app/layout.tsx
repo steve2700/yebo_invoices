@@ -2,6 +2,7 @@ import Link from "next/link";
 import Logo from "@/components/Logo";
 import InstallPrompt from "./InstallPrompt";
 import BottomNav from "./BottomNav";
+import RemindersBell from "./RemindersBell";
 import { billingBanner } from "@/lib/subscription";
 import Icon from "./icons";
 import AttentionChime from "./AttentionChime";
@@ -19,9 +20,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="shrink-0"><Logo href="/app" /></div>
           <nav aria-label="Account" className="flex min-w-0 items-center gap-1">
             <InstallPrompt />
+            <RemindersBell />
             <Link href="/app/documents" className={`${link} hidden sm:inline-flex`}>Documents</Link>
             <Link href="/app/tenders" className={`${link} hidden sm:inline-flex`}>Tenders</Link>
-            <Link href="/app/reminders" className={`${link} hidden sm:inline-flex`}>Reminders</Link>
             <Link href="/app/reports/vat" className={`${link} hidden sm:inline-flex`}>Reports</Link>
             <Link href="/app/help" className={`${link} hidden sm:inline-flex`}>Help</Link>
             <Link href="/app/settings" className={`${link} hidden sm:inline-flex`}>Settings</Link>

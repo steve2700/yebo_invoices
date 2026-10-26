@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import RemindersReady from "./RemindersReady";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, waLink } from "@/lib/dates";
@@ -264,6 +265,8 @@ export default async function Dashboard() {
   }).slice(0, 6);
 
   return (
+    <>
+      <RemindersReady />
     <DashboardView
       businessName={business.name}
       greeting={greeting}
@@ -280,5 +283,6 @@ export default async function Dashboard() {
       recentPayments={recentPayments}
       monthly={monthly}
     />
+    </>
   );
 }

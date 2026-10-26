@@ -43,6 +43,8 @@ flowchart TD
 
 | Where | What happens |
 | --- | --- |
+| **Bell in the top bar** | On every screen. A number shows how many reminders are ready. Tap it to open the list. |
+| **Dashboard card** | A green card at the top of the dashboard: "3 clients to nudge on WhatsApp, R7 200 owed" with a **Send now** button. It only appears when there is something to send. |
 | **Morning email** (about 8am) | "3 reminders ready for you": client, number, amount and how long it has waited. One button opens the list. Only sent when there is something to send. |
 | **`/app/reminders`** | One card per client: the reason (overdue, due soon, quote follow-up), the written message, **Open WhatsApp** and **Skip for now**. A progress bar shows how many are left. |
 | **After tapping Open WhatsApp** | WhatsApp opens on the client's chat with the message filled in. The owner reads it and presses send. Back in Yebo, the next card is ready. |
@@ -71,5 +73,6 @@ The client gets a friendly message from the business, either an email with a but
 | Message wording, sorting, short descriptions | `src/lib/reminder-queue.ts` |
 | Morning email to the owner | `src/lib/morning-list.ts` |
 | The "Ready to send" screen | `src/app/app/reminders/` |
+| The bell and the dashboard card | `src/app/app/RemindersBell.tsx`, `src/app/app/RemindersReady.tsx`, `src/lib/reminders-count.ts` |
 | The On/Off setting | `businesses.morning_list` (`0024_morning_list.sql`) |
 | Recording a reminder (starts the 3 day wait) | `recordReminderSent` in `src/app/app/documents/actions.ts` |
