@@ -188,6 +188,14 @@ export default async function Settings({ searchParams }: { searchParams: Promise
 
           <div className="flex flex-col gap-6">
           <BillingCard />
+          <Link href="/app/help" className="group flex items-center justify-between gap-4 rounded-3xl border border-yebo-deep/10 bg-white px-6 py-5 shadow-[0_12px_40px_rgba(12,59,46,0.06)] transition hover:border-yebo/30 sm:px-8">
+            <span>
+              <span className="block text-xs font-bold uppercase tracking-[0.16em] text-yebo">Help</span>
+              <span className="mt-1 block text-lg font-black">Talk to a person</span>
+              <span className="mt-0.5 block text-sm text-yebo-deep/55">Call, WhatsApp or email us, 8am to 5pm.</span>
+            </span>
+            <span aria-hidden="true" className="text-xl text-yebo-deep/40 transition group-hover:translate-x-1">→</span>
+          </Link>
           <Link href="/app/reports/wins" className="group flex items-center justify-between gap-4 rounded-3xl border border-yebo-deep/10 bg-white px-6 py-5 shadow-[0_12px_40px_rgba(12,59,46,0.06)] transition hover:border-yebo/30 sm:px-8">
             <span>
               <span className="block text-xs font-bold uppercase tracking-[0.16em] text-yebo">Reports</span>
