@@ -140,6 +140,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
     // Only the listed reasons are accepted, so nothing typed by a stranger ends up in the owner's email.
     const rawReason = String(formData.get("reason") ?? "");
     const reason = ev === "declined" && DECLINE_REASONS[rawReason] ? DECLINE_REASONS[rawReason] : undefined;
+    if (reason) await sb.rpc("set_decline_reason", { p_token: token, p_reason: rawReason });
     // Email the owner after the response is sent, so the client's tap is not slowed down.
     after(() => notifyQuoteAnswered(token, ev, reason));
     revalidatePath(`/d/${token}`);

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import QuoteForm from "./QuoteForm";
 import { voiceQuotesLeft } from "@/lib/subscription";
+import type { PastDoc } from "@/lib/similar";
 
 export default async function NewDocument({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
   const { type } = await searchParams;
@@ -15,6 +16,23 @@ export default async function NewDocument({ searchParams }: { searchParams: Prom
 
   const voiceLeft = await voiceQuotesLeft(sb);
 
+  // The last documents of this type, so the form can offer "start from a similar one". Options (Good/Better/Best) quotes are skipped.
+  const { data: pastRows } = await sb
+    .from("documents")
+    .select("id,client_id,title,description,exclusions,assumptions,timeline,status,total_cents,created_at,has_options,document_lines(description,quantity,unit_price_cents,sort_order,option_key)")
+    .eq("type", docType)
+    .order("created_at", { ascending: false })
+    .limit(60);
+  const past: PastDoc[] = (pastRows ?? [])
+    .filter((row: any) => !row.has_options && !(row.document_lines ?? []).some((line: any) => line.option_key))
+    .map((row: any) => ({
+      id: row.id, clientId: row.client_id, title: row.title ?? "", description: row.description ?? "",
+      exclusions: row.exclusions ?? "", assumptions: row.assumptions ?? "", timeline: row.timeline ?? "",
+      status: row.status, totalCents: Number(row.total_cents), createdAt: String(row.created_at).slice(0, 10),
+      lines: [...(row.document_lines ?? [])].sort((a: any, b: any) => a.sort_order - b.sort_order)
+        .map((line: any) => ({ description: line.description, quantity: Number(line.quantity), unitPriceCents: Number(line.unit_price_cents) })),
+    }));
+
   const tab = (active: boolean) => `rounded-full px-5 py-2 text-sm font-black transition ${active ? "bg-ink text-lime" : "bg-white text-ink/60 ring-1 ring-ink/10 hover:text-ink"}`;
   return (
     <>
@@ -22,7 +40,7 @@ export default async function NewDocument({ searchParams }: { searchParams: Prom
         <Link href="/app/quotes/new" className={tab(docType === "quote")}>Quote</Link>
         <Link href="/app/quotes/new?type=invoice" className={tab(docType === "invoice")}>Invoice</Link>
       </div>
-      <QuoteForm key={docType} clients={clients ?? []} items={items ?? []} vatRegistered={biz.vat_registered} docType={docType} voiceLeft={voiceLeft} />
+      <QuoteForm key={docType} clients={clients ?? []} items={items ?? []} vatRegistered={biz.vat_registered} docType={docType} voiceLeft={voiceLeft} past={past} />
     </>
   );
 }

@@ -5,7 +5,9 @@ const details = [
   "Project scope, job details and itemised costs",
   "Payment terms, deposits and clear due dates",
   "VAT shown for VAT-registered businesses",
-  "Online quote responses and downloadable PDFs",
+  "What is not included, your assumptions and the timeline",
+  "Online accept, ask for changes or decline, with a typed signature",
+  "Photos of the site and downloadable PDFs",
 ];
 
 export default function ProductStorySection() {

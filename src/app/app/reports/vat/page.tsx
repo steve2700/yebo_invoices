@@ -78,6 +78,7 @@ export default async function VatReport({ searchParams }: { searchParams: Promis
       <Link href="/app" className="text-sm font-semibold text-ink/50 hover:text-ink">← Dashboard</Link>
       <p className="mt-4 text-xs font-extrabold uppercase tracking-[.18em] text-yebo">The Industry King</p>
       <h1 className="mt-2 text-3xl font-black tracking-tight text-ink sm:text-4xl">VAT sales summary</h1>
+      <Link href="/app/reports/wins" className="mt-2 inline-flex min-h-10 items-center text-sm font-bold text-yebo underline underline-offset-2">See your quote results (win rate) →</Link>
       <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/65">Every invoice and payment for a period, with the VAT on it, in a file your accountant can open in Excel.</p>
 
       <div role="note" className="mt-5 rounded-2xl border border-orange/30 bg-orange/10 p-4 text-sm leading-6 text-ink">

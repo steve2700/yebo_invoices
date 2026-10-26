@@ -5,6 +5,7 @@ import { formatRand } from "@/lib/money";
 import { greetingName } from "@/lib/names";
 import { OPTION_KEYS, OPTION_LABELS, type OptionKey } from "@/lib/quote-options";
 import QuoteCheck from "./QuoteCheck";
+import { findSimilar, type PastDoc } from "@/lib/similar";
 import { checkQuote } from "@/lib/quote-check";
 import VoiceQuoteAssistant, { type ApplyMode, type VoiceQuoteDraft } from "./VoiceQuoteAssistant";
 
@@ -63,7 +64,7 @@ function isTidySuggestion(value: unknown): value is TidySuggestion {
 
 type Initial = { clientId: string; f: Fields; lines: Line[]; useOptions?: boolean };
 
-export default function QuoteForm({ clients, items, vatRegistered, docType = "quote", documentId, initial, voiceLeft = null }: { clients: Client[]; items: Item[]; vatRegistered: boolean; docType?: "quote" | "invoice"; documentId?: string; initial?: Initial; voiceLeft?: number | null }) {
+export default function QuoteForm({ clients, items, vatRegistered, docType = "quote", documentId, initial, voiceLeft = null, past = [] }: { clients: Client[]; items: Item[]; vatRegistered: boolean; docType?: "quote" | "invoice"; documentId?: string; initial?: Initial; voiceLeft?: number | null; past?: PastDoc[] }) {
   const isInvoice = docType === "invoice";
   const [clientId, setClientId] = useState(initial?.clientId ?? (clients.length ? "" : "new"));
   const [newClient, setNewClient] = useState({ name: "", whatsapp: "", email: "", address: "" });
@@ -120,6 +121,24 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
   const totalCents = subtotalCents + vatCents;
   const clientName = clients.find((client) => client.id === clientId)?.name ?? newClient.name;
   const firstName = greetingName(clientName);
+  const [dismissedSimilar, setDismissedSimilar] = useState<string[]>([]);
+  const nothingPriced = lines.every((line) => !(line.price > 0));
+  const similar = !initial && nothingPriced && past.length
+    ? findSimilar(past, [fields.title, ...lines.map((line) => line.description)].join(" "), clientId && clientId !== "new" ? clientId : null)
+    : null;
+  const showSimilar = similar && !dismissedSimilar.includes(similar.doc.id) ? similar : null;
+  function applySimilar(doc: PastDoc) {
+    setLines(doc.lines.map((line) => ({ description: line.description, quantity: line.quantity, price: line.unitPriceCents / 100, pricingMode: "unit" as const })));
+    setFields((current) => ({
+      ...current,
+      title: current.title || doc.title,
+      description: current.description || doc.description,
+      exclusions: isInvoice ? current.exclusions : current.exclusions || doc.exclusions,
+      assumptions: isInvoice ? current.assumptions : current.assumptions || doc.assumptions,
+      timeline: isInvoice ? current.timeline : current.timeline || doc.timeline,
+    }));
+    setDismissedSimilar((current) => [...current, doc.id]);
+  }
   const selectedClient = clients.find((client) => client.id === clientId);
   const contactEmail = clientId === "new" ? newClient.email : contactFix.email;
   const contactWhatsapp = clientId === "new" ? newClient.whatsapp : contactFix.whatsapp;
@@ -483,6 +502,18 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
             </p>
           </div>
         </div>
+        {showSimilar && (
+          <div role="note" className="mt-4 rounded-2xl bg-lime p-4 text-ink">
+            <p className="text-xs font-black uppercase tracking-[0.16em]">{showSimilar.reason === "same-client" ? `Last ${isInvoice ? "invoice" : "quote"} for ${firstName}` : "You did something like this before"}</p>
+            <p className="mt-1 font-black">{showSimilar.doc.title || showSimilar.doc.lines[0]?.description}</p>
+            <p className="mt-0.5 text-xs text-ink/70">{showSimilar.doc.lines.length} item{showSimilar.doc.lines.length === 1 ? "" : "s"} · {formatRand(showSimilar.doc.totalCents)}{showSimilar.doc.status === "accepted" || showSimilar.doc.status === "paid" ? " · accepted" : ""} · {showSimilar.doc.createdAt}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={() => applySimilar(showSimilar.doc)} className="min-h-11 rounded-full bg-ink px-5 text-sm font-black text-lime">Use these items</button>
+              <button type="button" onClick={() => setDismissedSimilar((current) => [...current, showSimilar.doc.id])} className="min-h-11 rounded-full border border-ink/25 px-4 text-sm font-bold">No thanks</button>
+            </div>
+            <p className="mt-2 text-xs text-ink/60">Prices are copied as they were. Check them before you send.</p>
+          </div>
+        )}
         {!isInvoice && (
           <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl bg-white/10 p-3 text-sm">
             <input type="checkbox" checked={useOptions} onChange={(event) => setUseOptions(event.target.checked)} className="mt-0.5 size-5 shrink-0 accent-lime" />

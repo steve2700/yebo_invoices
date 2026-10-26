@@ -6,15 +6,15 @@ import RoastSection from "@/components/RoastSection";
 import ScreenShowcase from "@/components/ScreenShowcase";
 import WorkflowSection from "@/components/WorkflowSection";
 import ProductStorySection from "@/components/ProductStorySection";
+import MoreFeaturesSection from "@/components/MoreFeaturesSection";
 import WhyNotAChatbot from "@/components/WhyNotAChatbot";
 import PricingSection from "@/components/PricingSection";
 import FaqSection from "@/components/FaqSection";
 import ClosingSection from "@/components/ClosingSection";
 import LandingFooter from "@/components/LandingFooter";
-import { StandaloneRedirect } from "@/app/app/InstallPrompt";
 
 const description =
-  "Quotes and invoices for South African small businesses. Speak a quote, send it in one tap, see when your client opens it, get paid online and track your monthly targets.";
+  "Quotes and invoices for South African small businesses. Speak a quote, check it before you send, see when your client opens it, get paid online and know why you win or lose work.";
 
 export const metadata: Metadata = {
   title: "Yebo Invoices | Clear quotes, faster invoicing",
@@ -45,7 +45,6 @@ export const metadata: Metadata = {
 export default function Home() {
   return (
     <>
-      <StandaloneRedirect />
       <LandingHeader />
       <main>
         <LandingHero />
@@ -54,6 +53,7 @@ export default function Home() {
         <WorkflowSection />
         <WhyNotAChatbot />
         <ProductStorySection />
+        <MoreFeaturesSection />
         <PricingSection />
         <FaqSection />
         <ClosingSection />

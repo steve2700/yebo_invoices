@@ -14,13 +14,13 @@ const steps = [
   {
     number: "03",
     title: "Get a decision",
-    detail: "Your client can review the details and accept or decline online. See document activity, too.",
+    detail: "Your client reviews it online and accepts with their name, asks for a change, or says why not. You see every open and answer.",
     label: "Yes or no, clearly",
   },
   {
     number: "04",
     title: "Make the invoice",
-    detail: "Turn an accepted quote into an invoice with a due date and your EFT details.",
+    detail: "Turn an accepted quote into an invoice with a due date and your EFT details. Deposits are credited for you.",
     label: "No retyping the job",
   },
 ];
