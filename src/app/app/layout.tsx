@@ -21,6 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <InstallPrompt />
             <Link href="/app/documents" className={`${link} hidden sm:inline-flex`}>Documents</Link>
             <Link href="/app/tenders" className={`${link} hidden sm:inline-flex`}>Tenders</Link>
+            <Link href="/app/reminders" className={`${link} hidden sm:inline-flex`}>Reminders</Link>
             <Link href="/app/reports/vat" className={`${link} hidden sm:inline-flex`}>Reports</Link>
             <Link href="/app/help" className={`${link} hidden sm:inline-flex`}>Help</Link>
             <Link href="/app/settings" className={`${link} hidden sm:inline-flex`}>Settings</Link>

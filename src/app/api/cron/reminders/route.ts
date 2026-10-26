@@ -7,6 +7,7 @@ import { isEmail, renderEmail, sendEmail } from "@/lib/email";
 import { billingEnforced, hasAccess, planOf } from "@/lib/access";
 import { PLANS } from "@/lib/plans";
 import { runRecurring } from "@/lib/recurring-run";
+import { sendMorningLists } from "@/lib/morning-list";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -191,7 +192,10 @@ export async function GET(request: Request) {
     expiry.sent++;
   }
 
+  // The owner's morning list: reminders left after the automatic emails, ready to send on WhatsApp.
+  const morning = await sendMorningLists(admin, planAllows).catch((e) => { console.error("[morning list] failed:", e); return null; });
+
   // Repeating invoices ride on this same daily run, so no extra scheduled job is needed.
   const recurring = await runRecurring().catch((e) => { console.error("[recurring] failed:", e); return null; });
-  return Response.json({ ...result, expiry, recurring });
+  return Response.json({ ...result, expiry, morning, recurring });
 }
