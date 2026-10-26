@@ -55,15 +55,6 @@ export default function Login() {
   return (
     <main className="min-h-screen bg-white lg:grid lg:grid-cols-2">
       <aside className="relative flex min-h-[280px] flex-col justify-between overflow-hidden bg-yebo-deep p-6 text-white sm:min-h-[340px] sm:p-9 lg:min-h-screen lg:p-12">
-        <Image
-          src="/images/yebo-client-handoff.png"
-          alt="A South African contractor and homeowner reviewing a project estimate together"
-          fill
-          priority
-          sizes="(max-width: 1024px) 100vw, 50vw"
-          className="object-cover"
-        />
-        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-yebo-deep/90 via-yebo-deep/45 to-yebo-deep/30" />
         <div className="relative z-10 flex items-center justify-between">
           <Logo light />
           <Link className="rounded-full border border-white/30 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-white/10 lg:hidden" href="/">
@@ -71,13 +62,13 @@ export default function Login() {
           </Link>
         </div>
         <div className="relative z-10 mt-12 max-w-lg">
-          <p className="text-xs font-extrabold uppercase tracking-[.2em] text-yebo-sun">Less admin. More momentum.</p>
-          <h1 className="mt-4 text-3xl font-extrabold leading-[1.02] tracking-[-.05em] sm:text-4xl lg:text-5xl">
+          <h1 className=" text-3xl font-extrabold leading-[1.02] tracking-[-.05em] sm:text-4xl lg:text-5xl">
             Good work deserves a clear quote.
           </h1>
           <p className="mt-4 max-w-md text-sm leading-6 text-white/75 sm:text-base sm:leading-7">
             Set up your business, share professional quotes and keep the next step simple.
           </p>
+          <Image src="/signs/sign-03.webp" alt="Yard sign reading: Bro, you didn't put your quotes in Yebo already?" width={560} height={560} className="mt-8 hidden w-full max-w-xs lg:block" />
         </div>
         <p className="relative z-10 mt-10 hidden text-xs font-medium text-white/65 lg:block">Made in South Africa for small business.</p>
       </aside>

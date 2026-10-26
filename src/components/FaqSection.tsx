@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Reveal from "@/components/Reveal";
 
 export const questions = [
   { q: "Do my clients need an account?", a: "No. They open a link on any phone, view the quote, accept it, and pay. There is nothing for them to install or sign up for." },
@@ -17,27 +16,24 @@ export const questions = [
 
 export default function FaqSection() {
   return (
-    <section id="faq" className="scroll-mt-24 border-t border-yebo-deep/10 bg-white py-20 sm:py-28">
+    <section id="faq" className="scroll-mt-24 border-t border-yebo-deep/10 bg-white py-16 sm:py-24">
       <div className="mx-auto grid max-w-6xl gap-10 px-5 sm:px-8 lg:grid-cols-[.8fr_1.2fr] lg:gap-16 lg:px-12">
-        <Reveal className="lg:sticky lg:top-28 lg:self-start">
-          <p className="text-xs font-extrabold uppercase tracking-[.2em] text-yebo">Good questions</p>
-          <h2 className="mt-4 text-balance text-4xl font-extrabold leading-[.98] tracking-[-.05em] text-yebo-deep sm:text-5xl">Before you start</h2>
-          <p className="mt-5 max-w-sm text-pretty text-base leading-7 text-yebo-deep/65">
-            No question is too basic. Except &ldquo;can I just keep using Excel?&rdquo; Technically yes. Emotionally, we&apos;re worried about you.
-          </p>
-          <Link href="/login" className="mt-7 inline-flex min-h-12 items-center rounded-full bg-yebo-deep px-6 text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-yebo">
-            Try it yourself <span aria-hidden="true" className="ml-2">→</span>
+        <div className="lg:sticky lg:top-28 lg:self-start">
+          <h2 className="text-balance text-3xl font-extrabold leading-[1.02] tracking-[-.04em] text-yebo-deep sm:text-5xl">Before you start</h2>
+          <p className="mt-4 max-w-sm text-pretty text-base leading-7 text-yebo-deep/75">The questions people ask most before sending their first quote.</p>
+          <Link href="/login" className="mt-6 inline-flex min-h-11 items-center text-base font-semibold text-yebo underline decoration-yebo/30 underline-offset-4 transition hover:text-yebo-deep">
+            Try it yourself
           </Link>
-        </Reveal>
+        </div>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col divide-y divide-yebo-deep/15 border-y border-yebo-deep/15">
           {questions.map((item) => (
-            <details key={item.q} className="group rounded-2xl border border-yebo-deep/10 bg-yebo-chalk/50 px-5 transition-colors open:border-yebo/30 open:bg-white open:shadow-[0_18px_40px_-28px_rgba(12,59,46,.5)] sm:px-6">
+            <details key={item.q} className="group">
               <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 py-4 text-base font-bold text-yebo-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo [&::-webkit-details-marker]:hidden">
                 {item.q}
-                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-white text-lg font-black text-yebo ring-1 ring-yebo-deep/10 transition group-open:rotate-45 group-open:bg-yebo group-open:text-white group-open:ring-yebo">+</span>
+                <span aria-hidden="true" className="shrink-0 text-2xl font-normal text-yebo transition group-open:rotate-45">+</span>
               </summary>
-              <p className="pb-5 pr-10 text-sm leading-7 text-yebo-deep/70">{item.a}</p>
+              <p className="pb-5 pr-10 text-sm leading-7 text-yebo-deep/75">{item.a}</p>
             </details>
           ))}
         </div>

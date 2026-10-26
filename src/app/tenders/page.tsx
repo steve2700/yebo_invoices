@@ -3,6 +3,7 @@ import Link from "next/link";
 import LandingHeader from "@/components/LandingHeader";
 import LandingFooter from "@/components/LandingFooter";
 import TenderDemo from "@/components/TenderDemo";
+import PhotoStrip from "@/components/PhotoStrip";
 import PhoneFrame from "@/components/PhoneFrame";
 import { appUrl } from "@/lib/url";
 
@@ -73,161 +74,137 @@ export default function TendersPage() {
   return (
     <>
       <LandingHeader />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\u003c") }} />
       <main className="text-yebo-deep">
-        <section className="relative overflow-hidden bg-yebo-chalk">
-          <div aria-hidden="true" className="pointer-events-none absolute -right-40 top-0 size-[34rem] rounded-full bg-lime/30 blur-3xl" />
-          <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 pb-16 pt-12 sm:px-8 sm:pt-16 lg:grid-cols-[1.05fr_.95fr] lg:px-12 lg:pb-24 lg:pt-20">
+        <section className="bg-yebo-chalk">
+          <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-14 pt-12 sm:px-8 sm:pt-16 lg:grid-cols-[1.05fr_.95fr] lg:px-12 lg:pb-20 lg:pt-20">
             <div>
-              <p className="fade-up inline-flex items-center gap-2 rounded-full border border-yebo-deep/10 bg-white/80 py-1.5 pl-1.5 pr-4 text-xs font-bold text-yebo-deep/75">
-                <span className="rounded-full bg-yebo-deep px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-lime">Yebo Tenders</span>
-                Government work, minus the panic
-              </p>
-              <h1 className="fade-up mt-6 text-balance text-[clamp(2.6rem,7.5vw,5.4rem)] font-extrabold leading-[.92] tracking-[-.06em]" style={{ "--d": ".08s" } as React.CSSProperties}>
-                Find the tender. Price it. <span className="text-yebo">Send it before it closes.</span>
+              <h1 className="text-balance text-[clamp(2.5rem,6.5vw,4.75rem)] font-extrabold leading-[.95] tracking-[-.05em]">
+                Find the tender. Price it. Send it before it closes.
               </h1>
-              <p className="fade-up mt-7 max-w-xl text-pretty text-lg leading-8 text-yebo-deep/70" style={{ "--d": ".16s" } as React.CSSProperties}>
-                Yebo matches live South African tenders to your trade, reads the BOQ for you and checks your compliance papers before you submit. The paperwork stops being the reason you lose.
+              <p className="mt-6 max-w-xl text-pretty text-lg leading-8 text-yebo-deep/75">
+                Yebo matches live South African tenders to your trade, reads the BOQ into lines and checks your compliance papers before you submit, so paperwork is not the reason you lose.
               </p>
-              <div className="fade-up mt-8 flex flex-col gap-3 sm:flex-row" style={{ "--d": ".24s" } as React.CSSProperties}>
-                <Link href="/login" className="inline-flex min-h-[52px] items-center justify-center rounded-full bg-yebo px-7 text-sm font-extrabold text-white shadow-lg shadow-yebo/25 transition hover:-translate-y-0.5 hover:bg-yebo-deep">Start your first bid <span aria-hidden="true" className="ml-2">→</span></Link>
-                <a href="#how" className="inline-flex min-h-[52px] items-center justify-center rounded-full border-2 border-yebo-deep/15 bg-white/60 px-7 text-sm font-extrabold text-yebo-deep transition hover:bg-white">See how it works</a>
+              <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-3">
+                <Link href="/login" className="inline-flex min-h-[52px] items-center justify-center rounded-md bg-yebo px-7 text-base font-bold text-white transition hover:bg-yebo-deep">Start your first bid</Link>
+                <a href="#how" className="text-base font-semibold text-yebo-deep underline decoration-yebo-deep/30 underline-offset-4 transition hover:decoration-yebo-deep">See how it works</a>
               </div>
-              <p className="mt-5 text-sm font-semibold text-yebo-deep/55">Part of The Industry King plan, R499 a month. Works on your phone or laptop.</p>
+              <p className="mt-5 text-sm text-yebo-deep/70">Part of The Industry King plan, R499 a month. Works on your phone or laptop.</p>
             </div>
-            <div className="relative mx-auto w-full max-w-md lg:max-w-none" aria-label="Screenshots of Yebo Tenders on a phone">
-              <div aria-hidden="true" className="absolute inset-x-6 bottom-0 top-16 rounded-[3rem] bg-yebo-deep sm:inset-x-10" />
-              <div className="relative flex items-end justify-center pb-10 pt-6">
-                <PhoneFrame src="/screens/tender-boq.png" alt="Yebo tender bid with BOQ items read into editable lines, quantities and rates" tone="light" className="pop-in w-[44vw] max-w-[230px] -rotate-6 translate-x-6 translate-y-6 sm:w-[210px]" />
-                <PhoneFrame src="/screens/tenders-list.png" alt="Yebo tenders list with the tender hub, compliance vault warnings and open bids with closing dates" priority className="pop-in relative z-10 w-[50vw] max-w-[260px] rotate-3 -translate-x-4 sm:w-[250px]" />
-              </div>
-              <div className="stamp absolute bottom-6 right-0 z-20 rounded-2xl bg-orange px-4 py-3 text-white shadow-xl sm:right-2">
-                <span className="block text-[10px] font-extrabold uppercase tracking-[.14em] text-white/80">Closes in</span>
-                <span className="block text-xl font-black tracking-tight">5 days</span>
-              </div>
+            <div className="flex justify-center gap-4 lg:justify-end" aria-label="Screenshots of Yebo Tenders on a phone">
+              <PhoneFrame src="/screens/tenders-list.png" alt="Yebo tenders list with the tender hub, compliance vault warnings and open bids with closing dates" priority tone="light" className="w-[44vw] max-w-[230px] sm:w-[230px]" />
+              <PhoneFrame src="/screens/tender-boq.png" alt="Yebo tender bid with BOQ items read into editable lines, quantities and rates" tone="light" className="mt-10 w-[44vw] max-w-[230px] sm:w-[230px]" />
             </div>
           </div>
         </section>
 
-        <section className="relative overflow-hidden bg-yebo-deep py-20 text-white sm:py-28">
+        <PhotoStrip heading="Real jobs, real bids" />
+
+        <section className="bg-yebo-deep py-16 text-white sm:py-24">
           <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
-            <p className="text-xs font-extrabold uppercase tracking-[.2em] text-lime">A gentle roast</p>
-            <h2 className="mt-4 max-w-3xl text-balance text-4xl font-extrabold leading-[.98] tracking-[-.05em] sm:text-6xl">Most bids don&rsquo;t fail on price. They fail on paperwork.</h2>
-            <p className="mt-5 max-w-2xl text-pretty text-lg leading-8 text-white/65">
-              Your rates were great. Your SARS PIN expired last Tuesday. One missing or expired document and a good bid is binned before anyone reads it. Yebo keeps these four in one place and tells you what needs attention.
+            <h2 className="max-w-3xl text-balance text-3xl font-extrabold leading-[1.02] tracking-[-.04em] sm:text-5xl">Most bids do not fail on price. They fail on paperwork.</h2>
+            <p className="mt-4 max-w-2xl text-pretty text-lg leading-8 text-white/80">
+              One missing or expired document and a good bid can be thrown out before anyone reads your rates. Yebo keeps these four in one place and tells you what needs attention.
             </p>
-            <dl className="mt-12 grid gap-4 sm:grid-cols-2">
-              {papers.map(([t, d], i) => (
-                <div key={t} className="rounded-[1.5rem] border border-white/10 bg-white/[.04] p-6 transition hover:border-white/20 hover:bg-white/[.07]">
-                  <dt className="flex items-center justify-between gap-4 text-lg font-extrabold">
-                    {t}
-                    <span aria-hidden="true" className="font-mono text-sm text-white/25">0{i + 1}</span>
-                  </dt>
-                  <dd className="mt-2 text-sm leading-6 text-white/65">{d}</dd>
+            <dl className="mt-10 grid gap-x-12 gap-y-8 sm:grid-cols-2">
+              {papers.map(([t, d]) => (
+                <div key={t} className="border-t border-white/25 pt-4">
+                  <dt className="text-lg font-bold">{t}</dt>
+                  <dd className="mt-1.5 text-base leading-7 text-white/80">{d}</dd>
                 </div>
               ))}
             </dl>
           </div>
         </section>
 
-        <section id="how" className="scroll-mt-24 bg-yebo-chalk py-20 sm:py-28">
+        <section id="how" className="scroll-mt-24 bg-yebo-chalk py-16 sm:py-24">
           <div className="mx-auto grid max-w-7xl items-start gap-12 px-5 sm:px-8 lg:grid-cols-[1fr_1fr] lg:px-12">
             <div>
-              <p className="text-xs font-extrabold uppercase tracking-[.2em] text-yebo">How it works</p>
-              <h2 className="mt-4 text-balance text-4xl font-extrabold leading-[.98] tracking-[-.05em] sm:text-5xl">From tender alert to sent bid</h2>
-              <ol className="mt-10 flex flex-col gap-3">
+              <h2 className="text-balance text-3xl font-extrabold leading-[1.02] tracking-[-.04em] sm:text-5xl">From tender alert to sent bid</h2>
+              <ol className="mt-8 flex flex-col gap-6">
                 {steps.map(([t, d], i) => (
-                  <li key={t} className="flex gap-4 rounded-[1.5rem] border border-yebo-deep/10 bg-white p-5">
-                    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-lime text-sm font-black text-yebo-deep">{i + 1}</span>
-                    <div>
-                      <p className="text-lg font-extrabold">{t}</p>
-                      <p className="mt-1 text-sm leading-6 text-yebo-deep/65">{d}</p>
-                    </div>
+                  <li key={t} className="border-t-2 border-yebo-deep pt-4">
+                    <p className="text-sm font-bold text-yebo">Step {i + 1}</p>
+                    <p className="mt-1 text-xl font-extrabold">{t}</p>
+                    <p className="mt-1 text-sm leading-6 text-yebo-deep/75">{d}</p>
                   </li>
                 ))}
               </ol>
             </div>
             <div className="lg:sticky lg:top-28">
-              <p className="mb-4 text-xs font-extrabold uppercase tracking-[.16em] text-yebo-deep/50">Try it: a real BOQ, priced</p>
+              <p className="mb-3 text-sm font-bold text-yebo-deep/70">Try it: tap each paper to mark it ready</p>
               <TenderDemo />
             </div>
           </div>
         </section>
 
-        <section className="border-t border-yebo-deep/10 bg-white py-20 sm:py-28">
+        <section className="border-t border-yebo-deep/10 bg-white py-16 sm:py-24">
           <div className="mx-auto max-w-3xl px-5 sm:px-8">
-            <p className="text-xs font-extrabold uppercase tracking-[.2em] text-yebo">The free guide</p>
-            <h2 className="mt-4 text-balance text-3xl font-extrabold tracking-[-.04em] sm:text-5xl">How to bid for a government tender in South Africa</h2>
-            <p className="mt-5 text-lg leading-8 text-yebo-deep/65">The same six steps apply whether you use Yebo or not. Get the first four sorted once and every tender after that is faster.</p>
-            <ol className="relative mt-10 space-y-8 before:absolute before:bottom-4 before:left-4 before:top-4 before:w-px before:bg-yebo-deep/15">
+            <h2 className="text-balance text-3xl font-extrabold tracking-[-.04em] sm:text-5xl">How to bid for a government tender in South Africa</h2>
+            <p className="mt-5 text-lg leading-8 text-yebo-deep/75">The same six steps apply whether you use Yebo or not. Get the first four sorted once and every tender after that is faster.</p>
+            <ol className="mt-8 space-y-6">
               {guide.map(([t, d], i) => (
-                <li key={t} className="relative flex gap-5">
-                  <span className="relative grid size-8 shrink-0 place-items-center rounded-full bg-yebo-deep text-sm font-black text-white ring-4 ring-white">{i + 1}</span>
-                  <div><h3 className="text-lg font-extrabold">{t}</h3><p className="mt-1 leading-7 text-yebo-deep/65">{d}</p></div>
+                <li key={t} className="flex gap-4">
+                  <span aria-hidden="true" className="mt-0.5 w-7 shrink-0 text-xl font-extrabold text-yebo">{i + 1}.</span>
+                  <div><h3 className="text-lg font-extrabold">{t}</h3><p className="mt-1 leading-7 text-yebo-deep/75">{d}</p></div>
                 </li>
               ))}
             </ol>
           </div>
         </section>
 
-        <section className="bg-yebo-chalk px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
-          <div className="mx-auto grid max-w-7xl items-center gap-10 overflow-hidden rounded-[2.25rem] border border-yebo-deep/10 bg-white p-7 sm:p-10 lg:grid-cols-2 lg:p-14">
+        <section className="border-t border-yebo-deep/10 bg-yebo-chalk py-16 sm:py-24">
+          <div className="mx-auto grid max-w-7xl gap-10 px-5 sm:px-8 lg:grid-cols-2 lg:gap-16 lg:px-12">
             <div>
-              <p className="text-xs font-extrabold uppercase tracking-[.2em] text-yebo">The Industry King</p>
-              <h2 className="mt-4 text-balance text-3xl font-extrabold tracking-[-.04em] sm:text-5xl">One plan for contractors who bid.</h2>
-              <p className="mt-6 text-7xl font-black tracking-[-.05em] sm:text-8xl">R499<span className="ml-2 text-2xl font-semibold tracking-normal text-yebo-deep/55">a month</span></p>
-              <p className="mt-4 text-lg text-yebo-deep/65">One tender you would have missed pays for years of this. One expired certificate costs more.</p>
-              <Link href="/pricing" className="mt-7 inline-flex min-h-[52px] items-center rounded-full bg-yebo px-7 text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-yebo-deep">See The Industry King plan <span aria-hidden="true" className="ml-2">→</span></Link>
+              <h2 className="text-balance text-3xl font-extrabold tracking-[-.04em] sm:text-5xl">Included in The Industry King</h2>
+              <p className="mt-5 text-6xl font-black tracking-[-.04em] sm:text-7xl">R499<span className="ml-2 text-xl font-semibold tracking-normal text-yebo-deep/65">a month</span></p>
+              <Link href="/pricing" className="mt-6 inline-flex min-h-11 items-center text-base font-semibold text-yebo underline decoration-yebo/30 underline-offset-4 transition hover:text-yebo-deep">See all three plans</Link>
             </div>
-            <ul className="flex flex-col gap-3 text-yebo-deep/80">
+            <ul className="flex flex-col divide-y divide-yebo-deep/15 border-y border-yebo-deep/15">
               {[
                 "Live eTenders matched to your trade and province",
                 "Excel and PDF BOQs read into editable line items, including very big ones",
                 "Every line keeps its original text, so you can check it",
                 "Compliance vault for CSD, SARS, B-BBEE and COIDA",
                 "Bid and compliance files sent in one email, after you approve",
-                "Quotes, invoices, voice quotes and PayFast payments included",
+                "Quotes, invoices, voice quotes and PayFast payments too",
               ].map((t) => (
-                <li key={t} className="flex items-start gap-3 rounded-2xl bg-yebo-chalk/70 px-4 py-3 font-semibold"><span aria-hidden="true" className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-yebo text-[10px] font-black text-white">✓</span>{t}</li>
+                <li key={t} className="py-3 text-base font-semibold leading-6 text-yebo-deep">{t}</li>
               ))}
             </ul>
           </div>
         </section>
 
-        <section className="bg-yebo-chalk px-5 pb-20 sm:px-8 lg:px-12">
-          <div className="mx-auto flex max-w-7xl flex-col gap-3 rounded-[1.5rem] border-l-4 border-orange bg-white p-6 sm:p-8">
-            <p className="text-xs font-extrabold uppercase tracking-[.16em] text-orange">Straight talk</p>
-            <p className="max-w-3xl leading-7 text-yebo-deep/80"><b className="text-yebo-deep">What Yebo does not do.</b> It helps you avoid being disqualified for missing paperwork. It cannot promise you will win, and it does not fill in the tender&rsquo;s own forms. Always compare your bid with the original tender documents before you submit.</p>
+        <section className="bg-white pb-4 pt-14">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
+            <p className="max-w-3xl border-l-4 border-yebo-deep pl-5 text-base leading-7 text-yebo-deep/85"><b className="text-yebo-deep">What Yebo does not do.</b> It helps you avoid being disqualified for missing paperwork. It cannot promise you will win, and it does not fill in the tender&rsquo;s own forms. Always compare your bid with the original tender documents before you submit.</p>
           </div>
         </section>
 
-        <section id="faq" className="scroll-mt-24 border-t border-yebo-deep/10 bg-white py-20 sm:py-28">
+        <section id="faq" className="scroll-mt-24 bg-white py-16 sm:py-24">
           <div className="mx-auto grid max-w-6xl gap-10 px-5 sm:px-8 lg:grid-cols-[.8fr_1.2fr] lg:gap-16 lg:px-12">
             <div className="lg:sticky lg:top-28 lg:self-start">
-              <p className="text-xs font-extrabold uppercase tracking-[.2em] text-yebo">Tender questions</p>
-              <h2 className="mt-4 text-4xl font-extrabold tracking-[-.05em] sm:text-5xl">Questions</h2>
-              <p className="mt-5 max-w-sm leading-7 text-yebo-deep/65">The stuff people ask before they trust us with a R2 million bid.</p>
+              <h2 className="text-3xl font-extrabold tracking-[-.04em] sm:text-5xl">Tender questions</h2>
+              <p className="mt-4 max-w-sm leading-7 text-yebo-deep/75">What people ask before they trust a tool with a bid.</p>
             </div>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col divide-y divide-yebo-deep/15 border-y border-yebo-deep/15">
               {faqs.map((f) => (
-                <details key={f.q} className="group rounded-2xl border border-yebo-deep/10 bg-yebo-chalk/50 px-5 transition-colors open:border-yebo/30 open:bg-white open:shadow-[0_18px_40px_-28px_rgba(12,59,46,.5)] sm:px-6">
+                <details key={f.q} className="group">
                   <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 py-4 text-base font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo [&::-webkit-details-marker]:hidden">
                     {f.q}
-                    <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-white text-lg font-black text-yebo ring-1 ring-yebo-deep/10 transition group-open:rotate-45 group-open:bg-yebo group-open:text-white group-open:ring-yebo">+</span>
+                    <span aria-hidden="true" className="shrink-0 text-2xl font-normal text-yebo transition group-open:rotate-45">+</span>
                   </summary>
-                  <p className="pb-5 pr-10 text-sm leading-7 text-yebo-deep/70">{f.a}</p>
+                  <p className="pb-5 pr-10 text-sm leading-7 text-yebo-deep/75">{f.a}</p>
                 </details>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
-          <div className="relative mx-auto max-w-7xl overflow-hidden rounded-[2.25rem] bg-yebo-deep px-6 py-14 text-white sm:px-12 sm:py-20">
-            <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full bg-yebo/50 blur-3xl" />
-            <h2 className="relative max-w-2xl text-balance text-4xl font-extrabold leading-[.98] tracking-[-.05em] sm:text-6xl">The next tender closes soon. <span className="text-lime">Be ready for it.</span></h2>
-            <p className="relative mt-5 max-w-xl text-lg text-white/65">Set up your vault once, and every bid after that starts with the hard part done.</p>
-            <Link href="/login" className="relative mt-8 inline-flex min-h-[52px] items-center rounded-full bg-yebo-sun px-7 text-sm font-extrabold text-yebo-deep transition hover:-translate-y-0.5 hover:bg-white">Get started on Yebo <span aria-hidden="true" className="ml-2">↗</span></Link>
+        <section className="bg-yebo-deep py-16 text-white sm:py-24">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
+            <h2 className="max-w-2xl text-balance text-3xl font-extrabold leading-[1.02] tracking-[-.04em] sm:text-5xl">Set up your vault once. Every bid after that starts with the hard part done.</h2>
+            <Link href="/login" className="mt-8 inline-flex min-h-[52px] items-center rounded-md bg-yebo-sun px-7 text-base font-bold text-yebo-deep transition hover:bg-white">Get started on Yebo</Link>
           </div>
         </section>
       </main>

@@ -1,93 +1,48 @@
 import Link from "next/link";
 import { InstallAppButton } from "@/app/app/InstallPrompt";
-import PhoneFrame from "@/components/PhoneFrame";
+import SignRotator from "@/components/SignRotator";
 
-const proof = [
-  ["1 tap", "to send on WhatsApp or email"],
-  ["0 apps", "for your client to install"],
-  ["Card + EFT", "online payments via PayFast"],
-  ["From R49", "a month. Cancel any time"],
+const facts = [
+  ["From R49 a month", "Cancel any time"],
+  ["Card and instant EFT", "Paid through your own PayFast account"],
+  ["No client sign up", "They open a link on any phone"],
+  ["Installs on your phone", "Free, no app store"],
 ];
 
 export default function LandingHero() {
   return (
-    <section className="relative overflow-hidden bg-yebo-chalk">
-      <div aria-hidden="true" className="pointer-events-none absolute -right-40 top-10 size-[36rem] rounded-full bg-lime/30 blur-3xl" />
-      <div aria-hidden="true" className="pointer-events-none absolute -left-48 -top-40 size-[30rem] rounded-full bg-yebo-sun/15 blur-3xl" />
-
-      <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 pb-16 pt-10 sm:px-8 sm:pt-16 lg:grid-cols-[1.05fr_.95fr] lg:gap-10 lg:px-12 lg:pb-24 lg:pt-20">
-        <div className="relative z-10">
-          <p className="fade-up inline-flex items-center gap-2 rounded-full border border-yebo-deep/10 bg-white/80 py-1.5 pl-1.5 pr-4 text-xs font-bold text-yebo-deep/75">
-            <span className="rounded-full bg-orange px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-white">Roast</span>
-            Still quoting from a blurry WhatsApp photo? We need to talk.
-          </p>
-          <h1
-            className="fade-up mt-6 max-w-2xl text-balance text-[clamp(2.75rem,8.5vw,5.9rem)] font-extrabold leading-[.9] tracking-[-.065em] text-yebo-deep"
-            style={{ "--d": ".08s" } as React.CSSProperties}
-          >
-            Quote like a pro. <span className="relative whitespace-nowrap text-yebo">Get paid<svg aria-hidden="true" viewBox="0 0 300 20" className="absolute -bottom-2 left-0 h-3 w-full text-lime" preserveAspectRatio="none"><path d="M4 14c70-10 150-12 292-4" fill="none" stroke="currentColor" strokeWidth="7" strokeLinecap="round" /></svg></span> like one.
+    <section className="bg-yebo-chalk">
+      <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 pb-12 pt-10 sm:px-8 sm:pt-14 lg:grid-cols-[1fr_1fr] lg:gap-14 lg:px-12 lg:pb-16 lg:pt-16">
+        <div>
+          <h1 className="text-balance text-[clamp(2.75rem,7.5vw,5.5rem)] font-extrabold leading-[.92] tracking-[-.05em] text-yebo-deep">
+            Quotes clients say yes to.
           </h1>
-          <p
-            className="fade-up mt-7 max-w-xl text-pretty text-base leading-7 text-yebo-deep/70 sm:text-lg sm:leading-8"
-            style={{ "--d": ".16s" } as React.CSSProperties}
-          >
-            Speak your quote, send it in one tap, see the moment your client opens it, and get paid online. Built for South African trades who are done chasing money on WhatsApp.
+          <p className="mt-6 max-w-xl text-pretty text-lg leading-8 text-yebo-deep/75">
+            Yebo is the quoting and invoicing app for South African small business. Say the job out loud, send the quote on WhatsApp or email, see when it is opened, and get paid by card or instant EFT.
           </p>
-          <div className="fade-up mt-8 flex flex-col gap-3 sm:flex-row sm:items-center" style={{ "--d": ".24s" } as React.CSSProperties}>
-            <Link className="inline-flex min-h-[52px] items-center justify-center rounded-full bg-yebo px-7 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-yebo/25 transition hover:-translate-y-0.5 hover:bg-yebo-deep" href="/login">
-              Send your first quote <span aria-hidden="true" className="ml-2">→</span>
+          <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-3">
+            <Link className="inline-flex min-h-[52px] items-center justify-center rounded-md bg-yebo px-7 text-base font-bold text-white transition hover:bg-yebo-deep" href="/login">
+              Send your first quote
             </Link>
-            <Link className="inline-flex min-h-[52px] items-center justify-center rounded-full border-2 border-yebo-deep/15 bg-white/60 px-7 py-3 text-sm font-extrabold text-yebo-deep transition hover:border-yebo-deep/30 hover:bg-white" href="#screens">
-              See the real app
+            <Link className="text-base font-semibold text-yebo-deep underline decoration-yebo-deep/30 underline-offset-4 transition hover:decoration-yebo-deep" href="/features">
+              See everything it does
             </Link>
           </div>
-          <div className="fade-up mt-4" style={{ "--d": ".3s" } as React.CSSProperties}>
-            <InstallAppButton className="press inline-flex min-h-11 items-center gap-2 rounded-full px-1 text-sm font-bold text-yebo transition hover:text-yebo-deep">
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2" width="10" height="20" rx="2.5" /><path d="M12 8v6M9.5 11.5 12 14l2.5-2.5" /></svg>
-              Add Yebo to your phone. Free, no app store.
+          <div className="mt-4">
+            <InstallAppButton className="press inline-flex min-h-11 items-center text-sm font-semibold text-yebo underline decoration-yebo/30 underline-offset-4 transition hover:text-yebo-deep">
+              Add Yebo to your phone
             </InstallAppButton>
           </div>
-          <p className="mt-3 text-xs font-semibold text-yebo-deep/50">No laptop. No Excel. No &ldquo;sorry, the PDF won&apos;t open.&rdquo;</p>
         </div>
-
-        <div className="relative mx-auto flex w-full max-w-md justify-center lg:max-w-none" aria-label="Screenshots of the Yebo app on a phone">
-          <div aria-hidden="true" className="absolute inset-x-6 bottom-0 top-16 rounded-[3rem] bg-yebo-deep sm:inset-x-10" />
-          <div className="relative flex items-end justify-center gap-0 pt-6 pb-10">
-            <PhoneFrame
-              src="/screens/quote-voice.png"
-              alt="Yebo new quote screen with the voice assistant: speak your quote and Yebo fills it in"
-              className="pop-in relative z-0 w-[44vw] max-w-[230px] -rotate-6 translate-x-6 translate-y-6 sm:w-[210px]"
-              tone="light"
-            />
-            <PhoneFrame
-              src="/screens/home-dashboard.png"
-              alt="Yebo home screen showing money collected this month, outstanding and overdue invoices"
-              className="pop-in relative z-10 w-[50vw] max-w-[260px] rotate-3 -translate-x-4 sm:w-[250px]"
-              priority
-            />
-          </div>
-
-          <div className="fade-up absolute left-0 top-24 z-20 hidden rounded-2xl border border-yebo-deep/10 bg-white p-3 pr-4 shadow-xl sm:flex sm:items-center sm:gap-3" style={{ "--d": ".6s" } as React.CSSProperties}>
-            <span aria-hidden="true" className="grid size-9 place-items-center rounded-full bg-lime text-sm font-black text-yebo-deep">●</span>
-            <span>
-              <span className="block text-[11px] font-extrabold uppercase tracking-[.12em] text-yebo">Quote opened</span>
-              <span className="block text-sm font-bold text-yebo-deep">Mr Stewart · just now</span>
-            </span>
-          </div>
-          <div className="stamp absolute bottom-6 right-0 z-20 rounded-2xl bg-orange px-4 py-3 text-white shadow-xl sm:right-2">
-            <span className="block text-[10px] font-extrabold uppercase tracking-[.14em] text-white/80">Accepted</span>
-            <span className="block text-xl font-black tracking-tight">R 22 100</span>
-          </div>
-        </div>
+        <SignRotator />
       </div>
 
-      <div className="relative border-t border-yebo-deep/10 bg-white/60">
-        <dl className="mx-auto grid max-w-7xl grid-cols-2 gap-px px-5 sm:px-8 lg:grid-cols-4 lg:px-12">
-          {proof.map(([value, label]) => (
-            <div key={value} className="flex flex-col gap-1 py-6 lg:py-7">
-              <dt className="sr-only">{label}</dt>
-              <dd className="text-2xl font-black tracking-tight text-yebo-deep sm:text-3xl">{value}</dd>
-              <dd className="text-xs font-semibold text-yebo-deep/55 sm:text-sm">{label}</dd>
+      <div className="border-t border-yebo-deep/15">
+        <dl className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-5 px-5 py-6 sm:px-8 lg:grid-cols-4 lg:px-12">
+          {facts.map(([value, label]) => (
+            <div key={value}>
+              <dt className="text-base font-bold text-yebo-deep">{value}</dt>
+              <dd className="mt-0.5 text-sm text-yebo-deep/65">{label}</dd>
             </div>
           ))}
         </dl>

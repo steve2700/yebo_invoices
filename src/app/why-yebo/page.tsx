@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import InfoPage from "@/components/InfoPage";
 import WhyNotAChatbot from "@/components/WhyNotAChatbot";
-import RoastSection from "@/components/RoastSection";
+import OldWaySection from "@/components/OldWaySection";
 import ScreenShowcase from "@/components/ScreenShowcase";
 
 const title = "Why Yebo | Built for quotes and invoices, not a chatbot";
@@ -17,14 +17,12 @@ export const metadata: Metadata = {
 export default function WhyYebo() {
   return (
     <InfoPage
-      eyebrow="Why Yebo"
       title="Made for quoting, not for chatting"
       intro="A general chatbot can write words. Yebo keeps your prices exact, tracks every quote and invoice, and never sends anything to a client without you."
-      roast="If your business plan is “screenshot the ChatGPT answer and send it on WhatsApp,” this page is for you."
     >
       <WhyNotAChatbot />
-      <RoastSection />
-      <ScreenShowcase tone="white" eyebrow="See it for yourself" title="Proof, not promises." />
+      <OldWaySection />
+      <ScreenShowcase tone="white" title="See it for yourself" />
     </InfoPage>
   );
 }
