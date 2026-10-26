@@ -386,6 +386,7 @@ export async function buildDocumentPdf({ document: d, lines, business: b, client
   const brand = hex(b.brand_color), ink = rgb(0.05, 0.14, 0.11), mute = rgb(0.4, 0.45, 0.43), rule = rgb(0.86, 0.89, 0.87);
   const W = 595, H = 842, M = 48, R = W - M;
   const isQuote = d.type === "quote";
+  const isCredit = d.type === "credit_note";
 
   let page = pdf.addPage([W, H]);
   const topBar = () => page.drawRectangle({ x: 0, y: H - 8, width: W, height: 8, color: brand });
@@ -424,17 +425,17 @@ export async function buildDocumentPdf({ document: d, lines, business: b, client
   ].filter(Boolean) as string[];
   for (const t of trust) for (const l of wrap(t, font, 8.5, 290)) { put(l, M, 8.5, font, mute, leftY); leftY -= 11.5; }
 
-  putRight(isQuote ? "QUOTE" : b.vat_registered ? "TAX INVOICE" : "INVOICE", R, 20, bold, brand, top - 12);
+  putRight(isQuote ? "QUOTE" : isCredit ? "CREDIT NOTE" : b.vat_registered ? "TAX INVOICE" : "INVOICE", R, 20, bold, brand, top - 12);
   putRight(d.number, R, 10, font, ink, top - 30);
   putRight(`Date: ${formatDate(d.issue_date)}`, R, 9, font, mute, top - 44);
-  putRight(isQuote ? `Valid until ${formatDate(d.expiry_date)}` : `Due: ${formatDate(d.due_date)}`, R, 9, font, mute, top - 57);
+  if (!isCredit) putRight(isQuote ? `Valid until ${formatDate(d.expiry_date)}` : `Due: ${formatDate(d.due_date)}`, R, 9, font, mute, top - 57);
   y = Math.min(leftY, top - 70) - 6;
   page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 2, color: brand });
   y -= 24;
 
   // ---- client and job ----
   const colTop = y;
-  put(isQuote ? "Prepared for" : "Billed to", M, 8.5, font, mute, colTop);
+  put(isQuote ? "Prepared for" : isCredit ? "Credited to" : "Billed to", M, 8.5, font, mute, colTop);
   put(c.name, M, 11, bold, ink, colTop - 14);
   let ly = colTop - 28;
   if (c.address) for (const l of wrap(c.address, font, 9, 220)) { put(l, M, 9, font, mute, ly); ly -= 12; }
@@ -473,19 +474,19 @@ export async function buildDocumentPdf({ document: d, lines, business: b, client
   y -= 4;
   page.drawRectangle({ x: 340, y: y - 30, width: R - 340, height: 36, color: brand });
   const onBrand = readableOn(b.brand_color) === "#ffffff" ? rgb(1, 1, 1) : ink;
-  put("Total", 352, 13, bold, onBrand, y - 17); putRight(formatRand(d.total_cents), R - 12, 15, bold, onBrand, y - 18); y -= 54;
+  put(isCredit ? "Total credit" : "Total", 352, 13, bold, onBrand, y - 17); putRight(formatRand(d.total_cents), R - 12, 15, bold, onBrand, y - 18); y -= 54;
 
   // ---- payment plan ----
   const plan = !isQuote ? `Please pay ${formatRand(d.total_cents)} by ${formatDate(d.due_date)}. Use ${d.number} as your payment reference.` : d.payment_plan === "full" ? "Payment in full is needed to confirm the booking."
     : d.payment_plan === "deposit"
       ? `A ${d.deposit_percent}% deposit (${formatRand(Math.round((d.total_cents * d.deposit_percent) / 100))}) confirms the booking. Balance due ${d.payment_terms}.`
       : `No deposit. Full payment due ${d.payment_terms}.`;
-  const planRows = wrap(plan, font, 10, R - M - 28);
+  const planRows = wrap(isCredit ? "This credit note lowers the amount owed on the invoice it refers to. No payment is needed for it." : plan, font, 10, R - M - 28);
   const boxH = planRows.length * 13 + 30;
   need(boxH + 10);
   page.drawRectangle({ x: M, y: y - boxH, width: R - M, height: boxH, color: rgb(0.95, 0.97, 0.96) });
   page.drawRectangle({ x: M, y: y - boxH, width: 4, height: boxH, color: brand });
-  put("Payment", M + 16, 10, bold, ink, y - 16);
+  put(isCredit ? "About this credit" : "Payment", M + 16, 10, bold, ink, y - 16);
   planRows.forEach((t, i) => put(t, M + 16, 10, font, ink, y - 31 - i * 13));
   y -= boxH + 16;
 
@@ -496,21 +497,21 @@ export async function buildDocumentPdf({ document: d, lines, business: b, client
     const qr = await pdf.embedPng(Buffer.from((await QRCode.toDataURL(link, { margin: 1, width: 240 })).split(",")[1], "base64"));
     page.drawImage(qr, { x: M + 12, y: y - 92, width: 84, height: 84 });
   } catch { /* QR is optional */ }
-  put(isQuote ? "Scan to view and accept on your phone" : "Scan to open this invoice on your phone", M + 112, 11, bold, ink, y - 26);
+  put(isQuote ? "Scan to view and accept on your phone" : isCredit ? "Scan to open this credit note on your phone" : "Scan to open this invoice on your phone", M + 112, 11, bold, ink, y - 26);
   put(`Reference: ${d.number}`, M + 112, 9, font, mute, y - 42);
   wrap(link, font, 8, R - M - 128).forEach((t, i) => put(t, M + 112, 8, font, mute, y - 56 - i * 10));
   y -= 116;
 
   // ---- banking (same rule as the web page) ----
   const hasBank = b.bank_account_holder && b.bank_account_number && b.bank_branch_code;
-  if (hasBank && (!isQuote || d.status === "accepted")) {
+  if (hasBank && !isCredit && (!isQuote || d.status === "accepted")) {
     need(70);
     put("Pay by EFT", M, 10, bold, ink); y -= 15;
     put(`${b.bank_account_holder}  |  ${b.bank_name ?? ""}  |  ${b.bank_account_type ?? ""}`, M, 9.5); y -= 13;
     put(`Account: ${b.bank_account_number}  |  Branch: ${b.bank_branch_code}  |  Reference: ${d.number}`, M, 9.5); y -= 22;
   }
-  if (b.guarantee_months) { para(`${b.guarantee_months}-month workmanship guarantee on all work by ${b.name}.`, 9, font, mute); y -= 4; }
-  para(isQuote ? "Accept before the validity date to hold this price." : "Thank you for your business.", 9, font, mute);
+  if (b.guarantee_months && !isCredit) { para(`${b.guarantee_months}-month workmanship guarantee on all work by ${b.name}.`, 9, font, mute); y -= 4; }
+  para(isQuote ? "Accept before the validity date to hold this price." : isCredit ? "Thank you." : "Thank you for your business.", 9, font, mute);
 
   drawYeboPromo(pdf, page, font, bold, isQuote ? "quote" : "invoice");
   return pdf.save();

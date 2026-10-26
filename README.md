@@ -368,6 +368,8 @@ Run the migrations **in order** in the Supabase SQL Editor (copies are in `supab
 | `0018_promise_signature.sql` | "I will pay on this day" and the typed signature on accepted quotes |
 | `0019_photos_recurring.sql` | Photos on quotes, repeating monthly invoices and system numbering for the daily job |
 | `0020_client_statement.sql` | A private statement link per client listing everything they owe |
+| `0021_quote_scope.sql` | Optional "Not included / Assumptions / Timeline" sections on quotes |
+| `0022_credit_notes.sql` | Credit notes: own number series, lowers what an invoice owes, never counted as income |
 
 Supabase may warn about "destructive operations" on some of these. They only drop and recreate policies or functions, and do not touch your data.
 

@@ -85,7 +85,7 @@ export function invoiceRegisterCsv(rows: InvoiceRow[]) {
     ]),
   );
   const total = totalsOfInvoices(rows);
-  lines.push(row(["TOTAL", "", "", `${total.count} invoices`, money(total.netCents), money(total.vatCents), money(total.grossCents), "", "", money(total.paidCents), ""]));
+  lines.push(row(["TOTAL", "", "", `${total.count} invoices and credit notes`, money(total.netCents), money(total.vatCents), money(total.grossCents), "", "", money(total.paidCents), ""]));
   return `${BOM}${[header, ...lines].join("\r\n")}\r\n`;
 }
 

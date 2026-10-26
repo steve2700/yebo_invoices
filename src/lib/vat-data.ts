@@ -43,7 +43,7 @@ export async function loadInvoiceBasis(supabase: Supabase, from: string, to: str
   const paid = new Map<string, { cents: number; last: string | null }>();
   for (let index = 0; index < documents.length; index += CHUNK) {
     const ids = documents.slice(index, index + CHUNK).map((document) => text(document.id));
-    const payments = await readAll((start, end) => supabase.from("payments").select("document_id,amount_cents,paid_at").in("document_id", ids).range(start, end));
+    const payments = await readAll((start, end) => supabase.from("payments").select("document_id,amount_cents,paid_at").neq("method", "credit").in("document_id", ids).range(start, end));
     for (const payment of payments) {
       const id = text(payment.document_id);
       const day = southAfricaDate(text(payment.paid_at));
@@ -52,7 +52,33 @@ export async function loadInvoiceBasis(supabase: Supabase, from: string, to: str
     }
   }
 
-  return documents.map((document) => {
+  // Credit notes issued in the period reduce the VAT charged, so they appear as negative rows (dated the day they were issued).
+  const credits = await readAll((start, end) =>
+    supabase
+      .from("documents")
+      .select("id,number,issue_date,title,subtotal_cents,vat_cents,total_cents,vat_percent,status,clients(name)")
+      .eq("type", "credit_note")
+      .gte("issue_date", from)
+      .lte("issue_date", to)
+      .order("issue_date", { ascending: true })
+      .order("number", { ascending: true })
+      .range(start, end),
+  );
+  const creditRows: InvoiceRow[] = credits.map((document) => ({
+    number: text(document.number),
+    issueDate: text(document.issue_date),
+    clientName: text(first(document.clients).name) || "Client",
+    title: text(document.title),
+    subtotalCents: -whole(document.subtotal_cents),
+    vatCents: -whole(document.vat_cents),
+    totalCents: -whole(document.total_cents),
+    vatPercent: Number(document.vat_percent ?? 0),
+    status: "credit_note",
+    paidCents: 0,
+    lastPaidDate: null,
+  }));
+
+  const invoiceRows = documents.map((document) => {
     const payment = paid.get(text(document.id));
     return {
       number: text(document.number),
@@ -68,6 +94,7 @@ export async function loadInvoiceBasis(supabase: Supabase, from: string, to: str
       lastPaidDate: payment?.last ?? null,
     };
   });
+  return [...invoiceRows, ...creditRows].sort((a, b) => (a.issueDate === b.issueDate ? a.number.localeCompare(b.number) : a.issueDate.localeCompare(b.issueDate)));
 }
 
 // Every payment received within the period, whichever invoice it belongs to.
@@ -79,6 +106,7 @@ export async function loadPaymentsBasis(supabase: Supabase, from: string, to: st
     supabase
       .from("payments")
       .select("amount_cents,method,paid_at,documents(number,vat_cents,total_cents,vat_percent,type,clients(name))")
+      .neq("method", "credit")
       .gte("paid_at", startIso)
       .lte("paid_at", endIso)
       .order("paid_at", { ascending: true })

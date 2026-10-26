@@ -13,6 +13,7 @@ import { sendPaymentReceipt } from "@/lib/receipt";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DAY_MAX, DAY_MIN, firstRun } from "@/lib/recurring";
 import { southAfricaDate } from "@/lib/time";
+import { CREDIT_REASONS, randToCents } from "@/lib/credit";
 import { linesForChoice, lowestSubtotal, optionsPresent, subtotalFor, type OptionKey } from "@/lib/quote-options";
 
 type Sb = Awaited<ReturnType<typeof createClient>>;
@@ -56,7 +57,8 @@ export async function sendDocumentEmail(documentId: string): Promise<EmailResult
     sb.from("clients").select("name,email").eq("id", doc.client_id).maybeSingle(),
     sb.from("businesses").select("name,email,brand_color").eq("id", doc.business_id).maybeSingle(),
   ]);
-  const kind = doc.type === "quote" ? "quote" : "invoice";
+  const isCredit = doc.type === "credit_note";
+  const kind = doc.type === "quote" ? "quote" : isCredit ? "credit note" : "invoice";
   if (!isEmail(client?.email)) {
     return { ok: false, error: `${client?.name ?? "This client"} has no email address saved. Send it on WhatsApp instead, or add an email address to the client.` };
   }
@@ -91,9 +93,11 @@ export async function sendDocumentEmail(documentId: string): Promise<EmailResult
       html: renderEmail({
         brandColor: business?.brand_color,
         heading: `Your ${kind} is ready`,
-        intro: `Hi ${greetingName(client.name)}, ${businessName} has sent you ${kind === "quote" ? "a quote" : "an invoice"}. A PDF copy is attached, and you can also view it online.`,
-        rows: [[kind === "quote" ? "Quote" : "Invoice", doc.number]],
-        buttonLabel: kind === "quote" ? "View and accept the quote" : "View and pay the invoice",
+        intro: isCredit
+          ? `Hi ${greetingName(client.name)}, ${businessName} has issued you a credit note. It reduces the amount you owe. A PDF copy is attached, and you can also view it online.`
+          : `Hi ${greetingName(client.name)}, ${businessName} has sent you ${kind === "quote" ? "a quote" : "an invoice"}. A PDF copy is attached, and you can also view it online.`,
+        rows: [[kind === "quote" ? "Quote" : isCredit ? "Credit note" : "Invoice", doc.number]],
+        buttonLabel: kind === "quote" ? "View and accept the quote" : isCredit ? "View the credit note" : "View and pay the invoice",
         buttonUrl: link,
         footer: replyTo ? `Questions? Just reply to this email and it will reach ${businessName} directly.` : null,
       }),
@@ -365,4 +369,32 @@ export async function deletePhoto(fd: FormData) {
   }
   revalidatePath(`/app/documents/${docId}`);
   redirect(`/app/documents/${docId}#photos`);
+}
+
+// Issues a credit note against an unpaid invoice. The database function checks ownership and that the amount is
+// not more than what is still owed, and does everything in one step, so a half-finished credit cannot exist.
+export async function issueCreditNote(fd: FormData) {
+  const invoiceId = String(fd.get("invoice") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(invoiceId)) redirect("/app/documents");
+  const back = (code: string): never => redirect(`/app/documents/${invoiceId}?credit=${code}#credit`);
+  const cents = randToCents(String(fd.get("amount") ?? ""));
+  if (!cents) back("amount");
+  const reasonKey = String(fd.get("reason") ?? "");
+  const reason = CREDIT_REASONS[reasonKey];
+  if (!reason) back("reason");
+  const detail = String(fd.get("detail") ?? "").trim().slice(0, 300);
+  const sb = await createClient();
+  const { data: id, error } = await sb.rpc("issue_credit_note", {
+    p_invoice: invoiceId,
+    p_amount_cents: cents,
+    p_reason: reason,
+    p_description: detail || null,
+  });
+  if (error || !id) {
+    console.error("[credit note]", error?.message);
+    back(/more than what is still owed/i.test(error?.message ?? "") ? "toomuch" : "failed");
+  }
+  revalidatePath(`/app/documents/${invoiceId}`);
+  revalidatePath("/app");
+  redirect(`/app/documents/${id}?issued=1`);
 }

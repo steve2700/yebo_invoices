@@ -32,6 +32,41 @@ export default async function PublicDocument({ params, searchParams }: { params:
   const { data: signature } = isQuote && d.status === "accepted" ? await supabase.rpc("get_quote_signature", { p_token: token }) : { data: null };
   const color: string = /^#[0-9a-f]{6}$/i.test(b.brand_color) ? b.brand_color : "#0F8A5F";
   const fg = readableOn(color);
+  const { data: links } = d.type === "invoice" || d.type === "credit_note" ? await supabase.rpc("get_credit_links", { p_token: token }) : { data: null };
+  const creditsOnInvoice: { number: string; token: string; total_cents: number; issue_date: string }[] = d.type === "invoice" ? (links?.credits ?? []) : [];
+  const creditedTotal = creditsOnInvoice.reduce((sum, credit) => sum + Number(credit.total_cents), 0);
+
+  if (d.type === "credit_note") {
+    const original = links?.invoice as { number: string; token: string; total_cents: number } | null | undefined;
+    return (
+      <main className="mx-auto min-h-screen max-w-2xl px-4 py-8 sm:px-6">
+        <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-black/5">
+          <div className="p-6 sm:p-8" style={{ background: color, color: fg }}>
+            <p className="text-xs font-black uppercase tracking-[0.18em] opacity-80">Credit note</p>
+            <p className="mt-2 text-4xl font-black tracking-tight">{formatRand(d.total_cents)}</p>
+            <p className="mt-1 text-sm opacity-85">{d.number} · {formatDate(d.issue_date)}</p>
+          </div>
+          <div className="p-6 text-sm sm:p-8">
+            <p className="text-ink/70"><b>{b.name}</b> has credited <b>{c?.name}</b>. This lowers the amount owed{original ? <> on invoice <b>{original.number}</b></> : null}.</p>
+            {d.note && <p className="mt-4 border-l-4 pl-4 leading-relaxed text-ink/80" style={{ borderColor: color }}>{d.note}</p>}
+            <ul className="mt-5 divide-y divide-ink/10">
+              {(lines as Line[]).map((l, i) => <li key={i} className="flex items-start justify-between gap-3 py-2"><span>{l.description}</span><b className="shrink-0">{formatRand(l.line_total_cents)}</b></li>)}
+            </ul>
+            <div className="mt-2 border-t border-ink/10 pt-3">
+              <div className="flex justify-between py-1 text-ink/55"><span>Subtotal</span><span>{formatRand(d.subtotal_cents)}</span></div>
+              <div className="flex justify-between py-1 text-ink/55"><span>VAT</span><span>{b.vat_registered ? formatRand(d.vat_cents) : "Not applicable"}</span></div>
+              <div className="mt-2 flex justify-between rounded-xl px-3 py-3 text-lg font-black" style={{ background: `${color}12` }}><span>Total credit</span><span style={{ color }}>{formatRand(d.total_cents)}</span></div>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <a href={`/d/${token}/pdf`} className="inline-flex min-h-11 items-center rounded-xl border-2 border-ink/15 px-4 font-bold">Download PDF</a>
+              {original && <a href={`/d/${original.token}`} className="inline-flex min-h-11 items-center rounded-xl border-2 border-ink/15 px-4 font-bold">View invoice {original.number}</a>}
+            </div>
+            <p className="mt-6 text-xs text-ink/50">{b.name}{b.email ? ` · ${b.email}` : ""}{b.phone ? ` · ${b.phone}` : ""}{b.vat_registered && b.vat_number ? ` · VAT no: ${b.vat_number}` : ""}</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
   // "Today" in South Africa, so a quote does not expire a couple of hours early or late.
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
   const expired = isQuote && ["sent", "viewed"].includes(d.status) && d.expiry_date && d.expiry_date < today;
@@ -297,6 +332,10 @@ export default async function PublicDocument({ params, searchParams }: { params:
                   <div className="flex justify-between py-1 text-ink/55"><span>Subtotal</span><span>{formatRand(d.subtotal_cents)}</span></div>
                   <div className="flex justify-between py-1 text-ink/55"><span>VAT</span><span>{b.vat_registered ? formatRand(d.vat_cents) : "Not applicable"}</span></div>
                   <div className="mt-2 flex justify-between rounded-xl px-3 py-3 text-lg font-black" style={{ background: `${color}12` }}><span>Total</span><span style={{ color }}>{formatRand(d.total_cents)}</span></div>
+                  {creditsOnInvoice.map((credit) => (
+                    <div key={credit.token} className="flex justify-between px-3 py-1 text-ink/70"><a className="underline" href={`/d/${credit.token}`}>Credit note {credit.number}</a><span>-{formatRand(credit.total_cents)}</span></div>
+                  ))}
+                  {creditedTotal > 0 && <div className="flex justify-between px-3 py-1 font-bold"><span>Amount now owed</span><span>{formatRand(Math.max(Number(d.total_cents) - Number(data.paid_cents ?? 0), 0))}</span></div>}
                 </div>
               </>
             )}

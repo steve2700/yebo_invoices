@@ -13,6 +13,7 @@ import WhatsAppIcon from "@/components/WhatsAppIcon";
 import CopyButton from "../CopyButton";
 import AiMessageComposer from "../AiMessageComposer";
 import SendEmailCard from "../SendEmailCard";
+import CreditNoteCard from "../CreditNoteCard";
 import ConfirmForm from "../ConfirmForm";
 import { convertToInvoice, deleteDraft, duplicateDocument, markDepositReceived, markPaid, reopenQuote, sendDraft, startRecurring, stopRecurring, deletePhoto } from "../actions";
 import { ordinal } from "@/lib/recurring";
@@ -105,16 +106,16 @@ const btnPrimary = "inline-flex min-h-11 items-center justify-center rounded-xl 
 const btnDark = "inline-flex min-h-11 items-center justify-center rounded-xl bg-ink px-5 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-ink/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2";
 const btnOutline = "inline-flex min-h-11 items-center justify-center rounded-xl border-2 border-ink/15 px-4 py-2 text-sm font-bold text-ink transition hover:bg-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2";
 
-export default async function DocumentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ photos?: string }> }) {
+export default async function DocumentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ photos?: string; credit?: string; issued?: string }> }) {
   const { id } = await params;
-  const { photos: photosFlag } = await searchParams;
+  const { photos: photosFlag, credit: creditFlag, issued: issuedFlag } = await searchParams;
   const sb = await createClient();
   const { data: d } = await sb.from("documents").select("*,clients(name,email,whatsapp_number,statement_token)").eq("id", id).single();
   if (!d) notFound();
   const [{ data: biz }, { data: events }, { data: payments }, { data: messages }] = await Promise.all([
     sb.from("businesses").select("name,email").single(),
     sb.from("events").select("type,created_at").eq("document_id", id).order("created_at", { ascending: false }),
-    sb.from("payments").select("amount_cents").eq("document_id", id),
+    sb.from("payments").select("amount_cents,method").eq("document_id", id),
     sb.from("document_messages").select("id,kind,body,file_path,created_at").eq("document_id", id).order("created_at", { ascending: false }).limit(20),
   ]);
   // These rows only came back because the signed-in user owns this document, so short-lived links to proofs are safe to make.
@@ -145,6 +146,9 @@ export default async function DocumentPage({ params, searchParams }: { params: P
     } catch (error) { console.error("[photos] links", error); }
   }
   const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
+  // Credit notes: the ones issued against this invoice, or (for a credit note) the invoice it belongs to.
+  const { data: creditRows } = d.type === "invoice" ? await sb.from("documents").select("id,number,total_cents,issue_date").eq("credit_for_id", id).order("created_at") : { data: null };
+  const { data: creditedInvoice } = d.type === "credit_note" && d.credit_for_id ? await sb.from("documents").select("id,number,total_cents").eq("id", d.credit_for_id).maybeSingle() : { data: null };
   const ent = await entitlement(sb);
   const remindersAllowed = !ent.enforced || Boolean(ent.plan?.reminders);
 
@@ -154,10 +158,41 @@ export default async function DocumentPage({ params, searchParams }: { params: P
   const first = greetingName(client?.name);
   const link = `${appUrl()}/d/${d.public_token}`;
   const msg = `Hi ${first}, here is your ${kind} ${d.number} from ${biz?.name}: ${link}`;
+
   const businessEmail: string | null = typeof biz?.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(biz.email.trim()) ? biz.email.trim() : null;
+
+  if (d.type === "credit_note") {
+    const lastEmailedCredit = (events ?? []).find((event) => event.type === "emailed");
+    const creditMsg = `Hi ${first}, ${biz?.name ?? "we"} issued you a credit note ${d.number} for ${formatRand(d.total_cents)}${creditedInvoice ? ` against invoice ${creditedInvoice.number}` : ""}. View it here: ${link}`;
+    return (
+      <main className="mx-auto max-w-xl px-5 py-8">
+        <Link href={creditedInvoice ? `/app/documents/${creditedInvoice.id}` : "/app/documents"} className="text-sm font-semibold text-ink/50 hover:text-ink">← {creditedInvoice ? `Back to invoice ${creditedInvoice.number}` : "All documents"}</Link>
+        <p className="mt-3 text-xs font-extrabold uppercase tracking-[0.16em] text-orange">Credit note</p>
+        <h1 className="text-2xl font-extrabold">{d.number}</h1>
+        <p className="text-ink/65">{clientName} · {formatRand(d.total_cents)} credited{creditedInvoice ? <> · against <Link className="font-bold underline" href={`/app/documents/${creditedInvoice.id}`}>{creditedInvoice.number}</Link></> : null}</p>
+        {issuedFlag && <div role="status" className="mt-5 rounded-2xl border border-yebo/30 bg-lime/30 p-4"><p className="font-extrabold">Credit note issued</p><p className="mt-1 text-sm text-ink/70">The invoice balance has been lowered. Now send it to {first} so they have it for their records.</p></div>}
+        <div className="mt-5 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-black/5">
+          <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-ink/50">Reason</p>
+          <p className="mt-1">{d.note}</p>
+        </div>
+        <Section title={`Send it to ${first}`} hint="They see what was credited and what they still owe.">
+          <SendEmailCard documentId={d.id} kind="invoice" clientName={clientName} clientFirstName={first} clientEmail={client?.email ?? null} businessEmail={businessEmail} lastEmailedAt={lastEmailedCredit ? formatSouthAfricaDateTime(lastEmailedCredit.created_at) : null} />
+          <ActionCard icon={<WhatsAppIcon className="size-6 text-[#25D366]" />} title="Send on WhatsApp" description="WhatsApp opens with the message written. You tap send.">
+            <a href={waLink(client?.whatsapp_number ?? null, creditMsg)} target="_blank" rel="noreferrer" className={btnOutline}>Open WhatsApp</a>
+          </ActionCard>
+          <ActionCard icon="📄" title="Download the PDF" description="A copy for your records.">
+            <a href={`/d/${d.public_token}/pdf`} className={btnOutline}>Download PDF</a>
+          </ActionCard>
+          <ActionCard icon="🔗" title="Copy the client link" description="Paste it into any chat or email."><CopyButton text={link} /></ActionCard>
+        </Section>
+      </main>
+    );
+  }
 
   const amountPaid = (payments ?? []).reduce((total, payment) => total + Number(payment.amount_cents), 0);
   const balanceDue = Math.max(Number(d.total_cents) - amountPaid, 0);
+  const creditedCents = (payments ?? []).filter((payment) => payment.method === "credit").reduce((total, payment) => total + Number(payment.amount_cents), 0);
+  const canCredit = d.type === "invoice" && ["sent", "viewed", "partially_paid"].includes(d.status) && balanceDue > 0;
   const isDraft = d.status === "draft";
   const today = southAfricaDate();
   const expired = isQuote && d.expiry_date && d.expiry_date < today;
@@ -197,6 +232,7 @@ export default async function DocumentPage({ params, searchParams }: { params: P
   else if (d.status === "accepted" && depositDue > 0) next = { tone: "go", title: `${first} said yes and the deposit is in`, text: "Create the invoice below. The deposit is credited to it automatically, so your client only pays the balance." };
   else if (d.status === "accepted") next = { tone: "go", title: `${first} said yes!`, text: "Turn this accepted quote into an invoice in one tap. The job details carry over, so there is no retyping." };
   else if (d.status === "declined") next = { tone: "stop", title: `${first} declined this quote`, text: "A friendly message asking what they would like changed can win it back. You can also duplicate it, adjust it and send a new one." };
+  else if (d.status === "paid" && !isQuote && creditedCents > 0 && amountPaid - creditedCents <= 0) next = { tone: "done", title: "Settled by credit note", text: "This invoice was fully credited, so nothing is owed and no payment came in." };
   else if (d.status === "paid") next = { tone: "done", title: "Paid in full. Well done.", text: "Nothing more to do. A quick thank you on WhatsApp goes a long way, and your dashboard has already been updated." };
   else if (expired) next = { tone: "stop", title: "This quote has expired", text: `${first} can no longer accept it. Duplicate it to send a fresh one.` };
   else if (d.status === "sent") next = { tone: "wait", title: `Waiting for ${first} to open it`, text: "You will see it here the moment they do. If you have not heard anything in a day or two, send a gentle follow-up." };
@@ -280,6 +316,22 @@ export default async function DocumentPage({ params, searchParams }: { params: P
           <a href={`${link}?preview=1`} target="_blank" rel="noreferrer" className={btnOutline}>Open client view</a>
         </ActionCard>
       </Section>
+
+      {d.type === "invoice" && ((creditRows ?? []).length > 0 || canCredit || creditFlag) && (
+        <Section title="Credit notes" hint={canCredit ? undefined : "Credit notes issued against this invoice."}>
+          {(creditRows ?? []).length > 0 && (
+            <ul className="rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-black/5">
+              {(creditRows ?? []).map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 py-1">
+                  <Link href={`/app/documents/${c.id}`} className="font-bold underline">{c.number}</Link>
+                  <span>-{formatRand(c.total_cents)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {canCredit && <CreditNoteCard invoiceId={d.id} number={d.number} balanceCents={balanceDue} vatPercent={Number(d.vat_percent ?? 0)} error={creditFlag} />}
+        </Section>
+      )}
 
       {isQuote && ["draft", "sent", "viewed"].includes(d.status) && (
         <section id="photos" className="mt-8" aria-label="Photos">

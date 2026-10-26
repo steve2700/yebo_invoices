@@ -93,6 +93,7 @@ export default async function Dashboard() {
     supabase
       .from("payments")
       .select("amount_cents,provider_reference")
+      .neq("method", "credit")
       .gte("paid_at", monthStart.toISOString())
       .lt("paid_at", nextMonthStart.toISOString()),
     supabase.rpc("followups_due"),
@@ -105,6 +106,7 @@ export default async function Dashboard() {
     .from("payments")
     .select("id,amount_cents,method,paid_at,documents(number,type,public_token,clients(name,whatsapp_number))")
     .is("thanked_at", null)
+    .neq("method", "credit")
     .gte("paid_at", sevenDaysAgo)
     .order("paid_at", { ascending: false })
     .limit(3);
