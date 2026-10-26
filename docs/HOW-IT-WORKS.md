@@ -142,9 +142,12 @@ flowchart TD
   R2 -->|"Yes"| R3["Skip invoices with a promised payment date,<br/>email the customer, record the reminder"]
   R0 --> R4["Quotes that expire in 1 to 2 days<br/>get one expiry reminder"]
   R0 --> R5["Repeating invoices due today:<br/>make a draft copy and email the owner to review and send"]
+  R0 --> R6["Morning list: reminders left over after the client emails<br/>go to the owner for one-tap WhatsApp"]
 ```
 
 The recurring-invoice job runs inside the reminders job, so it does not use an extra Vercel cron slot. It can also be triggered by hand at `/api/cron/recurring` with the `Authorization: Bearer <CRON_SECRET>` header.
+
+How reminders work in full, with a diagram, is in **[REMINDERS.md](REMINDERS.md)**.
 
 ## 6. The Tender Engine
 

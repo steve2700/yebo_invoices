@@ -256,6 +256,7 @@ Diagrams of how Yebo fits together are in **[docs/HOW-IT-WORKS.md](docs/HOW-IT-W
 6. The Tender Engine
 7. Who counts as a "customer view"
 8. Data model, private storage and security rules
+9. Reminders: automatic client emails, and the owner's morning list with one-tap WhatsApp (**[docs/REMINDERS.md](docs/REMINDERS.md)**)
 
 ---
 
