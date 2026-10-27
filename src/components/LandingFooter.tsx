@@ -25,6 +25,7 @@ export default function LandingFooter() {
           <Link className={link} href="/why-yebo">Why Yebo</Link>
           <Link className={link} href="/why-i-built-yebo-invoices">Our story</Link>
           <Link className={link} href="/pricing">Pricing</Link>
+          <Link className={link} href="/which-plan">Which plan?</Link>
           <Link className={link} href="/faq">Questions</Link>
         </nav>
         <nav aria-label="Account and legal" className="flex flex-col">

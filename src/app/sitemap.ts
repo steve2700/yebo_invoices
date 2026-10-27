@@ -15,6 +15,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${appUrl()}/why-yebo`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${appUrl()}/why-i-built-yebo-invoices`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${appUrl()}/pricing`, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${appUrl()}/which-plan`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${appUrl()}/faq`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${appUrl()}/tenders`, changeFrequency: "monthly", priority: 0.8 },
     { url: `${appUrl()}/privacy`, changeFrequency: "yearly", priority: 0.3 },
