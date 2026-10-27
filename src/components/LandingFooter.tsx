@@ -23,6 +23,7 @@ export default function LandingFooter() {
           <p className="font-bold text-yebo-deep">Yebo</p>
           <Link className={link} href="/how-it-works">How it works</Link>
           <Link className={link} href="/why-yebo">Why Yebo</Link>
+          <Link className={link} href="/why-i-built-yebo-invoices">Our story</Link>
           <Link className={link} href="/pricing">Pricing</Link>
           <Link className={link} href="/faq">Questions</Link>
         </nav>
