@@ -106,7 +106,7 @@ async function savePayfast(fd: FormData) {
     merchant_id: merchantId,
     merchant_key: merchantKey,
     passphrase,
-    sandbox: fd.get("sandbox") === "on",
+    sandbox: false, // Test mode is no longer offered. Every connected business takes real payments.
     enabled: fd.get("enabled") === "on",
     updated_at: new Date().toISOString(),
   }, { onConflict: "business_id" });
@@ -348,10 +348,6 @@ export default async function Settings({ searchParams }: { searchParams: Promise
                 )}
               </label>
               <div className="flex flex-col justify-end gap-3 pb-1">
-                <label className="flex items-center gap-3 text-sm font-semibold">
-                  <input type="checkbox" name="sandbox" defaultChecked={payfast ? payfast.sandbox : true} className="size-4" />
-                  Test mode (no real money moves)
-                </label>
                 <label className="flex items-center gap-3 text-sm font-semibold">
                   <input type="checkbox" name="enabled" defaultChecked={payfast ? payfast.enabled : true} className="size-4" />
                   Let clients pay online
