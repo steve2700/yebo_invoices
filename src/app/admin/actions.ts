@@ -32,3 +32,16 @@ export async function verifyAdminCode(email: unknown, code: unknown): Promise<{ 
   const { error } = await supabase.auth.verifyOtp({ email: address, token, type: "email" });
   return { ok: !error };
 }
+
+// Marks an error as fixed. It comes back by itself if it happens again.
+export async function resolveError(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || !isAdminEmail(user.email, allowedList())) return;
+  const id = String(formData.get("id") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return;
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  await createAdminClient().from("error_log").update({ resolved: true }).eq("id", id);
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath("/admin");
+}
