@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -13,6 +13,17 @@ export default function Login() {
   const [error, setError] = useState(false);
   const [emailPending, setEmailPending] = useState(false);
   const [googlePending, setGooglePending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [verifying, setVerifying] = useState(false);
+
+  // The sign-in link only works in the browser where it was asked for. If it failed somewhere else, say so clearly.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("e") === "link") {
+      setError(true);
+      setMsg("That sign-in link did not work in this browser. A link only works in the browser where you asked for it, so Chrome and Brave do not share it. Enter your email below, then type the 6-digit code from the email instead.");
+    }
+  }, []);
   const redirectTo = () => `${window.location.origin}/auth/callback`;
 
   async function google() {
@@ -43,12 +54,34 @@ export default function Login() {
         options: { emailRedirectTo: redirectTo() },
       });
       if (authError) throw authError;
-      setMsg("Check your email for a sign-in link. It can take a minute, so check spam too.");
+      setSent(true);
+      setMsg("We sent a code and a sign-in link to your email. Type the code below. It can take a minute, so check spam too.");
     } catch (caught) {
       setError(true);
       setMsg(caught instanceof Error ? caught.message : "Could not send a sign-in link. Please try again.");
     } finally {
       setEmailPending(false);
+    }
+  }
+
+  function verify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void verifyCode(code);
+  }
+
+  async function verifyCode(token: string) {
+    if (verifying) return;
+    setVerifying(true);
+    setError(false);
+    setMsg("");
+    try {
+      const { error: authError } = await createClient().auth.verifyOtp({ email: email.trim(), token: token.replace(/\s/g, ""), type: "email" });
+      if (authError) throw authError;
+      window.location.assign("/app");
+    } catch {
+      setError(true);
+      setMsg("That code did not work. Check the newest email, or ask for a new code.");
+      setVerifying(false);
     }
   }
 
@@ -128,6 +161,34 @@ export default function Login() {
               {emailPending ? "Sending sign-in link…" : "Email me a sign-in link"}
             </button>
           </form>
+
+          {sent && (
+            <form data-signin-code onSubmit={verify} className="mt-5 flex flex-col gap-3">
+              <label htmlFor="signin-code" className="text-xs font-extrabold uppercase tracking-[.14em] text-yebo-deep/60">Code from your email</label>
+              <input
+                id="signin-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={10}
+                value={code}
+                onChange={(event) => {
+                  const next = event.target.value.replace(/[^0-9]/g, "");
+                  setCode(next);
+                  if (next.length === 6) void verifyCode(next);
+                }}
+                placeholder="123456"
+                className="min-h-12 w-full rounded-2xl border border-yebo-deep/15 bg-white px-4 py-3 text-center text-lg font-bold tracking-[.3em] text-yebo-deep outline-none focus:border-yebo focus:ring-2 focus:ring-yebo/15"
+              />
+              <button
+                type="submit"
+                disabled={verifying || code.length < 6}
+                className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-yebo px-5 py-3 text-sm font-extrabold text-white transition hover:bg-yebo-deep disabled:cursor-wait disabled:opacity-50"
+              >
+                {verifying ? "Checking code…" : "Sign in with code"}
+              </button>
+              <p className="text-xs leading-5 text-yebo-deep/55">Tip: type the code in this same browser tab. If you tap the link instead, open it in the browser you started in.</p>
+            </form>
+          )}
 
           {msg && (
             <p role={error ? "alert" : "status"} aria-live="polite" className={`mt-5 rounded-2xl p-4 text-sm leading-6 ${error ? "bg-red-50 text-red-800" : "bg-yebo-chalk text-yebo-deep"}`}>
