@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { escapeHtml, renderEmail, sendEmail } from "@/lib/email";
 import { SUPPORT } from "@/lib/support";

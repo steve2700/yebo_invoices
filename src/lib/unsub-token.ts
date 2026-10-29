@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 
 // A signed link, so only the owner of the email can unsubscribe it. Needs a server secret that already exists.
 const secret = () => process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
