@@ -164,6 +164,7 @@ export default function Login() {
 
           {sent && (
             <form data-signin-code onSubmit={verify} className="mt-5 flex flex-col gap-3">
+              <p className="text-sm leading-6 text-yebo-deep/70">Check your email on any device, then type the code here.</p>
               <label htmlFor="signin-code" className="text-xs font-extrabold uppercase tracking-[.14em] text-yebo-deep/60">Code from your email</label>
               <input
                 id="signin-code"
