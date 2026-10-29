@@ -1,6 +1,12 @@
 import { southAfricaDate } from "./time";
 
-// Who may open /admin: the emails listed in the ADMIN_EMAILS setting, separated by commas.
+// The ONLY email that may open /admin. It is written here on purpose, so a setting or a typo elsewhere can never add another admin.
+export const ADMIN_EMAIL = "noreply@yeboinvoices.com";
+
+// The admin list. It always contains just the one address above.
+export const adminList = () => ADMIN_EMAIL;
+
+// Who may open /admin: the emails in that list.
 export function adminEmails(raw: string | undefined): string[] {
   return (raw ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 }

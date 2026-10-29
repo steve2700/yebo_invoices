@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatSouthAfricaDateTime } from "@/lib/time";
 import { waLink } from "@/lib/dates";
 import { SURVEY } from "@/lib/survey";
-import { isAdminEmail, lastDays, pct, tally } from "@/lib/admin-stats";
+import { adminEmails, adminList, isAdminEmail, lastDays, pct, tally } from "@/lib/admin-stats";
+import AdminGate from "./AdminGate";
 
 export const metadata: Metadata = { title: "Admin | Yebo Invoices", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -34,7 +34,8 @@ async function allUsers(admin: ReturnType<typeof createAdminClient>): Promise<Au
 export default async function Admin() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user || !isAdminEmail(user.email, process.env.ADMIN_EMAILS)) notFound();
+  const allowed = adminList();
+  if (!user || !isAdminEmail(user.email, allowed)) return <AdminGate />;
 
   const admin = createAdminClient();
   const [users, bizRes, docRes, subRes, surveyRes] = await Promise.all([
@@ -65,8 +66,9 @@ export default async function Admin() {
     { label: "On a paid plan", value: subscribed.size },
   ];
 
+  const adminSet = new Set(adminEmails(allowed));
   const notOnboarded = users
-    .filter((u) => !ownerIds.has(u.id) && now - new Date(u.created_at).getTime() > 30 * MINUTE)
+    .filter((u) => !ownerIds.has(u.id) && !adminSet.has((u.email ?? "").toLowerCase()) && now - new Date(u.created_at).getTime() > 30 * MINUTE)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, 50);
   const noSentQuote = businesses.filter((b) => !withSent.has(b.id) && now - new Date(b.created_at).getTime() > 2 * DAY).slice(0, 50);
