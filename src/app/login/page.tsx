@@ -55,10 +55,10 @@ export default function Login() {
       });
       if (authError) throw authError;
       setSent(true);
-      setMsg("We sent a code and a sign-in link to your email. Type the code below. It can take a minute, so check spam too.");
+      setMsg("We sent a 6-digit code to your email. Type it below. It can take a minute, so check spam too.");
     } catch (caught) {
       setError(true);
-      setMsg(caught instanceof Error ? caught.message : "Could not send a sign-in link. Please try again.");
+      setMsg(caught instanceof Error ? caught.message : "Could not send a sign-in code. Please try again.");
     } finally {
       setEmailPending(false);
     }
@@ -158,7 +158,7 @@ export default function Login() {
               disabled={emailPending || !email.trim()}
               className="inline-flex min-h-12 w-full items-center justify-center rounded-full border-2 border-yebo px-5 py-3 text-sm font-extrabold text-yebo transition hover:bg-yebo hover:text-white disabled:cursor-wait disabled:opacity-50"
             >
-              {emailPending ? "Sending sign-in link…" : "Email me a sign-in link"}
+              {emailPending ? "Sending code…" : "Email me a sign-in code"}
             </button>
           </form>
 
@@ -187,7 +187,7 @@ export default function Login() {
               >
                 {verifying ? "Checking code…" : "Sign in with code"}
               </button>
-              <p className="text-xs leading-5 text-yebo-deep/55">Tip: type the code in this same browser tab. If you tap the link instead, open it in the browser you started in.</p>
+              <p className="text-xs leading-5 text-yebo-deep/55">Tip: keep this page open while you check your email, then type the code here.</p>
             </form>
           )}
 
