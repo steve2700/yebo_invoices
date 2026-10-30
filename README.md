@@ -510,6 +510,51 @@ Three monthly plans, all paid through PayFast, defined in `src/lib/plans.ts`:
 
 ---
 
+## Owner dashboard, sidebar and "Your numbers"
+
+On wide screens the app has a left sidebar (Home, Quote requests, Quotes and invoices, Reminders, Tenders, Win rate, VAT report, Help, Settings). Phones keep the bottom bar. Sign out is in Settings only.
+
+The home screen shows what to do next and how the business is doing:
+
+- **Collected this month** with a comparison to last month.
+- **Your numbers:** quotes sent and accepted this month against last month, and the win rate over 90 days (shown once 3 quotes have been sent).
+- **Do this next:** one action chosen by simple rules, most urgent first (overdue invoices, accepted quotes to invoice, quotes waiting for a reply, then "send a quote").
+- A short line of encouragement that changes each day.
+
+The logic is in `src/lib/insights.ts` and is plain functions (`change`, `winRate`, `nextMove`, `thoughtFor`), so it is easy to test.
+
+## Request a quote link
+
+Each business has a private link (`/r/<token>`) where a client describes a job. The owner gets an email and a home card, and **Make a quote** opens the quote form with the job filled in. Full walkthrough with a worked example: [docs/REQUEST-A-QUOTE.md](docs/REQUEST-A-QUOTE.md). Needs migration `0028_requests_and_error_hits.sql`.
+
+## Admin dashboard (`/admin`)
+
+A private page for the founder, with its own sidebar: **Overview**, **People to follow up**, **Growth**, **Revenue**, **Survey**, **Errors** and **Reminder emails**.
+
+- **Access:** only the single address in `ADMIN_EMAIL` (`src/lib/admin-stats.ts`) can open it. Anyone else gets a sign-in box that refuses other addresses. Every page under `/admin` goes through the check in `src/app/admin/layout.tsx`, so a new admin page cannot be left open by mistake.
+- **Errors:** server errors (`src/instrumentation.ts`) and browser errors (`src/components/ErrorReporter.tsx`) are saved to `error_log`. The same problem is one row with a count, plus a last-24-hours count from `error_hits`. An email goes to `SURVEY_NOTIFY_EMAIL` (or the support address) the first time, then at 5, 25 and 100 repeats.
+- **Sign-in funnel:** steps on the login page are counted in `signin_events` (`src/app/login/track.ts`).
+- **Visitors:** `visits` counts one visit per browser session with its source. Tag links with `?s=facebook` or `?utm_source=reddit`.
+- **Revenue:** monthly total from active plans at list prices.
+
+Migrations: `0026_admin_tracking.sql`, `0027_visits.sql`, `0028_requests_and_error_hits.sql`.
+
+## Reminder emails to people who stalled
+
+A daily job (inside the existing reminders cron, no extra Vercel cron) emails people who signed up but did not finish setup, or set up but never sent a quote. At most 2 of each kind per person, at least 3 days apart, stopping after 30 days, each with an unsubscribe link (`/unsubscribe`). It is **off** until `NUDGES_ENABLED=true` is set in Vercel. The admin page shows who is due. Code: `src/lib/nudge-rules.ts`, `src/lib/nudges.ts`.
+
+## Sign-in
+
+Email sign-in uses a 6-digit code (no magic link), so it works on any device. Google sign-in is also offered. In Supabase, both the **Magic link** and **Confirm sign up** email templates must contain `{{ .Token }}`. Custom SMTP is needed to edit templates and raise the emails-per-hour limit.
+
+## Extra environment variables
+
+| Name | Purpose |
+|---|---|
+| `NUDGES_ENABLED` | `true` turns on the stalled-user reminder emails. Unset means off. |
+| `SURVEY_NOTIFY_EMAIL` | Where survey answers and error alerts are emailed. Defaults to the support address. |
+| `CRON_SECRET` | Already used by the crons. Also signs the unsubscribe links. |
+
 ## Testing checklist
 
 Run this after deploying, on a phone as well as a desktop browser. Payment confirmation must be tested on the live site, not `localhost`.
