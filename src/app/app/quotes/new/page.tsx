@@ -1,12 +1,13 @@
 import Link from "next/link";
+import type { ComponentProps } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import QuoteForm from "./QuoteForm";
 import { voiceQuotesLeft } from "@/lib/subscription";
 import type { PastDoc } from "@/lib/similar";
 
-export default async function NewDocument({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
-  const { type } = await searchParams;
+export default async function NewDocument({ searchParams }: { searchParams: Promise<{ type?: string; request?: string }> }) {
+  const { type, request } = await searchParams;
   const docType = type === "invoice" ? "invoice" : "quote";
   const sb = await createClient();
   const { data: biz } = await sb.from("businesses").select("vat_registered").maybeSingle();
@@ -15,6 +16,19 @@ export default async function NewDocument({ searchParams }: { searchParams: Prom
   const { data: items } = await sb.from("items").select("description,default_price_cents").order("times_used", { ascending: false });
 
   const voiceLeft = await voiceQuotesLeft(sb);
+
+  // Coming from a client's quote request: the client is already saved and the job description is filled in.
+  let initial: ComponentProps<typeof QuoteForm>["initial"];
+  if (request && docType === "quote" && /^[0-9a-f-]{36}$/i.test(request)) {
+    const { data: req } = await sb.from("quote_requests").select("client_id,details,location").eq("id", request).maybeSingle();
+    if (req?.client_id) {
+      initial = {
+        clientId: req.client_id,
+        f: { title: "", location: req.location ?? "", description: req.details ?? "", jobDate: "", jobDateTbd: false, laborOnly: false, plan: "after", pct: 50, terms: "on completion", note: "", exclusions: "", assumptions: "", timeline: "" },
+        lines: [{ description: "", quantity: 1, price: 0 }],
+      };
+    }
+  }
 
   // The last documents of this type, so the form can offer "start from a similar one". Options (Good/Better/Best) quotes are skipped.
   const { data: pastRows } = await sb
@@ -40,7 +54,7 @@ export default async function NewDocument({ searchParams }: { searchParams: Prom
         <Link href="/app/quotes/new" className={tab(docType === "quote")}>Quote</Link>
         <Link href="/app/quotes/new?type=invoice" className={tab(docType === "invoice")}>Invoice</Link>
       </div>
-      <QuoteForm key={docType} clients={clients ?? []} items={items ?? []} vatRegistered={biz.vat_registered} docType={docType} voiceLeft={voiceLeft} past={past} />
+      <QuoteForm key={docType + (initial ? ":" + request : "")} initial={initial} clients={clients ?? []} items={items ?? []} vatRegistered={biz.vat_registered} docType={docType} voiceLeft={voiceLeft} past={past} />
     </>
   );
 }

@@ -29,6 +29,9 @@ export async function logError(input: Input): Promise<void> {
     const path = input.path ? String(input.path).slice(0, 200) : null;
     const key = fingerprint(input.source, message);
     const admin = createAdminClient();
+    // One row per occurrence, so the admin page can show the last 24 hours. Old rows are tidied now and then.
+    await admin.from("error_hits").insert({ fingerprint: key });
+    if (Math.random() < 0.02) await admin.from("error_hits").delete().lt("created_at", new Date(Date.now() - 7 * 86_400_000).toISOString());
     const { data: existing } = await admin.from("error_log").select("id,count").eq("fingerprint", key).maybeSingle();
     let count = 1;
     if (existing) {

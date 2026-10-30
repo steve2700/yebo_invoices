@@ -6,6 +6,7 @@ import Icon, { type IconName } from "./icons";
 // Wide screens only. Phones keep the bottom bar. Sign out is not here on purpose; it lives in Settings.
 const main: { href: string; label: string; icon: IconName; match?: string }[] = [
   { href: "/app", label: "Home", icon: "home" },
+  { href: "/app/requests", label: "Quote requests", icon: "newQuote" },
   { href: "/app/documents", label: "Quotes and invoices", icon: "documents" },
   { href: "/app/reminders", label: "Reminders", icon: "bell" },
   { href: "/app/tenders", label: "Tenders", icon: "tenders" },

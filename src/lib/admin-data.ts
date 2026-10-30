@@ -10,7 +10,7 @@ export type Biz = { id: string; owner_id: string; name: string; email: string | 
 type Doc = { business_id: string; type: string; status: string; created_at: string };
 type Sub = { business_id: string; status: string; plan: string };
 export type Survey = { answers: Record<string, string | string[]>; source: string | null; created_at: string };
-export type ErrorRow = { id: string; source: string; message: string; last_path: string | null; count: number; last_seen: string };
+export type ErrorRow = { id: string; fingerprint: string; source: string; message: string; last_path: string | null; count: number; last_seen: string };
 
 export const MINUTE = 60_000;
 export const DAY = 86_400_000;
@@ -30,18 +30,21 @@ async function allUsers(admin: ReturnType<typeof createAdminClient>): Promise<Au
 export const loadAdminData = cache(async () => {
   const admin = createAdminClient();
   const since = new Date(Date.now() - 30 * DAY).toISOString();
-  const [users, bizRes, docRes, subRes, surveyRes, errRes, sigRes, nudgeRes, visitRes, due] = await Promise.all([
+  const [users, bizRes, docRes, subRes, surveyRes, errRes, sigRes, nudgeRes, visitRes, due, hitRes] = await Promise.all([
     allUsers(admin),
     admin.from("businesses").select("id,owner_id,name,email,phone,created_at").order("created_at", { ascending: false }).limit(5000),
     admin.from("documents").select("business_id,type,status,created_at").limit(20000),
     admin.from("subscriptions").select("business_id,status,plan").limit(5000),
     admin.from("survey_responses").select("answers,source,created_at").order("created_at", { ascending: false }).limit(2000),
-    admin.from("error_log").select("id,source,message,last_path,count,last_seen").eq("resolved", false).order("last_seen", { ascending: false }).limit(50),
+    admin.from("error_log").select("id,fingerprint,source,message,last_path,count,last_seen").eq("resolved", false).order("last_seen", { ascending: false }).limit(50),
     admin.from("signin_events").select("session_id,step,created_at").gte("created_at", since).limit(20000),
     admin.from("nudges").select("email,kind,created_at").order("created_at", { ascending: false }).limit(15),
     admin.from("visits").select("session_id,source,created_at").gte("created_at", since).limit(20000),
     dueNudges(admin).catch(() => []),
+    admin.from("error_hits").select("fingerprint").gte("created_at", new Date(Date.now() - DAY).toISOString()).limit(20000),
   ]);
+  const hits24: Record<string, number> | null = hitRes.error ? null : {};
+  if (hits24) for (const h of hitRes.data ?? []) hits24[h.fingerprint] = (hits24[h.fingerprint] ?? 0) + 1;
   const businesses = (bizRes.data ?? []) as Biz[];
   const docs = (docRes.data ?? []) as Doc[];
   const subs = (subRes.data ?? []) as Sub[];
@@ -104,7 +107,7 @@ export const loadAdminData = cache(async () => {
   const userEmail = new Map(users.map((u) => [u.id, u.email ?? ""]));
 
   return {
-    users, businesses, subs, surveys, errors, signins, nudgeLog, visits, due,
+    users, businesses, subs, surveys, errors, hits24, signins, nudgeLog, visits, due,
     funnel, notOnboarded, noSentQuote, signupDays, docDays, signin7, signin30, sources7, sources30,
     activeSubs, mrr, byPlan, subCounts, userEmail,
   };

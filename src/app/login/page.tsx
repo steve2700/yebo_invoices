@@ -245,7 +245,7 @@ export default function Login() {
     <main className="min-h-screen bg-white lg:grid lg:grid-cols-2">
       <aside className="relative flex min-h-[280px] flex-col justify-between overflow-hidden bg-yebo-deep p-6 text-white sm:min-h-[340px] sm:p-9 lg:min-h-screen lg:p-12">
         <Image
-          src="/images/yebo-client-handoff.png"
+          src="/images/yebo-client-handoff.webp"
           alt="A South African contractor and homeowner reviewing a project estimate together"
           fill
           priority
