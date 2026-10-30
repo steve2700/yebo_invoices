@@ -43,5 +43,5 @@ export async function resolveError(formData: FormData) {
   const { createAdminClient } = await import("@/lib/supabase/admin");
   await createAdminClient().from("error_log").update({ resolved: true }).eq("id", id);
   const { revalidatePath } = await import("next/cache");
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
 }

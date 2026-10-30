@@ -1,395 +1,67 @@
-import type { Metadata } from "next";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { formatSouthAfricaDateTime } from "@/lib/time";
-import { waLink } from "@/lib/dates";
-import { SURVEY } from "@/lib/survey";
-import { adminEmails, adminList, isAdminEmail, lastDays, pct, tally } from "@/lib/admin-stats";
-import { SIGNIN_PROBLEMS, SIGNIN_STEPS, countSessions } from "@/lib/signin-events";
-import { dueNudges, nudgesEnabled } from "@/lib/nudges";
-import { PLANS, isPlanId } from "@/lib/plans";
-import AdminGate from "./AdminGate";
-import { resolveError } from "./actions";
+import { loadAdminData } from "@/lib/admin-data";
+import { pct } from "@/lib/admin-stats";
+import { card, link, PageHead, Section, Stat, td, th } from "./ui";
 
-export const metadata: Metadata = { title: "Admin | Yebo Invoices", robots: { index: false, follow: false } };
-export const dynamic = "force-dynamic";
-
-type AuthUser = { id: string; email?: string; created_at: string; last_sign_in_at?: string; app_metadata?: { provider?: string } };
-type Biz = { id: string; owner_id: string; name: string; email: string | null; phone: string | null; created_at: string };
-type Doc = { business_id: string; type: string; status: string; created_at: string };
-type Sub = { business_id: string; status: string; plan: string };
-type ErrorRow = { id: string; source: string; message: string; last_path: string | null; count: number; last_seen: string };
-type SigninRow = { session_id: string; step: string; created_at: string };
-type Survey = { answers: Record<string, string | string[]>; source: string | null; created_at: string };
-
-const MINUTE = 60_000;
-const DAY = 86_400_000;
-
-async function allUsers(admin: ReturnType<typeof createAdminClient>): Promise<AuthUser[]> {
-  const users: AuthUser[] = [];
-  for (let page = 1; page <= 10; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
-    if (error || !data) break;
-    users.push(...(data.users as AuthUser[]));
-    if (data.users.length < 1000) break;
-  }
-  return users;
-}
-
-export default async function Admin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const allowed = adminList();
-  if (!user || !isAdminEmail(user.email, allowed)) return <AdminGate />;
-
-  const admin = createAdminClient();
-  const [users, bizRes, docRes, subRes, surveyRes] = await Promise.all([
-    allUsers(admin),
-    admin.from("businesses").select("id,owner_id,name,email,phone,created_at").order("created_at", { ascending: false }).limit(5000),
-    admin.from("documents").select("business_id,type,status,created_at").limit(20000),
-    admin.from("subscriptions").select("business_id,status,plan").limit(5000),
-    admin.from("survey_responses").select("answers,source,created_at").order("created_at", { ascending: false }).limit(2000),
-  ]);
-  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-  const [errRes, sigRes, nudgeRes, due] = await Promise.all([
-    admin.from("error_log").select("id,source,message,last_path,count,last_seen").eq("resolved", false).order("last_seen", { ascending: false }).limit(30),
-    admin.from("signin_events").select("session_id,step,created_at").gte("created_at", since).limit(20000),
-    admin.from("nudges").select("email,kind,created_at").order("created_at", { ascending: false }).limit(15),
-    dueNudges(admin).catch(() => []),
-  ]);
-  const errors = errRes.error ? null : ((errRes.data ?? []) as ErrorRow[]);
-  const signins = sigRes.error ? null : ((sigRes.data ?? []) as SigninRow[]);
-  const nudgeLog = nudgeRes.error ? null : ((nudgeRes.data ?? []) as { email: string; kind: string; created_at: string }[]);
-  const visitRes = await admin.from("visits").select("session_id,source,created_at").gte("created_at", since).limit(20000);
-  const visits = visitRes.error ? null : ((visitRes.data ?? []) as { session_id: string; source: string; created_at: string }[]);
-  const businesses = (bizRes.data ?? []) as Biz[];
-  const docs = (docRes.data ?? []) as Doc[];
-  const subs = (subRes.data ?? []) as Sub[];
-  const surveys = surveyRes.error ? null : ((surveyRes.data ?? []) as Survey[]);
-
-  const now = Date.now();
-  const ownerIds = new Set(businesses.map((b) => b.owner_id));
-  const withQuote = new Set(docs.filter((d) => d.type === "quote").map((d) => d.business_id));
-  const withSent = new Set(docs.filter((d) => d.type === "quote" && d.status !== "draft").map((d) => d.business_id));
-  const withPaid = new Set(docs.filter((d) => d.type === "invoice" && d.status === "paid").map((d) => d.business_id));
-  const subscribed = new Set(subs.filter((s) => s.status === "active" || s.status === "comped").map((s) => s.business_id));
-
-  const funnel = [
-    { label: "Signed up", value: users.length },
-    { label: "Finished onboarding", value: businesses.length },
-    { label: "Created a quote", value: withQuote.size },
-    { label: "Sent a quote", value: withSent.size },
-    { label: "Got a paid invoice", value: withPaid.size },
-    { label: "On a paid plan", value: subscribed.size },
-  ];
-
-  const adminSet = new Set(adminEmails(allowed));
-  const notOnboarded = users
-    .filter((u) => !ownerIds.has(u.id) && !adminSet.has((u.email ?? "").toLowerCase()) && now - new Date(u.created_at).getTime() > 30 * MINUTE)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .slice(0, 50);
-  const noSentQuote = businesses.filter((b) => !withSent.has(b.id) && now - new Date(b.created_at).getTime() > 2 * DAY).slice(0, 50);
-
-  const signupDays = lastDays(users.map((u) => u.created_at), 14);
-  const docDays = lastDays(docs.map((d) => d.created_at), 14);
-  const peak = Math.max(1, ...signupDays.map((d) => d.count), ...docDays.map((d) => d.count));
-
-  const question = (id: string) => SURVEY.find((q) => q.id === id);
-  const surveyBlock = (id: string) => {
-    const q = question(id);
-    if (!q || !surveys) return null;
-    return { text: q.text, rows: tally(surveys.map((s) => s.answers?.[id]), q.options) };
-  };
-  const surveyBlocks = ["pay", "price", "progress", "problem", "want"].map(surveyBlock).filter((b): b is NonNullable<typeof b> => b !== null);
-
-  const planCounts = subs.reduce<Record<string, number>>((acc, s) => {
-    const key = s.plan + " (" + s.status + ")";
-    acc[key] = (acc[key] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  const week = Date.now() - 7 * DAY;
-  const signin7 = signins ? countSessions(signins.filter((r) => new Date(r.created_at).getTime() >= week)) : {};
-  const signin30 = signins ? countSessions(signins) : {};
-  const nudgesOn = nudgesEnabled();
-
-  const sourceCounts = (since: number) => {
-    const seen = new Map<string, Set<string>>();
-    for (const v of visits ?? []) {
-      if (new Date(v.created_at).getTime() < since) continue;
-      if (!seen.has(v.source)) seen.set(v.source, new Set());
-      seen.get(v.source)!.add(v.session_id);
-    }
-    return [...seen].map(([source, set]) => ({ source, count: set.size })).sort((a, b) => b.count - a.count).slice(0, 12);
-  };
-  const sources7 = sourceCounts(Date.now() - 7 * DAY);
-  const sources30 = sourceCounts(Date.now() - 30 * DAY);
-  const sourcePeak = Math.max(1, ...sources30.map((x) => x.count));
-
-  const activeSubs = subs.filter((x) => x.status === "active");
-  const priceOf = (plan: string) => (isPlanId(plan) ? PLANS[plan].priceRand : 0);
-  const mrr = activeSubs.reduce((sum, x) => sum + priceOf(x.plan), 0);
-  const byPlan = (["side", "real", "king"] as const).map((p) => ({ plan: p, name: PLANS[p].name, price: PLANS[p].priceRand, count: activeSubs.filter((x) => x.plan === p).length }));
-  const comped = subs.filter((x) => x.status === "comped").length;
-  const pastDue = subs.filter((x) => x.status === "past_due").length;
-  const pending = subs.filter((x) => x.status === "pending").length;
-  const userEmail = new Map(users.map((u) => [u.id, u.email ?? ""]));
-
-  const card = "rounded-2xl border border-yebo-deep/10 bg-white p-5 shadow-sm";
-  const th = "px-3 py-2 text-left text-xs font-extrabold uppercase tracking-[.12em] text-yebo-deep/55";
-  const td = "px-3 py-2 text-sm text-yebo-deep";
-
+export default async function Overview() {
+  const d = await loadAdminData();
+  const peak = Math.max(1, ...d.signupDays.map((x) => x.count), ...d.docDays.map((x) => x.count));
+  const docsRev = [...d.docDays].reverse();
   return (
-    <main className="min-h-screen bg-paper pb-16">
-      <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-extrabold uppercase tracking-[.2em] text-yebo">Yebo admin</p>
-            <h1 className="mt-1 text-3xl font-black tracking-tight text-yebo-deep">What is happening in Yebo</h1>
-          </div>
-          <Link href="/app" className="text-sm font-bold text-yebo underline decoration-yebo/30 underline-offset-4">Back to the app</Link>
-        </div>
-
-        <section className="mt-8" aria-labelledby="errs">
-          <h2 id="errs" className="text-xl font-black text-yebo-deep">Errors {errors ? "(" + errors.length + " open)" : ""}</h2>
-          <p className="mt-1 text-sm text-yebo-deep/60">Things that broke for real people. The same problem is one line with a count. You get an email the first time, then at 5, 25 and 100.</p>
-          <div className={card + " mt-3 overflow-x-auto"}>
-            {!errors ? <p className="text-sm text-yebo-deep/60">The tracking SQL has not been run yet.</p> : errors.length === 0 ? <p className="text-sm text-yebo-deep/60">No open errors. 🎉</p> : (
-              <table className="w-full min-w-[680px]">
-                <thead><tr><th className={th}>What happened</th><th className={th}>Where</th><th className={th}>Times</th><th className={th}>Last</th><th className={th}></th></tr></thead>
-                <tbody>
-                  {errors.map((e) => (
-                    <tr key={e.id} className="border-t border-yebo-deep/10 align-top">
-                      <td className={td + " break-words"}><span className="mr-2 rounded-full bg-yebo-chalk px-2 py-0.5 text-xs font-bold">{e.source}</span>{e.message}</td>
-                      <td className={td + " break-all"}>{e.last_path ?? "-"}</td>
-                      <td className={td + " font-bold tabular-nums"}>{e.count}</td>
-                      <td className={td}>{formatSouthAfricaDateTime(e.last_seen)}</td>
-                      <td className={td}><form action={resolveError}><input type="hidden" name="id" value={e.id} /><button className="text-sm font-bold text-yebo underline underline-offset-4">Mark fixed</button></form></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </section>
-
-        <section className="mt-8" aria-labelledby="signin">
-          <h2 id="signin" className="text-xl font-black text-yebo-deep">Sign-in funnel</h2>
-          <p className="mt-1 text-sm text-yebo-deep/60">Counts visits to the sign-in page, not people. It starts counting from the day this was added.</p>
-          <div className={card + " mt-3 overflow-x-auto"}>
-            {!signins ? <p className="text-sm text-yebo-deep/60">The tracking SQL has not been run yet.</p> : (
-              <>
-                <table className="w-full min-w-[520px]">
-                  <thead><tr><th className={th}>Step</th><th className={th}>Last 7 days</th><th className={th}>Last 30 days</th><th className={th}>Of the step before (30d)</th></tr></thead>
-                  <tbody>
-                    {SIGNIN_STEPS.map((st, i) => (
-                      <tr key={st.id} className="border-t border-yebo-deep/10">
-                        <td className={td + " font-bold"}>{st.label}</td>
-                        <td className={td + " tabular-nums"}>{signin7[st.id] ?? 0}</td>
-                        <td className={td + " tabular-nums"}>{signin30[st.id] ?? 0}</td>
-                        <td className={td + " tabular-nums"}>{i === 0 ? "-" : pct(signin30[st.id] ?? 0, signin30[SIGNIN_STEPS[i - 1].id] ?? 0) + "%"}</td>
-                      </tr>
-                    ))}
-                    {SIGNIN_PROBLEMS.map((st) => (
-                      <tr key={st.id} className="border-t border-yebo-deep/10 text-yebo-deep/70">
-                        <td className={td}>{st.label}</td>
-                        <td className={td + " tabular-nums"}>{signin7[st.id] ?? 0}</td>
-                        <td className={td + " tabular-nums"}>{signin30[st.id] ?? 0}</td>
-                        <td className={td}></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="mt-3 text-xs leading-5 text-yebo-deep/55">Google sign-ins leave the page, so they show as taps, not as finished sign-ins. Your real sign-up count is in the funnel below.</p>
-              </>
-            )}
-          </div>
-        </section>
-
-        <section className="mt-8" aria-labelledby="funnel">
-          <h2 id="funnel" className="text-xl font-black text-yebo-deep">From sign-up to paid</h2>
-          <div className={card + " mt-3"}>
-            <ol className="flex flex-col gap-3">
-              {funnel.map((step, i) => (
-                <li key={step.label}>
-                  <div className="flex items-baseline justify-between gap-3 text-sm">
-                    <span className="font-bold text-yebo-deep">{step.label}</span>
-                    <span className="tabular-nums text-yebo-deep/70">
-                      <b className="text-yebo-deep">{step.value}</b>
-                      {i > 0 && <span> · {pct(step.value, funnel[i - 1].value)}% of the step before</span>}
-                    </span>
-                  </div>
-                  <div className="mt-1 h-3 overflow-hidden rounded-full bg-yebo-deep/10">
-                    <div className="h-full rounded-full bg-yebo" style={{ width: pct(step.value, funnel[0].value) + "%" }} />
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <p className="mt-4 text-xs leading-5 text-yebo-deep/55">A person counts as signed up when they have an account. They finish onboarding when their business is created. Counts are of people and businesses, not documents.</p>
-          </div>
-        </section>
-
-        <section className="mt-8" aria-labelledby="days">
-          <h2 id="days" className="text-xl font-black text-yebo-deep">Last 14 days</h2>
-          <div className={card + " mt-3 overflow-x-auto"}>
-            <table className="w-full min-w-[520px] text-sm">
-              <thead><tr><th className={th}>Day</th><th className={th}>New sign-ups</th><th className={th}>Quotes and invoices created</th></tr></thead>
-              <tbody>
-                {[...signupDays].reverse().map((d, i) => {
-                  const docsToday = [...docDays].reverse()[i].count;
-                  return (
-                    <tr key={d.day} className="border-t border-yebo-deep/10">
-                      <td className={td}>{d.day}</td>
-                      <td className={td}>
-                        <span className="inline-block h-2 rounded-full bg-yebo align-middle" style={{ width: Math.max(2, (d.count / peak) * 120) + "px" }} /> <b className="ml-2">{d.count}</b>
-                      </td>
-                      <td className={td}>
-                        <span className="inline-block h-2 rounded-full bg-yebo-sun align-middle" style={{ width: Math.max(2, (docsToday / peak) * 120) + "px" }} /> <b className="ml-2">{docsToday}</b>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="mt-8" aria-labelledby="stuck1">
-          <h2 id="stuck1" className="text-xl font-black text-yebo-deep">Signed up, never finished onboarding ({notOnboarded.length})</h2>
-          <p className="mt-1 text-sm text-yebo-deep/60">Accounts older than 30 minutes with no business set up. Newest first.</p>
-          <div className={card + " mt-3 overflow-x-auto"}>
-            {notOnboarded.length === 0 ? <p className="text-sm text-yebo-deep/60">Nobody is stuck here.</p> : (
-              <table className="w-full min-w-[620px]">
-                <thead><tr><th className={th}>Email</th><th className={th}>Signed up</th><th className={th}>Last sign-in</th><th className={th}>How</th><th className={th}>Contact</th></tr></thead>
-                <tbody>
-                  {notOnboarded.map((u) => (
-                    <tr key={u.id} className="border-t border-yebo-deep/10">
-                      <td className={td + " break-all"}>{u.email ?? "(no email)"}</td>
-                      <td className={td}>{formatSouthAfricaDateTime(u.created_at)}</td>
-                      <td className={td}>{u.last_sign_in_at ? formatSouthAfricaDateTime(u.last_sign_in_at) : "never"}</td>
-                      <td className={td}>{u.app_metadata?.provider ?? "email"}</td>
-                      <td className={td}>{u.email ? <a className="font-bold text-yebo underline decoration-yebo/30 underline-offset-4" href={"mailto:" + u.email + "?subject=" + encodeURIComponent("Your Yebo account") + "&body=" + encodeURIComponent("Hi, this is Yebo Invoices. I saw you created an account but have not finished setting up your business. Can I help you get started? It takes about 2 minutes.")}>Email</a> : "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </section>
-
-        <section className="mt-8" aria-labelledby="stuck2">
-          <h2 id="stuck2" className="text-xl font-black text-yebo-deep">Set up, but no quote sent after 2 days ({noSentQuote.length})</h2>
-          <p className="mt-1 text-sm text-yebo-deep/60">One tap opens WhatsApp with a friendly message written. You press send.</p>
-          <div className={card + " mt-3 overflow-x-auto"}>
-            {noSentQuote.length === 0 ? <p className="text-sm text-yebo-deep/60">Everyone has sent a quote.</p> : (
-              <table className="w-full min-w-[620px]">
-                <thead><tr><th className={th}>Business</th><th className={th}>Email</th><th className={th}>Created</th><th className={th}>Message</th><th className={th}>Email</th></tr></thead>
-                <tbody>
-                  {noSentQuote.map((b) => (
-                    <tr key={b.id} className="border-t border-yebo-deep/10">
-                      <td className={td + " font-bold"}>{b.name}</td>
-                      <td className={td + " break-all"}>{b.email ?? "-"}</td>
-                      <td className={td}>{formatSouthAfricaDateTime(b.created_at)}</td>
-                      <td className={td}>
-                        {b.phone ? (
-                          <a className="font-bold text-yebo underline decoration-yebo/30 underline-offset-4" target="_blank" rel="noreferrer"
-                            href={waLink(b.phone, "Hi " + b.name + ", this is Yebo Invoices. I saw you set up your account but have not sent your first quote yet. Can I help you get it out?")}>WhatsApp</a>
-                        ) : "no phone"}
-                      </td>
-                      <td className={td}>{(b.email || userEmail.get(b.owner_id)) ? <a className="font-bold text-yebo underline decoration-yebo/30 underline-offset-4" href={"mailto:" + (b.email || userEmail.get(b.owner_id)) + "?subject=" + encodeURIComponent("Your first quote on Yebo") + "&body=" + encodeURIComponent("Hi " + b.name + ", this is Yebo Invoices. I saw you set up your account but have not sent your first quote yet. Can I help you get it out?")}>Email</a> : "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </section>
-
-        <section className="mt-8" aria-labelledby="nudges">
-          <h2 id="nudges" className="text-xl font-black text-yebo-deep">Reminder emails to stalled people</h2>
-          <div className={card + " mt-3"}>
-            <p className="text-sm text-yebo-deep">
-              Status: <b>{nudgesOn ? "ON" : "OFF"}</b>. {nudgesOn ? "They go out once a day with the morning run." : "Nothing is sent. To turn on, add NUDGES_ENABLED=true in Vercel and redeploy."}
-            </p>
-            <p className="mt-2 text-sm text-yebo-deep/70">Due at the next daily run: <b>{due.length}</b> ({due.filter((d) => d.kind === "onboarding").length} to finish setup, {due.filter((d) => d.kind === "first_quote").length} to send a first quote). Rules: at most 2 of each kind, at least 3 days apart, stops after 30 days, with an unsubscribe link.</p>
-            {nudgeLog && nudgeLog.length > 0 && (
-              <ul className="mt-3 flex flex-col gap-1 text-sm text-yebo-deep/80">
-                {nudgeLog.map((n, i) => <li key={i} className="break-all">{formatSouthAfricaDateTime(n.created_at)} · {n.kind === "onboarding" ? "finish setup" : "first quote"} · {n.email}</li>)}
-              </ul>
-            )}
-          </div>
-        </section>
-
-        <section className="mt-8" aria-labelledby="rev">
-          <h2 id="rev" className="text-xl font-black text-yebo-deep">Revenue</h2>
-          <div className={card + " mt-3"}>
-            <p className="text-3xl font-black tabular-nums text-yebo-deep">R{mrr.toLocaleString("en-ZA")}<span className="text-sm font-bold text-yebo-deep/60"> per month, from {activeSubs.length} paying {activeSubs.length === 1 ? "business" : "businesses"}</span></p>
-            <ul className="mt-4 flex flex-wrap gap-3">
-              {byPlan.map((p) => <li key={p.plan} className="rounded-full bg-yebo-chalk px-4 py-2 text-sm font-bold text-yebo-deep">{p.name} (R{p.price}): {p.count}</li>)}
-            </ul>
-            <p className="mt-3 text-sm text-yebo-deep/70">Free or comped: {comped}. Payment failed (past due): {pastDue}. Started checkout, not paid: {pending}.</p>
-            <p className="mt-2 text-xs leading-5 text-yebo-deep/55">Worked out from active plans at today&apos;s list prices. It does not include comped accounts.</p>
-          </div>
-        </section>
-
-        <section className="mt-8" aria-labelledby="traffic">
-          <h2 id="traffic" className="text-xl font-black text-yebo-deep">Where visitors come from</h2>
-          <p className="mt-1 text-sm text-yebo-deep/60">One count per browser visit. Links with ?s=facebook or ?utm_source=reddit show under that name.</p>
-          <div className={card + " mt-3 overflow-x-auto"}>
-            {!visits ? <p className="text-sm text-yebo-deep/60">The visits SQL has not been run yet.</p> : sources30.length === 0 ? <p className="text-sm text-yebo-deep/60">No visits counted yet. It starts when this is deployed.</p> : (
-              <table className="w-full min-w-[480px]">
-                <thead><tr><th className={th}>Source</th><th className={th}>Last 7 days</th><th className={th}>Last 30 days</th></tr></thead>
-                <tbody>
-                  {sources30.map((x) => (
-                    <tr key={x.source} className="border-t border-yebo-deep/10">
-                      <td className={td + " font-bold"}>{x.source}</td>
-                      <td className={td + " tabular-nums"}>{sources7.find((y) => y.source === x.source)?.count ?? 0}</td>
-                      <td className={td}><span className="inline-block h-2 rounded-full bg-yebo align-middle" style={{ width: Math.max(2, (x.count / sourcePeak) * 120) + "px" }} /> <b className="ml-2 tabular-nums">{x.count}</b></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </section>
-
-        <section className="mt-8" aria-labelledby="plans">
-          <h2 id="plans" className="text-xl font-black text-yebo-deep">Plans</h2>
-          <div className={card + " mt-3"}>
-            {Object.keys(planCounts).length === 0 ? <p className="text-sm text-yebo-deep/60">No subscriptions yet.</p> : (
-              <ul className="flex flex-wrap gap-3">
-                {Object.entries(planCounts).map(([k, v]) => (
-                  <li key={k} className="rounded-full bg-yebo-chalk px-4 py-2 text-sm font-bold text-yebo-deep">{k}: {v}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
-
-        <section className="mt-8" aria-labelledby="survey">
-          <h2 id="survey" className="text-xl font-black text-yebo-deep">Survey {surveys ? "(" + surveys.length + " answers)" : ""}</h2>
-          {!surveys ? (
-            <p className={card + " mt-3 text-sm text-yebo-deep/60"}>The survey table does not exist yet. Run the survey SQL first.</p>
-          ) : (
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              {surveyBlocks.map((b) => (
-                <div key={b.text} className={card}>
-                  <h3 className="text-sm font-black text-yebo-deep">{b.text}</h3>
-                  <ul className="mt-3 flex flex-col gap-2">
-                    {b.rows.map((r) => (
-                      <li key={r.option} className="text-sm text-yebo-deep">
-                        <div className="flex justify-between gap-3"><span>{r.option}</span><b className="tabular-nums">{r.count}</b></div>
-                        <div className="mt-1 h-2 overflow-hidden rounded-full bg-yebo-deep/10"><div className="h-full rounded-full bg-yebo" style={{ width: pct(r.count, surveys.length) + "%" }} /></div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+    <>
+      <PageHead title="What is happening in Yebo" note="The big picture. Use the menu on the left for the detail." />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="People signed up" value={d.users.length} />
+        <Stat label="Businesses set up" value={d.businesses.length} />
+        <Stat label="Paid per month" value={"R" + d.mrr.toLocaleString("en-ZA")} hint={d.activeSubs.length + " paying"} />
+        <Stat label="Open errors" value={d.errors ? d.errors.length : "-"} tone={d.errors && d.errors.length > 0 ? "warn" : undefined} />
       </div>
-    </main>
+      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Link href="/admin/people"><Stat label="Stuck before onboarding" value={d.notOnboarded.length} hint="See who" /></Link>
+        <Link href="/admin/people"><Stat label="No quote sent yet" value={d.noSentQuote.length} hint="See who" /></Link>
+        <Link href="/admin/reminders"><Stat label="Reminder emails due" value={d.due.length} hint="Next daily run" /></Link>
+        <Link href="/admin/growth"><Stat label="Visits, last 7 days" value={d.sources7.reduce((s, x) => s + x.count, 0)} hint="See sources" /></Link>
+      </div>
+
+      <Section title="From sign-up to paid">
+        <div className={card}>
+          <ol className="flex flex-col gap-3">
+            {d.funnel.map((step, i) => (
+              <li key={step.label}>
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="font-bold text-yebo-deep">{step.label}</span>
+                  <span className="tabular-nums text-yebo-deep/70">
+                    <b className="text-yebo-deep">{step.value}</b>
+                    {i > 0 && <span> · {pct(step.value, d.funnel[i - 1].value)}% of the step before</span>}
+                  </span>
+                </div>
+                <div className="mt-1 h-3 overflow-hidden rounded-full bg-yebo-deep/10">
+                  <div className="h-full rounded-full bg-yebo" style={{ width: pct(step.value, d.funnel[0].value) + "%" }} />
+                </div>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-4 text-xs leading-5 text-yebo-deep/55">A person counts as signed up when they have an account. They finish onboarding when their business is created.</p>
+        </div>
+      </Section>
+
+      <Section title="Last 14 days">
+        <div className={card + " overflow-x-auto"}>
+          <table className="w-full min-w-[460px] text-sm">
+            <thead><tr><th className={th}>Day</th><th className={th}>New sign-ups</th><th className={th}>Quotes and invoices created</th></tr></thead>
+            <tbody>
+              {[...d.signupDays].reverse().map((x, i) => (
+                <tr key={x.day} className="border-t border-yebo-deep/10">
+                  <td className={td}>{x.day}</td>
+                  <td className={td}><span className="inline-block h-2 rounded-full bg-yebo align-middle" style={{ width: Math.max(2, (x.count / peak) * 120) + "px" }} /> <b className="ml-2">{x.count}</b></td>
+                  <td className={td}><span className="inline-block h-2 rounded-full bg-yebo-sun align-middle" style={{ width: Math.max(2, (docsRev[i].count / peak) * 120) + "px" }} /> <b className="ml-2">{docsRev[i].count}</b></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-sm"><Link className={link} href="/admin/people">Who should I follow up with?</Link></p>
+      </Section>
+    </>
   );
 }
