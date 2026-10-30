@@ -4,6 +4,7 @@ import { formatRand } from "@/lib/money";
 import ThankClientButton from "./ThankClientButton";
 import MonthlyTargets, { type MonthlyStats } from "./MonthlyTargets";
 import PaymentConfetti from "./PaymentConfetti";
+import Scoreboard, { type ScoreboardData } from "./Scoreboard";
 
 export type DashboardActionItem = {
   id: string;
@@ -46,6 +47,9 @@ type DashboardViewProps = {
   actionItems: DashboardActionItem[];
   recentPayments: DashboardRecentPayment[];
   monthly: MonthlyStats;
+  scoreboard: ScoreboardData;
+  collectedChange: string;
+  hasAnyDocs: boolean;
 };
 
 const actionStyle = {
@@ -199,6 +203,9 @@ export default function DashboardView({
   actionItems,
   recentPayments,
   monthly,
+  scoreboard,
+  collectedChange,
+  hasAnyDocs,
 }: DashboardViewProps) {
   return (
     <main className="min-h-full bg-paper px-4 pb-10 pt-6 text-ink sm:px-6 sm:pt-8 lg:px-8 lg:pt-10">
@@ -232,6 +239,15 @@ export default function DashboardView({
           </div>
         </header>
 
+        {!hasAnyDocs && (
+          <section aria-labelledby="first-heading" className="fade-up rounded-3xl bg-yebo-deep p-6 text-white sm:p-8">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-yebo-sun">Welcome</p>
+            <h2 id="first-heading" className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">Send your first quote</h2>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-white/75 sm:text-base">Type or say what the job is, check the price, and send your client a clear link. It takes about two minutes. Your numbers appear here as you go.</p>
+            <Link href="/app/quotes/new" className="mt-5 inline-flex min-h-12 items-center justify-center rounded-xl bg-lime px-6 text-sm font-extrabold text-ink hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">Create your first quote <span className="ml-1" aria-hidden="true">→</span></Link>
+          </section>
+        )}
+
         <MonthlyTargets stats={monthly} />
 
         <section aria-label="Business overview" className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
@@ -239,7 +255,7 @@ export default function DashboardView({
             delay={0.1}
             label="Collected this month"
             value={formatRand(collectedCents)}
-            detail="Payments received so far"
+            detail={collectedChange}
             featured
           />
           <MetricCard
@@ -256,6 +272,8 @@ export default function DashboardView({
             alert={overdueInvoiceCount > 0}
           />
         </section>
+
+        {hasAnyDocs && <Scoreboard data={scoreboard} />}
 
         {recentPayments.length > 0 && (
           <section aria-labelledby="paid-heading" className="pop-in rounded-3xl border border-lime/70 bg-lime/20 p-4 sm:p-6">

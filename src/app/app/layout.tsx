@@ -8,6 +8,7 @@ import Icon from "./icons";
 import AttentionChime from "./AttentionChime";
 import OwnerMark from "./OwnerMark";
 import { loadAttention } from "@/lib/attention";
+import AppSidebar from "./AppSidebar";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [banner, attention] = await Promise.all([billingBanner(), loadAttention()]);
@@ -15,17 +16,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <>
       <OwnerMark />
+      <a href="#content" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:font-bold focus:text-yebo-deep focus:shadow">Skip to content</a>
       <header className="sticky top-0 z-20 border-b border-yebo-deep/10 bg-yebo-chalk/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
           <div className="shrink-0"><Logo href="/app" /></div>
           <nav aria-label="Account" className="flex min-w-0 items-center gap-1">
             <InstallPrompt />
             <RemindersBell />
-            <Link href="/app/documents" className={`${link} hidden sm:inline-flex`}>Documents</Link>
-            <Link href="/app/tenders" className={`${link} hidden sm:inline-flex`}>Tenders</Link>
-            <Link href="/app/reports/vat" className={`${link} hidden sm:inline-flex`}>Reports</Link>
-            <Link href="/app/help" className={`${link} hidden sm:inline-flex`}>Help</Link>
-            <Link href="/app/settings" className={`${link} hidden sm:inline-flex`}>Settings</Link>
+            <Link href="/app/documents" className={`${link} hidden sm:inline-flex lg:hidden`}>Documents</Link>
+            <Link href="/app/tenders" className={`${link} hidden sm:inline-flex lg:hidden`}>Tenders</Link>
+            <Link href="/app/reports/vat" className={`${link} hidden sm:inline-flex lg:hidden`}>Reports</Link>
+            <Link href="/app/help" className={`${link} hidden sm:inline-flex lg:hidden`}>Help</Link>
+            <Link href="/app/settings" className={`${link} hidden sm:inline-flex lg:hidden`}>Settings</Link>
             {/* Phones: Documents, Tenders and Reports live in the bottom bar, and Settings is this gear. */}
             <Link href="/app/help" aria-label="Help and support" className="inline-flex size-10 items-center justify-center rounded-full text-yebo-deep/70 hover:bg-yebo-deep/5 hover:text-yebo-deep sm:hidden">
               <Icon name="help" size={22} />
@@ -42,7 +44,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {banner.text} <Link href="/app/settings#billing" className="underline underline-offset-2">Manage plan</Link>
         </div>
       )}
-      <div className="min-w-0 pb-[var(--tab-h)]">{children}</div>
+      <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <AppSidebar />
+        <div id="content" tabIndex={-1} className="min-w-0 pb-[var(--tab-h)] focus:outline-none">{children}</div>
+      </div>
       <BottomNav />
       {attention && <AttentionChime signature={attention.signature} count={attention.overdue + attention.closingSoon} />}
     </>

@@ -10,6 +10,8 @@ import DashboardView, { type DashboardActionItem, type DashboardRecentPayment } 
 import type { MonthlyStats } from "./MonthlyTargets";
 import { southAfricaMonth } from "@/lib/time";
 import { entitlement } from "@/lib/subscription";
+import { change, nextMove, thoughtFor, winRate } from "@/lib/insights";
+import type { ScoreboardData } from "./Scoreboard";
 
 type DocumentRow = {
   id: string;
@@ -200,6 +202,24 @@ export default async function Dashboard() {
     quotesAccepted: quotesAcceptedCount ?? 0,
     carriedOver: !currentTarget && Boolean(lastTarget),
   };
+  // Last month and the last 90 days, so the numbers on the dashboard have something to be compared with.
+  // Any query that fails (for example a table that is not there yet) simply counts as zero.
+  const prevMonthStart = new Date(Date.UTC(year, month - 2, 1) - 2 * 60 * 60 * 1000);
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  const [{ data: lastMonthPayments }, { count: sentLastCount }, { count: acceptedLastCount }, { count: sent90Count }, { count: accepted90Count }, { count: anyDocsCount }] = await Promise.all([
+    supabase.from("payments").select("amount_cents,provider_reference").neq("method", "credit").gte("paid_at", prevMonthStart.toISOString()).lt("paid_at", monthStart.toISOString()),
+    supabase.from("documents").select("id", { count: "exact", head: true }).eq("type", "quote").neq("status", "draft").gte("created_at", prevMonthStart.toISOString()).lt("created_at", monthStart.toISOString()),
+    supabase.from("events").select("id", { count: "exact", head: true }).eq("type", "accepted").gte("created_at", prevMonthStart.toISOString()).lt("created_at", monthStart.toISOString()),
+    supabase.from("documents").select("id", { count: "exact", head: true }).eq("type", "quote").neq("status", "draft").gte("created_at", ninetyDaysAgo),
+    supabase.from("events").select("id", { count: "exact", head: true }).eq("type", "accepted").gte("created_at", ninetyDaysAgo),
+    supabase.from("documents").select("id", { count: "exact", head: true }),
+  ]);
+  const collectedLastMonth = (lastMonthPayments ?? [])
+    .filter((payment) => !String(payment.provider_reference ?? "").startsWith("from-quote:"))
+    .reduce((total, payment) => total + Number(payment.amount_cents), 0);
+  const collectedChange = change(paidThisMonth, collectedLastMonth);
+  const sent90 = sent90Count ?? 0;
+  const rate = winRate(accepted90Count ?? 0, sent90);
   const outstandingCents = openInvoices.reduce((total, document) => total + balanceDue(document), 0);
   const overdueCents = overdueInvoices.reduce((total, document) => total + balanceDue(document), 0);
 
@@ -264,6 +284,25 @@ export default async function Dashboard() {
     return 0;
   }).slice(0, 6);
 
+  const scoreboard: ScoreboardData = {
+    monthName: currentMonth.monthName,
+    quotesSent: monthly.quotesSent,
+    quotesSentLast: sentLastCount ?? 0,
+    accepted: monthly.quotesAccepted,
+    acceptedLast: acceptedLastCount ?? 0,
+    winRate: rate,
+    sent90,
+    move: nextMove({
+      hasAnyDocs: (anyDocsCount ?? 0) > 0,
+      quotesSentThisMonth: monthly.quotesSent,
+      waiting: waitingQuotes.length,
+      overdue: overdueInvoices.length,
+      ready: readyQuotes.length,
+      winRate: rate,
+    }),
+    thought: thoughtFor(today),
+  };
+
   return (
     <>
       <RemindersReady />
@@ -282,6 +321,9 @@ export default async function Dashboard() {
       actionItems={actionItems}
       recentPayments={recentPayments}
       monthly={monthly}
+      scoreboard={scoreboard}
+      collectedChange={collectedChange.text}
+      hasAnyDocs={(anyDocsCount ?? 0) > 0}
     />
     </>
   );
