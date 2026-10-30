@@ -8,6 +8,7 @@ import { SURVEY } from "@/lib/survey";
 import { adminEmails, adminList, isAdminEmail, lastDays, pct, tally } from "@/lib/admin-stats";
 import { SIGNIN_PROBLEMS, SIGNIN_STEPS, countSessions } from "@/lib/signin-events";
 import { dueNudges, nudgesEnabled } from "@/lib/nudges";
+import { PLANS, isPlanId } from "@/lib/plans";
 import AdminGate from "./AdminGate";
 import { resolveError } from "./actions";
 
@@ -60,6 +61,8 @@ export default async function Admin() {
   const errors = errRes.error ? null : ((errRes.data ?? []) as ErrorRow[]);
   const signins = sigRes.error ? null : ((sigRes.data ?? []) as SigninRow[]);
   const nudgeLog = nudgeRes.error ? null : ((nudgeRes.data ?? []) as { email: string; kind: string; created_at: string }[]);
+  const visitRes = await admin.from("visits").select("session_id,source,created_at").gte("created_at", since).limit(20000);
+  const visits = visitRes.error ? null : ((visitRes.data ?? []) as { session_id: string; source: string; created_at: string }[]);
   const businesses = (bizRes.data ?? []) as Biz[];
   const docs = (docRes.data ?? []) as Doc[];
   const subs = (subRes.data ?? []) as Sub[];
@@ -110,6 +113,28 @@ export default async function Admin() {
   const signin7 = signins ? countSessions(signins.filter((r) => new Date(r.created_at).getTime() >= week)) : {};
   const signin30 = signins ? countSessions(signins) : {};
   const nudgesOn = nudgesEnabled();
+
+  const sourceCounts = (since: number) => {
+    const seen = new Map<string, Set<string>>();
+    for (const v of visits ?? []) {
+      if (new Date(v.created_at).getTime() < since) continue;
+      if (!seen.has(v.source)) seen.set(v.source, new Set());
+      seen.get(v.source)!.add(v.session_id);
+    }
+    return [...seen].map(([source, set]) => ({ source, count: set.size })).sort((a, b) => b.count - a.count).slice(0, 12);
+  };
+  const sources7 = sourceCounts(Date.now() - 7 * DAY);
+  const sources30 = sourceCounts(Date.now() - 30 * DAY);
+  const sourcePeak = Math.max(1, ...sources30.map((x) => x.count));
+
+  const activeSubs = subs.filter((x) => x.status === "active");
+  const priceOf = (plan: string) => (isPlanId(plan) ? PLANS[plan].priceRand : 0);
+  const mrr = activeSubs.reduce((sum, x) => sum + priceOf(x.plan), 0);
+  const byPlan = (["side", "real", "king"] as const).map((p) => ({ plan: p, name: PLANS[p].name, price: PLANS[p].priceRand, count: activeSubs.filter((x) => x.plan === p).length }));
+  const comped = subs.filter((x) => x.status === "comped").length;
+  const pastDue = subs.filter((x) => x.status === "past_due").length;
+  const pending = subs.filter((x) => x.status === "pending").length;
+  const userEmail = new Map(users.map((u) => [u.id, u.email ?? ""]));
 
   const card = "rounded-2xl border border-yebo-deep/10 bg-white p-5 shadow-sm";
   const th = "px-3 py-2 text-left text-xs font-extrabold uppercase tracking-[.12em] text-yebo-deep/55";
@@ -236,7 +261,7 @@ export default async function Admin() {
           <div className={card + " mt-3 overflow-x-auto"}>
             {notOnboarded.length === 0 ? <p className="text-sm text-yebo-deep/60">Nobody is stuck here.</p> : (
               <table className="w-full min-w-[620px]">
-                <thead><tr><th className={th}>Email</th><th className={th}>Signed up</th><th className={th}>Last sign-in</th><th className={th}>How</th></tr></thead>
+                <thead><tr><th className={th}>Email</th><th className={th}>Signed up</th><th className={th}>Last sign-in</th><th className={th}>How</th><th className={th}>Contact</th></tr></thead>
                 <tbody>
                   {notOnboarded.map((u) => (
                     <tr key={u.id} className="border-t border-yebo-deep/10">
@@ -244,6 +269,7 @@ export default async function Admin() {
                       <td className={td}>{formatSouthAfricaDateTime(u.created_at)}</td>
                       <td className={td}>{u.last_sign_in_at ? formatSouthAfricaDateTime(u.last_sign_in_at) : "never"}</td>
                       <td className={td}>{u.app_metadata?.provider ?? "email"}</td>
+                      <td className={td}>{u.email ? <a className="font-bold text-yebo underline decoration-yebo/30 underline-offset-4" href={"mailto:" + u.email + "?subject=" + encodeURIComponent("Your Yebo account") + "&body=" + encodeURIComponent("Hi, this is Yebo Invoices. I saw you created an account but have not finished setting up your business. Can I help you get started? It takes about 2 minutes.")}>Email</a> : "-"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -258,7 +284,7 @@ export default async function Admin() {
           <div className={card + " mt-3 overflow-x-auto"}>
             {noSentQuote.length === 0 ? <p className="text-sm text-yebo-deep/60">Everyone has sent a quote.</p> : (
               <table className="w-full min-w-[620px]">
-                <thead><tr><th className={th}>Business</th><th className={th}>Email</th><th className={th}>Created</th><th className={th}>Message</th></tr></thead>
+                <thead><tr><th className={th}>Business</th><th className={th}>Email</th><th className={th}>Created</th><th className={th}>Message</th><th className={th}>Email</th></tr></thead>
                 <tbody>
                   {noSentQuote.map((b) => (
                     <tr key={b.id} className="border-t border-yebo-deep/10">
@@ -271,6 +297,7 @@ export default async function Admin() {
                             href={waLink(b.phone, "Hi " + b.name + ", this is Yebo Invoices. I saw you set up your account but have not sent your first quote yet. Can I help you get it out?")}>WhatsApp</a>
                         ) : "no phone"}
                       </td>
+                      <td className={td}>{(b.email || userEmail.get(b.owner_id)) ? <a className="font-bold text-yebo underline decoration-yebo/30 underline-offset-4" href={"mailto:" + (b.email || userEmail.get(b.owner_id)) + "?subject=" + encodeURIComponent("Your first quote on Yebo") + "&body=" + encodeURIComponent("Hi " + b.name + ", this is Yebo Invoices. I saw you set up your account but have not sent your first quote yet. Can I help you get it out?")}>Email</a> : "-"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -290,6 +317,39 @@ export default async function Admin() {
               <ul className="mt-3 flex flex-col gap-1 text-sm text-yebo-deep/80">
                 {nudgeLog.map((n, i) => <li key={i} className="break-all">{formatSouthAfricaDateTime(n.created_at)} · {n.kind === "onboarding" ? "finish setup" : "first quote"} · {n.email}</li>)}
               </ul>
+            )}
+          </div>
+        </section>
+
+        <section className="mt-8" aria-labelledby="rev">
+          <h2 id="rev" className="text-xl font-black text-yebo-deep">Revenue</h2>
+          <div className={card + " mt-3"}>
+            <p className="text-3xl font-black tabular-nums text-yebo-deep">R{mrr.toLocaleString("en-ZA")}<span className="text-sm font-bold text-yebo-deep/60"> per month, from {activeSubs.length} paying {activeSubs.length === 1 ? "business" : "businesses"}</span></p>
+            <ul className="mt-4 flex flex-wrap gap-3">
+              {byPlan.map((p) => <li key={p.plan} className="rounded-full bg-yebo-chalk px-4 py-2 text-sm font-bold text-yebo-deep">{p.name} (R{p.price}): {p.count}</li>)}
+            </ul>
+            <p className="mt-3 text-sm text-yebo-deep/70">Free or comped: {comped}. Payment failed (past due): {pastDue}. Started checkout, not paid: {pending}.</p>
+            <p className="mt-2 text-xs leading-5 text-yebo-deep/55">Worked out from active plans at today&apos;s list prices. It does not include comped accounts.</p>
+          </div>
+        </section>
+
+        <section className="mt-8" aria-labelledby="traffic">
+          <h2 id="traffic" className="text-xl font-black text-yebo-deep">Where visitors come from</h2>
+          <p className="mt-1 text-sm text-yebo-deep/60">One count per browser visit. Links with ?s=facebook or ?utm_source=reddit show under that name.</p>
+          <div className={card + " mt-3 overflow-x-auto"}>
+            {!visits ? <p className="text-sm text-yebo-deep/60">The visits SQL has not been run yet.</p> : sources30.length === 0 ? <p className="text-sm text-yebo-deep/60">No visits counted yet. It starts when this is deployed.</p> : (
+              <table className="w-full min-w-[480px]">
+                <thead><tr><th className={th}>Source</th><th className={th}>Last 7 days</th><th className={th}>Last 30 days</th></tr></thead>
+                <tbody>
+                  {sources30.map((x) => (
+                    <tr key={x.source} className="border-t border-yebo-deep/10">
+                      <td className={td + " font-bold"}>{x.source}</td>
+                      <td className={td + " tabular-nums"}>{sources7.find((y) => y.source === x.source)?.count ?? 0}</td>
+                      <td className={td}><span className="inline-block h-2 rounded-full bg-yebo align-middle" style={{ width: Math.max(2, (x.count / sourcePeak) * 120) + "px" }} /> <b className="ml-2 tabular-nums">{x.count}</b></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
         </section>
