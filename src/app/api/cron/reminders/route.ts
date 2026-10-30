@@ -8,6 +8,7 @@ import { billingEnforced, hasAccess, planOf } from "@/lib/access";
 import { PLANS } from "@/lib/plans";
 import { runRecurring } from "@/lib/recurring-run";
 import { sendMorningLists } from "@/lib/morning-list";
+import { runNudges } from "@/lib/nudges";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -197,5 +198,7 @@ export async function GET(request: Request) {
 
   // Repeating invoices ride on this same daily run, so no extra scheduled job is needed.
   const recurring = await runRecurring().catch((e) => { console.error("[recurring] failed:", e); return null; });
-  return Response.json({ ...result, expiry, morning, recurring });
+  // Friendly emails to people who signed up but stalled. Does nothing unless NUDGES_ENABLED=true.
+  const nudges = await runNudges(admin).catch((e) => { console.error("[nudges] failed:", e); return null; });
+  return Response.json({ ...result, expiry, morning, recurring, nudges });
 }
