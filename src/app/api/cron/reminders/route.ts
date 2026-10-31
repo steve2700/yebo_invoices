@@ -9,6 +9,7 @@ import { PLANS } from "@/lib/plans";
 import { runRecurring } from "@/lib/recurring-run";
 import { sendMorningLists } from "@/lib/morning-list";
 import { runNudges } from "@/lib/nudges";
+import { runVisitReminders } from "@/lib/visit-reminders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -200,5 +201,7 @@ export async function GET(request: Request) {
   const recurring = await runRecurring().catch((e) => { console.error("[recurring] failed:", e); return null; });
   // Friendly emails to people who signed up but stalled. Does nothing unless NUDGES_ENABLED=true.
   const nudges = await runNudges(admin).catch((e) => { console.error("[nudges] failed:", e); return null; });
-  return Response.json({ ...result, expiry, morning, recurring, nudges });
+  // The day before a confirmed site visit, the client gets a reminder email with the calendar file.
+  const visits = await runVisitReminders(admin).catch((e) => { console.error("[visit-reminders] failed:", e); return null; });
+  return Response.json({ ...result, expiry, morning, recurring, nudges, visits });
 }
