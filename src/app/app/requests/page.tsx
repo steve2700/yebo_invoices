@@ -7,11 +7,13 @@ import { appUrl } from "@/lib/url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requestUrl, shareText } from "@/lib/requests";
 import { sourceLabel } from "@/lib/request-sources";
+import { formatVisit, visitMessage } from "@/lib/visit";
 import CopyLink from "./CopyLink";
 import ShareTools from "./ShareTools";
 import { dismissRequest, startQuoteFromRequest } from "./actions";
+import { proposeVisit } from "./visit-actions";
 
-type Row = { id: string; created_at: string; name: string; whatsapp: string | null; email: string | null; location: string | null; details: string; status: string; source: string | null; preferred_date: string | null; photos: string[] | null };
+type Row = { id: string; created_at: string; name: string; whatsapp: string | null; email: string | null; location: string | null; details: string; status: string; source: string | null; preferred_date: string | null; photos: string[] | null; visit_at: string | null; visit_status: string | null; visit_note: string | null; visit_token: string | null };
 type Look = { path: string; url: string };
 
 export default async function Requests({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
@@ -19,7 +21,7 @@ export default async function Requests({ searchParams }: { searchParams: Promise
   const sb = await createClient();
   const { data: business } = await sb.from("businesses").select("name,request_token").maybeSingle();
   if (!business) redirect("/app/onboarding");
-  const { data, error } = await sb.from("quote_requests").select("id,created_at,name,whatsapp,email,location,details,status,source,preferred_date,photos").neq("status", "dismissed").order("created_at", { ascending: false }).limit(50);
+  const { data, error } = await sb.from("quote_requests").select("id,created_at,name,whatsapp,email,location,details,status,source,preferred_date,photos,visit_at,visit_status,visit_note,visit_token").neq("status", "dismissed").order("created_at", { ascending: false }).limit(50);
   const rows = (data ?? []) as Row[];
 
   // How many requests each place has brought (dismissed ones included), and short-lived links to the photos clients attached.
@@ -48,6 +50,8 @@ export default async function Requests({ searchParams }: { searchParams: Promise
         </header>
 
         {error && <p role="alert" className="rounded-2xl bg-orange/10 p-4 text-sm text-ink">Quote requests are not set up yet. Run the latest SQL (0028 and 0029) in Supabase, then refresh.</p>}
+        {e === "visit" && <p role="alert" className="rounded-2xl bg-orange/10 p-4 text-sm text-ink">Pick a day and time from now onwards, then try again. (If it keeps failing, run the latest SQL, 0030, in Supabase.)</p>}
+        {e === "visit-ok" && <p role="status" className="rounded-2xl bg-yebo-chalk p-4 text-sm font-bold text-yebo-deep">Visit proposed. Send the link to your client on WhatsApp below.</p>}
         {e === "client" && <p role="alert" className="rounded-2xl bg-orange/10 p-4 text-sm text-ink">Could not save that client. Please try again.</p>}
 
         {link && (
@@ -109,7 +113,31 @@ export default async function Requests({ searchParams }: { searchParams: Promise
                       ))}
                     </ul>
                   )}
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="mt-4 rounded-2xl bg-paper p-3">
+                    {r.visit_at && r.visit_token ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm">
+                          <span className="font-extrabold">Site visit: <span className="capitalize">{formatVisit(r.visit_at)}</span></span>{" "}
+                          {r.visit_status === "confirmed" ? <span className="rounded-full bg-yebo px-2 py-0.5 text-xs font-bold text-white">Confirmed</span>
+                            : r.visit_status === "declined" ? <span className="rounded-full bg-orange/20 px-2 py-0.5 text-xs font-bold">Wants another day</span>
+                            : <span className="rounded-full bg-ink/10 px-2 py-0.5 text-xs font-bold">Waiting for reply</span>}
+                        </p>
+                        {r.visit_status === "proposed" && r.whatsapp && (
+                          <a className={`${btn} bg-yebo text-white hover:bg-yebo-deep`} target="_blank" rel="noreferrer" href={waLink(r.whatsapp, visitMessage(business.name, r.visit_at, `${appUrl()}/v/${r.visit_token}`))}>Send link on WhatsApp</a>
+                        )}
+                      </div>
+                    ) : null}
+                    {r.visit_status === "declined" && r.visit_note && <p className="mt-2 text-sm text-ink/70">They wrote: “{r.visit_note}”</p>}
+                    {r.visit_status !== "confirmed" && (
+                      <form action={proposeVisit} className="mt-2 flex flex-wrap items-center gap-2">
+                        <input type="hidden" name="id" value={r.id} />
+                        <label className="sr-only" htmlFor={`visit-${r.id}`}>Day and time of the site visit</label>
+                        <input id={`visit-${r.id}`} name="visit_at" type="datetime-local" required className="min-h-11 rounded-xl border border-ink/15 bg-white px-3 text-sm outline-none focus:border-yebo focus:ring-2 focus:ring-yebo/20" />
+                        <button className={`${btn} border border-ink/15 bg-white hover:bg-yebo-chalk`}>{r.visit_at ? "Propose another time" : "Propose a site visit"}</button>
+                      </form>
+                    )}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <form action={startQuoteFromRequest}>
                       <input type="hidden" name="id" value={r.id} />
                       <button className={`${btn} bg-yebo text-white hover:bg-yebo-deep`}>Make a quote</button>
