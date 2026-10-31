@@ -2,21 +2,38 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatSouthAfricaDateTime } from "@/lib/time";
-import { waLink } from "@/lib/dates";
+import { formatDate, waLink } from "@/lib/dates";
 import { appUrl } from "@/lib/url";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requestUrl, shareText } from "@/lib/requests";
+import { sourceLabel } from "@/lib/request-sources";
 import CopyLink from "./CopyLink";
+import ShareTools from "./ShareTools";
 import { dismissRequest, startQuoteFromRequest } from "./actions";
 
-type Row = { id: string; created_at: string; name: string; whatsapp: string | null; email: string | null; location: string | null; details: string; status: string };
+type Row = { id: string; created_at: string; name: string; whatsapp: string | null; email: string | null; location: string | null; details: string; status: string; source: string | null; preferred_date: string | null; photos: string[] | null };
+type Look = { path: string; url: string };
 
 export default async function Requests({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
   const { e } = await searchParams;
   const sb = await createClient();
   const { data: business } = await sb.from("businesses").select("name,request_token").maybeSingle();
   if (!business) redirect("/app/onboarding");
-  const { data, error } = await sb.from("quote_requests").select("id,created_at,name,whatsapp,email,location,details,status").neq("status", "dismissed").order("created_at", { ascending: false }).limit(50);
+  const { data, error } = await sb.from("quote_requests").select("id,created_at,name,whatsapp,email,location,details,status,source,preferred_date,photos").neq("status", "dismissed").order("created_at", { ascending: false }).limit(50);
   const rows = (data ?? []) as Row[];
+
+  // How many requests each place has brought (dismissed ones included), and short-lived links to the photos clients attached.
+  const { data: all } = await sb.from("quote_requests").select("source").limit(1000);
+  const counts: Record<string, number> = {};
+  for (const r of all ?? []) { const k = (r as { source: string | null }).source || ""; counts[k] = (counts[k] ?? 0) + 1; }
+  const places = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const paths = rows.filter((r) => r.status === "new").flatMap((r) => r.photos ?? []);
+  const signed: Record<string, string> = {};
+  if (paths.length) {
+    const { data: urls } = await createAdminClient().storage.from("request-photos").createSignedUrls(paths, 3600);
+    for (const u of (urls ?? []) as { path: string | null; signedUrl: string }[]) if (u.path) signed[u.path] = u.signedUrl;
+  }
+  const looks = (r: Row): Look[] => (r.photos ?? []).filter((p) => signed[p]).map((p) => ({ path: p, url: signed[p] }));
   const link = business.request_token ? requestUrl(appUrl(), business.request_token) : null;
   const fresh = rows.filter((r) => r.status === "new");
   const done = rows.filter((r) => r.status !== "new");
@@ -30,7 +47,7 @@ export default async function Requests({ searchParams }: { searchParams: Promise
           <p className="mt-2 max-w-xl text-sm leading-6 text-ink/60">Send your clients this link. They tell you about the job, you get a notification and turn it into a quote in one tap.</p>
         </header>
 
-        {error && <p role="alert" className="rounded-2xl bg-orange/10 p-4 text-sm text-ink">Quote requests are not set up yet. Run the latest SQL (0028) in Supabase, then refresh.</p>}
+        {error && <p role="alert" className="rounded-2xl bg-orange/10 p-4 text-sm text-ink">Quote requests are not set up yet. Run the latest SQL (0028 and 0029) in Supabase, then refresh.</p>}
         {e === "client" && <p role="alert" className="rounded-2xl bg-orange/10 p-4 text-sm text-ink">Could not save that client. Please try again.</p>}
 
         {link && (
@@ -41,7 +58,24 @@ export default async function Requests({ searchParams }: { searchParams: Promise
               <CopyLink text={link} />
               <a href={waLink(null, shareText(business.name, link))} target="_blank" rel="noreferrer" className={`${btn} bg-yebo text-white hover:bg-yebo-deep`}>Share on WhatsApp</a>
             </div>
-            <p className="mt-3 text-xs leading-5 text-ink/50">Put it in your WhatsApp status, on your Facebook page, on a sticker on your van or at the bottom of your emails.</p>
+            <p className="mt-3 text-xs leading-5 text-ink/50">Below you can make a QR code for your van or business card, and a separate link for each place you share it.</p>
+          </section>
+        )}
+
+        {business.request_token && <ShareTools base={appUrl()} token={business.request_token} businessName={business.name} counts={counts} />}
+
+        {places.length > 0 && (
+          <section aria-labelledby="where-h" className="rounded-3xl border border-ink/10 bg-white p-5 sm:p-6">
+            <h2 id="where-h" className="text-lg font-extrabold">Where requests came from</h2>
+            <ul className="mt-3 flex flex-col gap-2">
+              {places.map(([k, n]) => (
+                <li key={k || "direct"} className="flex items-center gap-3 text-sm">
+                  <span className="w-44 shrink-0 truncate font-semibold">{sourceLabel(k)}</span>
+                  <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-ink/5"><span className="block h-full rounded-full bg-yebo" style={{ width: `${Math.max(6, (n / places[0][1]) * 100)}%` }} /></span>
+                  <span className="w-6 text-right font-bold">{n}</span>
+                </li>
+              ))}
+            </ul>
           </section>
         )}
 
@@ -59,6 +93,22 @@ export default async function Requests({ searchParams }: { searchParams: Promise
                   </div>
                   {r.location && <p className="mt-1 text-xs font-semibold text-ink/55">{r.location}</p>}
                   <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink/80">{r.details}</p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
+                    {r.preferred_date && <span className="rounded-full bg-orange/10 px-2.5 py-1 text-ink">Wants it done: {formatDate(r.preferred_date)}</span>}
+                    <span className="rounded-full bg-yebo-chalk px-2.5 py-1 text-yebo-deep">From: {sourceLabel(r.source)}</span>
+                  </div>
+                  {looks(r).length > 0 && (
+                    <ul className="mt-3 flex flex-wrap gap-2">
+                      {looks(r).map((p) => (
+                        <li key={p.path}>
+                          <a href={p.url} target="_blank" rel="noreferrer">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={p.url} alt="Photo from the client" className="size-24 rounded-xl object-cover ring-1 ring-ink/10" />
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <div className="mt-4 flex flex-wrap gap-2">
                     <form action={startQuoteFromRequest}>
                       <input type="hidden" name="id" value={r.id} />

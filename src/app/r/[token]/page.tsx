@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sourceFromParams } from "@/lib/request-sources";
 import RequestForm from "./RequestForm";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Ask for a quote", robots: { index: false, follow: false } };
 
-export default async function RequestPage({ params }: { params: Promise<{ token: string }> }) {
+export default async function RequestPage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { token } = await params;
+  const source = sourceFromParams(await searchParams);
   if (!/^[a-z0-9]{8,32}$/.test(token)) notFound();
   const { data: business } = await createAdminClient().from("businesses").select("name,logo_url,brand_color").eq("request_token", token).maybeSingle();
   if (!business) notFound();
@@ -25,7 +27,7 @@ export default async function RequestPage({ params }: { params: Promise<{ token:
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-ink">{business.name}</h1>
           <p className="mt-2 text-base leading-7 text-ink/65">Tell us about the job. We will send you a clear quote, usually the same day.</p>
         </header>
-        <RequestForm token={token} businessName={business.name} color={color} />
+        <RequestForm token={token} businessName={business.name} color={color} source={source} />
         <p className="mt-6 text-center text-xs text-ink/40">Quotes by Yebo Invoices</p>
       </div>
     </main>
