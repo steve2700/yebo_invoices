@@ -3,6 +3,7 @@ import { appUrl } from "@/lib/url";
 import { formatRand } from "@/lib/money";
 import { greetingName } from "@/lib/names";
 import { formatSouthAfricaDateTime } from "@/lib/time";
+import { formatDate } from "@/lib/dates";
 import { isEmail, renderEmail, sendEmail } from "@/lib/email";
 
 const METHODS: Record<string, string> = { eft: "EFT", cash: "Cash", payfast: "Online payment" };
@@ -14,7 +15,7 @@ export async function sendPaymentReceipt(documentId: string, amountCents: number
     const admin = createAdminClient();
     const { data: doc } = await admin
       .from("documents")
-      .select("id,number,type,total_cents,public_token,business_id,client_id")
+      .select("id,number,type,total_cents,public_token,business_id,client_id,job_date,job_date_tbd")
       .eq("id", documentId)
       .maybeSingle();
     if (!doc) return;
@@ -45,7 +46,7 @@ export async function sendPaymentReceipt(documentId: string, amountCents: number
       html: renderEmail({
         brandColor: business.brand_color,
         heading: "Payment received. Thank you!",
-        intro: `Hi ${greetingName(client?.name)}, ${businessName} has received your ${isQuote ? "deposit" : "payment"} for ${isQuote ? "quote" : "invoice"} ${doc.number}. Keep this email as your receipt.`,
+        intro: `Hi ${greetingName(client?.name)}, ${businessName} has received your ${isQuote ? "deposit" : "payment"} for ${isQuote ? "quote" : "invoice"} ${doc.number}. Keep this email as your receipt.${isQuote ? ` What happens next: ${businessName} will contact you to agree the date${doc.job_date && !doc.job_date_tbd ? ` (pencilled in for ${formatDate(doc.job_date)})` : ""}, the job gets done, and then you receive the invoice${remaining > 0 ? ` for the balance of ${formatRand(remaining)}` : ""}.` : ""}`,
         rows,
         buttonLabel: "View it online",
         buttonUrl: `${appUrl()}/d/${doc.public_token}`,

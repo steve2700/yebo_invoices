@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatVisit, visitMessage } from "@/lib/visit";
 import { waLink } from "@/lib/dates";
+import MoneyReady from "./MoneyReady";
 
 type Visit = { id: string; name: string; whatsapp: string | null; visit_at: string; visit_status: string; visit_token: string | null };
 
@@ -28,6 +29,7 @@ export default async function RequestsReady() {
 
     return (
       <>
+        <MoneyReady />
         {visits.length > 0 && (
           <div className="bg-paper px-4 pt-4 sm:px-6 lg:px-8">
             <section aria-label="Upcoming site visits" className="mx-auto max-w-6xl rounded-2xl border border-ink/10 bg-white p-4">

@@ -11,6 +11,7 @@ import { sendMorningLists } from "@/lib/morning-list";
 import { runNudges } from "@/lib/nudges";
 import { runVisitReminders } from "@/lib/visit-reminders";
 import { runWinbacks } from "@/lib/quote-followup";
+import { runDepositNudges, runInvoiceNudges } from "@/lib/money-followup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -206,5 +207,8 @@ export async function GET(request: Request) {
   const visits = await runVisitReminders(admin).catch((e) => { console.error("[visit-reminders] failed:", e); return null; });
   // 14 or 30 days after a price or timing decline, the owner gets one email with a ready message to send.
   const winbacks = await runWinbacks(admin).catch((e) => { console.error("[winbacks] failed:", e); return null; });
-  return Response.json({ ...result, expiry, morning, recurring, nudges, visits, winbacks });
+  // After a client says yes: nudge an unpaid deposit (client) and an accepted quote with no invoice (owner).
+  const depositNudges = await runDepositNudges(admin).catch((e) => { console.error("[deposit-nudges] failed:", e); return null; });
+  const invoiceNudges = await runInvoiceNudges(admin).catch((e) => { console.error("[invoice-nudges] failed:", e); return null; });
+  return Response.json({ ...result, expiry, morning, recurring, nudges, visits, winbacks, depositNudges, invoiceNudges });
 }
