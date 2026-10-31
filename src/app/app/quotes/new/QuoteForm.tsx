@@ -69,6 +69,10 @@ function isTidySuggestion(value: unknown): value is TidySuggestion {
 
 type Initial = { clientId: string; f: Fields; lines: Line[]; useOptions?: boolean };
 
+function stepFor(hasClient: boolean, hasItems: boolean): 1 | 2 | 3 {
+  return hasClient && hasItems ? 3 : hasClient ? 2 : 1;
+}
+
 export default function QuoteForm({ clients: clientsProp, items, vatRegistered, docType = "quote", documentId, initial, voiceLeft = null, past = [] }: { clients: Client[]; items: Item[]; vatRegistered: boolean; docType?: "quote" | "invoice"; documentId?: string; initial?: Initial; voiceLeft?: number | null; past?: PastDoc[] }) {
   const isInvoice = docType === "invoice";
   // Clients saved while you work (a new client is saved with the draft) are added to the list here.
@@ -98,6 +102,9 @@ export default function QuoteForm({ clients: clientsProp, items, vatRegistered, 
     return { email: known?.email ?? "", whatsapp: known?.whatsapp_number ?? "" };
   });
   const [lines, setLines] = useState<Line[]>(initial?.lines ?? [{ description: "", quantity: 1, price: 0 }]);
+  // Which screen of the form is showing. A known client lands on step 2; a known client with priced items lands on the review.
+  const [step, setStep] = useState<1 | 2 | 3>(() => stepFor(Boolean(initial?.clientId), (initial?.lines ?? []).some((line) => line.description.trim() && line.price > 0 && line.quantity > 0)));
+  const [stepNote, setStepNote] = useState("");
   const [useOptions, setUseOptions] = useState<boolean>(!isInvoice && Boolean(initial?.useOptions));
   const [error, setError] = useState("");
   const [noteTone, setNoteTone] = useState<MessageTone>("friendly");
@@ -463,6 +470,23 @@ export default function QuoteForm({ clients: clientsProp, items, vatRegistered, 
     setUseOptions(!isInvoice && saved.useOptions);
     setContactFix(saved.contactFix);
     setServerId(saved.serverId);
+    const savedLines = saved.lines as Line[];
+    const known = saved.clientId === "new" ? Boolean(saved.newClient.name.trim()) : Boolean(saved.clientId);
+    setStep(stepFor(known, savedLines.some((line) => line.description.trim() && line.price > 0 && line.quantity > 0)));
+  }
+
+  function goStep(target: 1 | 2 | 3) {
+    setStepNote("");
+    let to = target;
+    if (to >= 2 && !hasClient) {
+      to = 1;
+      setStepNote(clientId === "new" ? "Enter the client’s name to continue." : "Choose a client to continue.");
+    } else if (to === 3 && (validLines === 0 || !optionsReady)) {
+      to = 2;
+      setStepNote(validLines === 0 ? "Add an item with a price to continue." : actionHint);
+    }
+    setStep(to);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function clientSaved(client: SavedClient) {
@@ -519,7 +543,8 @@ export default function QuoteForm({ clients: clientsProp, items, vatRegistered, 
         onSaved={(id) => setServerId(id || null)}
         onClientCreated={clientSaved}
       />
-      <StageStrip hasClient={hasClient} hasItems={validLines > 0} ready={canSubmit} />
+      <StageStrip step={step} hasClient={hasClient} hasItems={validLines > 0} onGo={goStep} />
+      <div hidden={step !== 1}>
       {!documentId && <VoiceQuoteAssistant docType={docType} onApply={applyVoiceDraft} onBusyChange={setVoiceBusy} hasExistingItems={lines.some((line) => line.description.trim() || line.price > 0)} voiceLeft={voiceLeft} />}
 
       <section id="who-section" className="scroll-mt-24 rounded-[2rem] bg-white p-5 shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5 sm:p-7">
@@ -541,7 +566,9 @@ export default function QuoteForm({ clients: clientsProp, items, vatRegistered, 
         )}
         {clientId === "new" && <p className="mt-2 rounded-xl bg-lime/20 p-3 text-xs leading-5 text-ink/75"><b>Add both if you can.</b> An email lets you send the PDF. A WhatsApp number gets you a faster answer and one-tap follow-ups. Only the name is needed to save a draft.</p>}
       </section>
+      </div>
 
+      <div hidden={step !== 2}>
       <section id="amount-section" className="mt-5 scroll-mt-24 rounded-[2rem] bg-ink p-5 text-paper shadow-[0_16px_60px_rgba(20,42,31,.12)] sm:p-7">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -779,12 +806,12 @@ export default function QuoteForm({ clients: clientsProp, items, vatRegistered, 
       <details className="group mt-5 overflow-hidden rounded-[2rem] bg-white shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5">
         <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange sm:px-7">
           <span>
-            <span className="block font-black text-ink">Add details</span>
-            <span className="mt-0.5 block text-xs text-ink/55">Job information, payment options and a note</span>
+            <span className="block font-black text-ink">More options</span>
+            <span className="mt-0.5 block text-xs text-ink/55">Job name, date, payment terms and a personal note. Skip it if you are in a hurry.</span>
             <span className="mt-1 block text-xs font-semibold text-ink/70">{isInvoice ? `Due ${paymentSummary}` : `Payment: ${paymentSummary}`}</span>
           </span>
           <span className="flex shrink-0 items-center gap-2">
-            <span className="rounded-full bg-paper px-3 py-1.5 text-xs font-bold text-ink/55">Optional</span>
+            <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${fields.title || fields.jobDate || fields.note ? "bg-lime text-ink" : "bg-lime/30 text-ink/70"}`}>{fields.title || fields.jobDate || fields.note ? "Added" : "Worth a look"}</span>
             <span aria-hidden="true" className="text-xl font-bold leading-none text-ink/45">+</span>
           </span>
         </summary>
@@ -888,6 +915,43 @@ export default function QuoteForm({ clients: clientsProp, items, vatRegistered, 
           </section>
         </div>
       </details>
+      </div>
+
+      <div hidden={step !== 3}>
+      <section className="rounded-[2rem] bg-white p-5 shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5 sm:p-7">
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-orange">03 · One last look</p>
+        <h2 className="mt-2 text-xl font-black tracking-tight">This is what {clientName ? firstName : "your client"} will see</h2>
+        <div className="mt-4 rounded-2xl border border-ink/10 bg-paper/60 p-4 text-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-ink/50">{isInvoice ? "Invoice" : "Quote"} for</p>
+              <p className="truncate text-base font-black text-ink">{clientName || "No client yet"}</p>
+              {fields.title.trim() && <p className="mt-0.5 text-xs text-ink/65">{fields.title}</p>}
+            </div>
+            <button type="button" onClick={() => goStep(1)} className="min-h-10 shrink-0 rounded-full border border-ink/15 px-3 text-xs font-bold text-ink">Edit client</button>
+          </div>
+          <ul className="mt-4 divide-y divide-ink/10">
+            {lines.filter((line) => line.description.trim() && line.price > 0 && line.quantity > 0).map((line, index) => (
+              <li key={index} className="flex items-start justify-between gap-3 py-2">
+                <span className="min-w-0">
+                  <span className="block text-ink">{line.description}</span>
+                  <span className="block text-xs text-ink/50">{line.pricingMode === "line_total" ? "Fixed price" : `${line.quantity} × ${formatRand(Math.round(line.price * 100))}`}{useOptions && line.option && line.option !== "all" ? ` · Option ${line.option}` : ""}</span>
+                </span>
+                <span className="shrink-0 font-bold text-ink">{formatRand(getLineTotalCents(line))}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-2 border-t border-ink/10 pt-2">
+            <div className="flex justify-between py-0.5 text-ink/65"><span>{useOptions ? "Lowest option, subtotal" : "Subtotal"}</span><span>{formatRand(subtotalCents)}</span></div>
+            <div className="flex justify-between py-0.5 text-ink/65"><span>VAT</span><span>{vatRegistered ? formatRand(vatCents) : "Not applicable"}</span></div>
+            <div className="flex justify-between py-1 text-lg font-black text-ink"><span>Total</span><span>{formatRand(totalCents)}</span></div>
+          </div>
+          <p className="mt-2 rounded-xl bg-lime/25 px-3 py-2 text-xs font-semibold text-ink">{isInvoice ? `Due ${paymentSummary}` : `Payment: ${paymentSummary}`}</p>
+          {fields.description.trim() && <p className="mt-3 whitespace-pre-line text-xs leading-5 text-ink/70">{fields.description}</p>}
+          {fields.note.trim() && <p className="mt-3 whitespace-pre-line rounded-xl bg-white p-3 text-xs italic leading-5 text-ink/70">{fields.note}</p>}
+        </div>
+        <button type="button" onClick={() => goStep(2)} className="mt-3 min-h-10 rounded-full border border-ink/15 px-4 text-xs font-bold text-ink">Edit items and price</button>
+      </section>
 
       <QuoteCheck items={checks} kind={isInvoice ? "invoice" : "quote"}>
         {clientId && clientId !== "new" && (
@@ -900,21 +964,27 @@ export default function QuoteForm({ clients: clientsProp, items, vatRegistered, 
       </QuoteCheck>
 
       {error && <p role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
+      </div>
 
       <div className="fixed inset-x-0 bottom-[var(--tab-h)] z-10 border-t border-ink/10 bg-paper/95 p-3 backdrop-blur sm:p-4">
         <div className="mx-auto max-w-2xl">
-          {!canSubmit && <p className="mb-2 text-center text-xs text-ink/60" aria-live="polite">{actionHint}</p>}
+          {step === 3 && !canSubmit && <p className="mb-2 text-center text-xs text-ink/60" aria-live="polite">{actionHint}</p>}
+          {step < 3 && stepNote && <p role="alert" className="mb-2 text-center text-xs font-bold text-red-700">{stepNote}</p>}
           <div className="flex items-center gap-2">
             <div className="min-w-0 text-xs text-ink/55">
               {isInvoice ? "Invoice total" : "Quote total"}
               <span className="block truncate text-lg font-black text-ink">{formatRand(totalCents)}</span>
             </div>
-            <button type="button" disabled={pending || draftingNote !== null || voiceBusy || tidying || descTidying || !canSubmit} onClick={() => submit(false)} className="ml-auto min-h-11 rounded-2xl border-2 border-ink px-3 py-3 text-xs font-black text-ink disabled:opacity-40 sm:px-4 sm:text-sm">
+            {step > 1 && <button type="button" onClick={() => goStep((step - 1) as 1 | 2)} className="ml-auto min-h-11 rounded-2xl border-2 border-ink/20 px-4 py-3 text-xs font-black text-ink">Back</button>}
+            {step < 3 && <button type="button" onClick={() => goStep((step + 1) as 2 | 3)} className={`${step === 1 ? "ml-auto " : ""}min-h-11 rounded-2xl bg-orange px-7 py-3 text-xs font-black text-paper`}>Next</button>}
+            {step === 3 && (<>
+            <button type="button" disabled={pending || draftingNote !== null || voiceBusy || tidying || descTidying || !canSubmit} onClick={() => submit(false)} className="min-h-11 rounded-2xl border-2 border-ink px-3 py-3 text-xs font-black text-ink disabled:opacity-40 sm:px-4 sm:text-sm">
               {documentId ? "Save changes" : "Save draft"}
             </button>
             <button type="button" disabled={pending || draftingNote !== null || voiceBusy || tidying || descTidying || !canSubmit} onClick={() => submit(true)} className="min-h-11 rounded-2xl bg-orange px-4 py-3 text-xs font-black text-white shadow-lg shadow-orange/20 disabled:opacity-40 sm:px-5 sm:text-sm">
               {pending ? "Saving..." : isInvoice ? "Send invoice" : documentId ? "Save & send" : "Create & send"}
             </button>
+            </>)}
           </div>
         </div>
       </div>
