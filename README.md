@@ -566,6 +566,10 @@ The owner shares a request link (with a QR code and one link per place, so we kn
 
 The whole picture, with the pages, emails, daily job, migrations (`0026` to `0032`) and environment variables, is in [docs/HOW-EVERYTHING-FITS.md](docs/HOW-EVERYTHING-FITS.md).
 
+## Leads and local pages (plan)
+
+An idea, not built: paying businesses get an indexed, search-friendly page so Google searchers can ask them for a quote. Free pages stay hidden from Google. Prove it with a few friendly businesses and a small Google Ads test before building. Details, pricing proposal and what is needed first: [docs/LEADS-AND-LOCAL-PAGES.md](docs/LEADS-AND-LOCAL-PAGES.md).
+
 ## Testing checklist
 
 Run this after deploying, on a phone as well as a desktop browser. Payment confirmation must be tested on the live site, not `localhost`.
