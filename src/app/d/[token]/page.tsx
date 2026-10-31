@@ -14,6 +14,7 @@ import { depositCents } from "@/lib/deposit";
 import { OPTION_LABELS, linesForChoice, optionsPresent, subtotalFor, withVat, type OptionKey } from "@/lib/quote-options";
 import { BADGE_LABELS, parseReviews } from "@/lib/trust";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { emailClientCopy, requestRevive } from "@/lib/quote-followup";
 import ViewBeacon from "./ViewBeacon";
 import CopyButton from "./CopyButton";
 import AnswerBar, { DECLINE_REASONS } from "./AnswerBar";
@@ -67,10 +68,15 @@ export default async function PublicDocument({ params, searchParams }: { params:
       </main>
     );
   }
+  // A revised quote may have replaced this one: the client is sent to the new one instead of answering the old one.
+  const adminDb = createAdminClient();
+  const { data: me } = isQuote ? await adminDb.from("documents").select("id").eq("public_token", token).maybeSingle() : { data: null };
+  const { data: newer } = me ? await adminDb.from("documents").select("public_token,number").eq("revises_id", me.id).neq("status", "draft").order("created_at", { ascending: false }).limit(1).maybeSingle() : { data: null };
+  const replacedBy = newer && !["accepted", "paid"].includes(d.status) ? newer : null;
   // "Today" in South Africa, so a quote does not expire a couple of hours early or late.
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
-  const expired = isQuote && ["sent", "viewed"].includes(d.status) && d.expiry_date && d.expiry_date < today;
-  const canAnswer = isQuote && ["sent", "viewed"].includes(d.status) && !expired;
+  const expired = isQuote && (d.status === "expired" || (["sent", "viewed"].includes(d.status) && d.expiry_date && d.expiry_date < today));
+  const canAnswer = isQuote && ["sent", "viewed"].includes(d.status) && !expired && !replacedBy;
   // Good / Better / Best: until the client chooses, the quote shows each option; afterwards only the chosen one.
   const hasOptions = isQuote && Boolean(d.has_options);
   const chosen: string | null = d.chosen_option ?? null;
@@ -143,6 +149,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
     if (reason) await sb.rpc("set_decline_reason", { p_token: token, p_reason: rawReason });
     // Email the owner after the response is sent, so the client's tap is not slowed down.
     after(() => notifyQuoteAnswered(token, ev, reason));
+    after(() => emailClientCopy(token, ev));
     revalidatePath(`/d/${token}`);
   }
 
@@ -164,6 +171,12 @@ export default async function PublicDocument({ params, searchParams }: { params:
     const { data: ok } = /^\d{4}-\d{2}-\d{2}$/.test(date) ? await sb.rpc("promise_to_pay", { p_token: token, p_date: date }) : { data: false };
     if (ok) after(() => notifyPromise(token, date));
     redirect(`/d/${token}?undo=${ok ? "promised" : "nodate"}${ok ? `&until=${date}` : ""}`);
+  }
+
+  async function revive() {
+    "use server";
+    const ok = await requestRevive(token);
+    redirect(`/d/${token}?undo=${ok ? "revived" : "failed"}`);
   }
 
   async function reopen() {
@@ -214,6 +227,11 @@ export default async function PublicDocument({ params, searchParams }: { params:
               <p className="font-black">Yebo! Quote accepted. Thank you.</p>
               {signature?.name && <p className="mt-1 text-sm">Signed by <b>{signature.name}</b> on {formatSouthAfricaDateTime(signature.at)}</p>}
               <p className="mt-1 text-sm font-semibold">{b.name} has been told{depositOutstanding > 0 ? ". Pay the deposit below to confirm your booking." : " and will be in touch about the next steps."}</p>
+              <ol className="mx-auto mt-2 max-w-xs list-decimal space-y-0.5 pl-5 text-left text-xs">
+                {depositOutstanding > 0 && <li>Pay the deposit to lock in your date</li>}
+                <li>{b.name} contacts you to agree the date</li>
+                <li>The job is done, then you receive the invoice</li>
+              </ol>
             </div>
           )}
           {d.status === "declined" && (
@@ -244,9 +262,17 @@ export default async function PublicDocument({ params, searchParams }: { params:
           {undo === "nodate" && <p role="alert" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">Please pick a date between tomorrow and 30 days from now.</p>}
           {undo === "changed" && <p role="status" className="mb-5 rounded-2xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} has your message and will update the quote or get back to you.</p>}
           {undo === "failed" && <p role="alert" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">We could not send that message. Please try again, or contact {b.name} directly.</p>}
-          {expired && (
+          {replacedBy && (
+            <div className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">
+              <p>{b.name} sent you an updated quote ({replacedBy.number}). This older one can no longer be accepted.</p>
+              <a href={`/d/${replacedBy.public_token}`} className="mt-2 inline-flex min-h-11 items-center rounded-full px-5 font-black" style={{ background: color, color: fg }}>See the updated quote</a>
+            </div>
+          )}
+          {undo === "revived" && <p role="status" className="mb-5 rounded-2xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} knows you still want this and will send you a fresh quote or extend this one.</p>}
+          {expired && !replacedBy && (
             <div className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">
               <p>This quote has expired. Please contact {b.name} for an updated one.</p>
+              <form action={revive} className="mt-2"><button type="submit" className="inline-flex min-h-11 items-center rounded-full px-5 font-black" style={{ background: color, color: fg }}>Yes, I still want this</button></form>
               {b.phone && <a href={waLink(b.phone, `Hi, quote ${d.number} has expired. Could you send me an updated one?`)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-10 items-center rounded-full bg-white px-4">Ask for an updated quote</a>}
             </div>
           )}

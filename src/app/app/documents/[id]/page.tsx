@@ -16,6 +16,7 @@ import SendEmailCard from "../SendEmailCard";
 import CreditNoteCard from "../CreditNoteCard";
 import ConfirmForm from "../ConfirmForm";
 import { convertToInvoice, deleteDraft, duplicateDocument, markDepositReceived, markPaid, reopenQuote, sendDraft, startRecurring, stopRecurring, deletePhoto } from "../actions";
+import { extendQuote, reviseQuote } from "../revise-actions";
 import { ordinal } from "@/lib/recurring";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -429,6 +430,25 @@ export default async function DocumentPage({ params, searchParams }: { params: P
             ))}
           </ul>
         </section>
+      )}
+
+      {isQuote && ["sent", "viewed", "declined", "expired"].includes(d.status) && (
+        <Section title="Change or extend this quote">
+          {(d.revive_requested_at || expired) && (
+            <ActionCard icon="⏳" title={d.revive_requested_at ? `${first} still wants this job` : "This quote has expired"} description={d.revive_requested_at ? "They tapped \"Yes, I still want this\". Give them 14 more days and they can accept from the same link." : "Give it 14 more days and the same link works again."}>
+              <form action={extendQuote}>
+                <input type="hidden" name="id" value={d.id} />
+                <SubmitButton pendingLabel="Extending…" className={btnOutline}>Extend by 14 days</SubmitButton>
+              </form>
+            </ActionCard>
+          )}
+          <ActionCard icon="✏️" title="Send a revised quote" description={`Need to change the price or the work? Edit a copy and send it. ${first}'s old link then points to the new quote, so there is never any confusion about which one is real.`}>
+            <form action={reviseQuote}>
+              <input type="hidden" name="id" value={d.id} />
+              <SubmitButton pendingLabel="Making the copy…" className={btnOutline}>Revise this quote</SubmitButton>
+            </form>
+          </ActionCard>
+        </Section>
       )}
 
       {/* ---------- 3. WHAT TO DO NEXT ---------- */}

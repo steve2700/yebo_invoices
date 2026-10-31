@@ -277,7 +277,7 @@ export async function notifyChangeRequested(token: string, message: string): Pro
         buttonUrl: `${appUrl()}/app/documents/${document.id}`,
         secondaryButtonLabel: `Reply to ${firstName} on WhatsApp`,
         secondaryButtonUrl: waLink(client?.whatsapp_number ?? null, `Hi ${firstName}, thanks for your message about quote ${document.number}. `),
-        footer: "Sent quotes are locked. To change it, duplicate the quote, edit the copy and send that one.",
+        footer: "Open the quote and tap \"Revise this quote\". When you send the new one, your client's old link points to it automatically.",
       }),
     });
   } catch (error) {

@@ -10,6 +10,7 @@ import { runRecurring } from "@/lib/recurring-run";
 import { sendMorningLists } from "@/lib/morning-list";
 import { runNudges } from "@/lib/nudges";
 import { runVisitReminders } from "@/lib/visit-reminders";
+import { runWinbacks } from "@/lib/quote-followup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -203,5 +204,7 @@ export async function GET(request: Request) {
   const nudges = await runNudges(admin).catch((e) => { console.error("[nudges] failed:", e); return null; });
   // The day before a confirmed site visit, the client gets a reminder email with the calendar file.
   const visits = await runVisitReminders(admin).catch((e) => { console.error("[visit-reminders] failed:", e); return null; });
-  return Response.json({ ...result, expiry, morning, recurring, nudges, visits });
+  // 14 or 30 days after a price or timing decline, the owner gets one email with a ready message to send.
+  const winbacks = await runWinbacks(admin).catch((e) => { console.error("[winbacks] failed:", e); return null; });
+  return Response.json({ ...result, expiry, morning, recurring, nudges, visits, winbacks });
 }
