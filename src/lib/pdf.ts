@@ -346,8 +346,8 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c, signa
   page.drawLine({ start: { x: actionX, y: nextStepTop - nextStepHeight + 8 }, end: { x: actionX, y: nextStepTop - 8 }, thickness: 0.7, color: rule });
   put("PAYMENT & BOOKING", M + 14, 7.5, bold, brand, nextStepTop - 17);
   paymentRows.forEach((row, index) => put(row, M + 14, 9, font, ink, nextStepTop - 32 - index * 13));
-  put("REVIEW ONLINE", actionX + 12, 7, bold, brand, nextStepTop - 22);
-  put("Scan to respond", actionX + 12, 7, font, mute, nextStepTop - 35);
+  put("VIEW ONLINE", actionX + 12, 7, bold, brand, nextStepTop - 22);
+  put("Scan to open this quote", actionX + 12, 7, font, mute, nextStepTop - 35);
   try {
     const qrData = await QRCode.toDataURL(link, { margin: 1, width: 160 });
     const qr = await pdf.embedPng(Buffer.from(qrData.split(",")[1], "base64"));

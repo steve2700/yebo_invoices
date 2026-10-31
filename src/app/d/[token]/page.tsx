@@ -15,6 +15,7 @@ import { OPTION_LABELS, linesForChoice, optionsPresent, subtotalFor, withVat, ty
 import { BADGE_LABELS, parseReviews } from "@/lib/trust";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { emailClientCopy, requestRevive } from "@/lib/quote-followup";
+import { saveSiteAccess } from "@/lib/site-access";
 import ViewBeacon from "./ViewBeacon";
 import CopyButton from "./CopyButton";
 import AnswerBar, { DECLINE_REASONS } from "./AnswerBar";
@@ -70,7 +71,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
   }
   // A revised quote may have replaced this one: the client is sent to the new one instead of answering the old one.
   const adminDb = createAdminClient();
-  const { data: me } = isQuote ? await adminDb.from("documents").select("id").eq("public_token", token).maybeSingle() : { data: null };
+  const { data: me } = isQuote ? await adminDb.from("documents").select("id,site_access").eq("public_token", token).maybeSingle() : { data: null };
   const { data: newer } = me ? await adminDb.from("documents").select("public_token,number").eq("revises_id", me.id).neq("status", "draft").order("created_at", { ascending: false }).limit(1).maybeSingle() : { data: null };
   const replacedBy = newer && !["accepted", "paid"].includes(d.status) ? newer : null;
   // "Today" in South Africa, so a quote does not expire a couple of hours early or late.
@@ -173,6 +174,13 @@ export default async function PublicDocument({ params, searchParams }: { params:
     redirect(`/d/${token}?undo=${ok ? "promised" : "nodate"}${ok ? `&until=${date}` : ""}`);
   }
 
+  async function shareAccess(formData: FormData) {
+    "use server";
+    const problem = await saveSiteAccess(token, String(formData.get("access") ?? ""));
+    revalidatePath(`/d/${token}`);
+    redirect(`/d/${token}?undo=${problem ? "accessfail" : "accessok"}`);
+  }
+
   async function revive() {
     "use server";
     const ok = await requestRevive(token);
@@ -232,6 +240,11 @@ export default async function PublicDocument({ params, searchParams }: { params:
                 <li>{b.name} contacts you to agree the date</li>
                 <li>The job is done, then you receive the invoice</li>
               </ol>
+              <form action={shareAccess} className="mx-auto mt-3 max-w-sm rounded-xl bg-white/70 p-3 text-left">
+                <label htmlFor="access" className="block text-xs font-black">Where should we come?</label>
+                <textarea id="access" name="access" rows={3} maxLength={400} defaultValue={(me as any)?.site_access ?? ""} placeholder="Address, gate code, who to ask for" className="mt-1 w-full rounded-lg border border-ink/20 p-2 text-sm font-normal outline-none focus:border-ink/50" />
+                <button type="submit" className="mt-2 inline-flex min-h-10 items-center rounded-full px-4 text-sm font-black" style={{ background: color, color: fg }}>{(me as any)?.site_access ? "Update" : "Send to " + b.name}</button>
+              </form>
             </div>
           )}
           {d.status === "declined" && (
@@ -268,6 +281,8 @@ export default async function PublicDocument({ params, searchParams }: { params:
               <a href={`/d/${replacedBy.public_token}`} className="mt-2 inline-flex min-h-11 items-center rounded-full px-5 font-black" style={{ background: color, color: fg }}>See the updated quote</a>
             </div>
           )}
+          {undo === "accessok" && <p role="status" className="mb-5 rounded-2xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} has the address and access details.</p>}
+          {undo === "accessfail" && <p role="alert" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">We could not send that. Please type the address again, or message {b.name} directly.</p>}
           {undo === "revived" && <p role="status" className="mb-5 rounded-2xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} knows you still want this and will send you a fresh quote or extend this one.</p>}
           {expired && !replacedBy && (
             <div className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">

@@ -432,6 +432,14 @@ export default async function DocumentPage({ params, searchParams }: { params: P
         </section>
       )}
 
+      {isQuote && d.site_access && (
+        <Section title="Site details from the client">
+          <div className="rounded-2xl border border-ink/10 bg-white p-4 text-sm">
+            <p className="whitespace-pre-line leading-relaxed text-ink/85">{d.site_access}</p>
+            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(String(d.site_access).split("\n")[0])}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 items-center rounded-xl border-2 border-ink/15 px-4 font-bold">Open in Maps</a>
+          </div>
+        </Section>
+      )}
       {isQuote && ["sent", "viewed", "declined", "expired"].includes(d.status) && (
         <Section title="Change or extend this quote">
           {(d.revive_requested_at || expired) && (
