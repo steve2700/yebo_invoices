@@ -374,8 +374,11 @@ export default function QuoteForm({ clients: clientsProp, items, vatRegistered, 
     setVoiceApplied(true);
     setHiddenTips((current) => current.filter((id) => id !== "voice-check"));
     setError("");
-    // Take the owner straight to the amounts, so they can check them.
-    window.setTimeout(() => document.getElementById("amount-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+    // Take the owner straight to the amounts so they can check what was heard. If no client was heard, stay on Who.
+    const heardClient = Boolean(draft.clientName) || hasClient;
+    setStepNote(heardClient ? "" : "Choose who this is for, then tap Next.");
+    setStep(heardClient ? 2 : 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   // One tap to add an item the owner uses a lot, at its usual price.
@@ -545,8 +548,6 @@ export default function QuoteForm({ clients: clientsProp, items, vatRegistered, 
       />
       <StageStrip step={step} hasClient={hasClient} hasItems={validLines > 0} onGo={goStep} />
       <div hidden={step !== 1}>
-      {!documentId && <VoiceQuoteAssistant docType={docType} onApply={applyVoiceDraft} onBusyChange={setVoiceBusy} hasExistingItems={lines.some((line) => line.description.trim() || line.price > 0)} voiceLeft={voiceLeft} />}
-
       <section id="who-section" className="scroll-mt-24 rounded-[2rem] bg-white p-5 shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5 sm:p-7">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-orange">01 · Start here</p>
         <h2 className="mt-2 text-xl font-black tracking-tight">Who is this for?</h2>
@@ -566,6 +567,20 @@ export default function QuoteForm({ clients: clientsProp, items, vatRegistered, 
         )}
         {clientId === "new" && <p className="mt-2 rounded-xl bg-lime/20 p-3 text-xs leading-5 text-ink/75"><b>Add both if you can.</b> An email lets you send the PDF. A WhatsApp number gets you a faster answer and one-tap follow-ups. Only the name is needed to save a draft.</p>}
       </section>
+      {!documentId && (
+        <details className="group mt-5 overflow-hidden rounded-[2rem] border border-lime/60 bg-lime/10">
+          <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 sm:px-7">
+            <span>
+              <span className="block text-xs font-black uppercase tracking-[0.18em] text-orange">Faster</span>
+              <span className="mt-0.5 block font-black text-ink">Or speak it instead</span>
+            </span>
+            <span aria-hidden="true" className="text-xl text-ink/40 transition group-open:rotate-45">+</span>
+          </summary>
+          <div className="px-3 pb-3 sm:px-4">
+            <VoiceQuoteAssistant docType={docType} onApply={applyVoiceDraft} onBusyChange={setVoiceBusy} hasExistingItems={lines.some((line) => line.description.trim() || line.price > 0)} voiceLeft={voiceLeft} />
+          </div>
+        </details>
+      )}
       </div>
 
       <div hidden={step !== 2}>
