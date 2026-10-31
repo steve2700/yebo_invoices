@@ -7,6 +7,11 @@ import { OPTION_KEYS, OPTION_LABELS, type OptionKey } from "@/lib/quote-options"
 import QuoteCheck from "./QuoteCheck";
 import { findSimilar, type PastDoc } from "@/lib/similar";
 import { checkQuote } from "@/lib/quote-check";
+import DraftKeeper, { clearStoredDraft, draftStorageKey, type Snapshot } from "./DraftKeeper";
+import StageStrip from "./StageStrip";
+import type { NewQuote } from "./actions";
+import type { SavedClient } from "./quiet-save";
+import { tidyEmail, tidyPasted, tidyPhone } from "@/lib/contact-tidy";
 import VoiceQuoteAssistant, { type ApplyMode, type VoiceQuoteDraft } from "./VoiceQuoteAssistant";
 
 type Client = { id: string; name: string; email: string | null; whatsapp_number: string | null; address: string | null; preferred_payment: string | null };
@@ -64,8 +69,13 @@ function isTidySuggestion(value: unknown): value is TidySuggestion {
 
 type Initial = { clientId: string; f: Fields; lines: Line[]; useOptions?: boolean };
 
-export default function QuoteForm({ clients, items, vatRegistered, docType = "quote", documentId, initial, voiceLeft = null, past = [] }: { clients: Client[]; items: Item[]; vatRegistered: boolean; docType?: "quote" | "invoice"; documentId?: string; initial?: Initial; voiceLeft?: number | null; past?: PastDoc[] }) {
+export default function QuoteForm({ clients: clientsProp, items, vatRegistered, docType = "quote", documentId, initial, voiceLeft = null, past = [] }: { clients: Client[]; items: Item[]; vatRegistered: boolean; docType?: "quote" | "invoice"; documentId?: string; initial?: Initial; voiceLeft?: number | null; past?: PastDoc[] }) {
   const isInvoice = docType === "invoice";
+  // Clients saved while you work (a new client is saved with the draft) are added to the list here.
+  const [extraClients, setExtraClients] = useState<Client[]>([]);
+  const clients = [...clientsProp, ...extraClients];
+  const [serverId, setServerId] = useState<string | null>(null);
+  const draftKey = draftStorageKey(docType, documentId, initial?.clientId);
   const [clientId, setClientId] = useState(initial?.clientId ?? (clients.length ? "" : "new"));
   const [newClient, setNewClient] = useState({ name: "", whatsapp: "", email: "", address: "" });
   const [fields, setFields] = useState<Fields>(initial?.f ?? {
@@ -432,22 +442,49 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
     }
   }
 
+  function buildPayload(): NewQuote {
+    return {
+      clientId: clientId === "new" ? "" : clientId,
+      newClient: clientId === "new" ? newClient : null,
+      ...fields,
+      docType,
+      useOptions: !isInvoice && useOptions,
+      items: lines,
+      send: false,
+      contactFix: clientId && clientId !== "new" ? contactFix : null,
+    };
+  }
+
+  function restoreDraft(saved: Snapshot) {
+    setClientId(saved.clientId);
+    setNewClient(saved.newClient);
+    setFields(saved.fields as Fields);
+    setLines(saved.lines as Line[]);
+    setUseOptions(!isInvoice && saved.useOptions);
+    setContactFix(saved.contactFix);
+    setServerId(saved.serverId);
+  }
+
+  function clientSaved(client: SavedClient) {
+    setExtraClients((current) => (current.some((c) => c.id === client.id) ? current : [...current, client]));
+    setContactFix({ email: client.email ?? "", whatsapp: client.whatsapp_number ?? "" });
+    setClientId(client.id);
+  }
+
   function submit(send: boolean) {
     if (!canSubmit || draftingNote || voiceBusy || tidying || descTidying) return;
     setError("");
     start(async () => {
-      const payload = {
-        clientId: clientId === "new" ? "" : clientId,
-        newClient: clientId === "new" ? newClient : null,
-        ...fields,
-        docType,
-        useOptions: !isInvoice && useOptions,
-        items: lines,
-        send,
-        contactFix: clientId && clientId !== "new" ? contactFix : null,
-      };
-      const result = documentId ? await updateDraft({ id: documentId, ...payload }) : await createQuote(payload);
-      if (result?.error) setError(result.error);
+      const payload = { ...buildPayload(), send };
+      // If a draft was already saved in the background, finish that one instead of making a second.
+      const targetId = documentId ?? serverId;
+      clearStoredDraft(draftKey);
+      const result = targetId ? await updateDraft({ id: targetId, ...payload }) : await createQuote(payload);
+      if (result?.error) {
+        setError(result.error);
+        if (!documentId && result.error.startsWith("Only drafts")) setServerId(null);
+        window.dispatchEvent(new Event("yebo:draft-save")); // nothing was lost: keep the copy on this device
+      }
     });
   }
 
@@ -470,9 +507,22 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         </div>
       </header>
 
+      <DraftKeeper
+        draftKey={draftKey}
+        restore={!documentId}
+        documentId={documentId}
+        snapshot={{ clientId, newClient, fields, lines, useOptions, contactFix, serverId } satisfies Snapshot}
+        canSave={canSubmit}
+        busy={pending || draftingNote !== null || voiceBusy || tidying || descTidying}
+        buildPayload={buildPayload}
+        onRestore={restoreDraft}
+        onSaved={(id) => setServerId(id || null)}
+        onClientCreated={clientSaved}
+      />
+      <StageStrip hasClient={hasClient} hasItems={validLines > 0} ready={canSubmit} />
       {!documentId && <VoiceQuoteAssistant docType={docType} onApply={applyVoiceDraft} onBusyChange={setVoiceBusy} hasExistingItems={lines.some((line) => line.description.trim() || line.price > 0)} voiceLeft={voiceLeft} />}
 
-      <section className="rounded-[2rem] bg-white p-5 shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5 sm:p-7">
+      <section id="who-section" className="scroll-mt-24 rounded-[2rem] bg-white p-5 shadow-[0_16px_60px_rgba(20,42,31,.08)] ring-1 ring-ink/5 sm:p-7">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-orange">01 · Start here</p>
         <h2 className="mt-2 text-xl font-black tracking-tight">Who is this for?</h2>
         <label className={label} htmlFor="client">Client</label>
@@ -484,8 +534,8 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
         {clientId === "new" && (
           <div id="contact-fix" className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <input aria-label="Client name" autoComplete="name" className={input} placeholder="Client name (required)" value={newClient.name} onChange={(event) => setNewClient({ ...newClient, name: event.target.value })} />
-            <input aria-label="WhatsApp number (recommended)" autoComplete="tel" type="tel" className={input} placeholder="WhatsApp number (recommended)" value={newClient.whatsapp} onChange={(event) => setNewClient({ ...newClient, whatsapp: event.target.value })} />
-            <input aria-label="Email address (recommended)" autoComplete="email" type="email" className={input} placeholder="Email address (recommended)" value={newClient.email} onChange={(event) => setNewClient({ ...newClient, email: event.target.value })} />
+            <input aria-label="WhatsApp number (recommended)" autoComplete="tel" type="tel" className={input} placeholder="WhatsApp number (recommended)" value={newClient.whatsapp} onChange={(event) => setNewClient({ ...newClient, whatsapp: event.target.value })} onBlur={(event) => setNewClient((c) => ({ ...c, whatsapp: tidyPhone(event.target.value) }))} />
+            <input aria-label="Email address (recommended)" autoComplete="email" type="email" className={input} placeholder="Email address (recommended)" value={newClient.email} onChange={(event) => setNewClient({ ...newClient, email: event.target.value })} onBlur={(event) => setNewClient((c) => ({ ...c, email: tidyEmail(event.target.value) }))} />
             <input aria-label="Address (optional)" autoComplete="street-address" className={input} placeholder="Address (optional)" value={newClient.address} onChange={(event) => setNewClient({ ...newClient, address: event.target.value })} />
           </div>
         )}
@@ -648,6 +698,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
           className={input}
           value={fields.description}
           onChange={(event) => { setField("description", event.target.value); setDescSuggestion(null); }}
+          onBlur={(event) => { const cleaned = tidyPasted(event.target.value); if (cleaned !== event.target.value) setField("description", cleaned); }}
           placeholder="e.g. Supply and install new light fittings in the kitchen. Remove the old ones and test everything."
         />
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
@@ -800,7 +851,7 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
               </>
             )}
             <label className={label} htmlFor="personal-note">Personal note</label>
-            <textarea id="personal-note" rows={3} spellCheck lang="en-ZA" autoCapitalize="sentences" className={input} value={fields.note} onChange={(event) => setField("note", event.target.value)} placeholder={isInvoice ? "Optional: add a thank-you or payment reminder." : "Optional: add a warm note for your client."} />
+            <textarea id="personal-note" rows={3} spellCheck lang="en-ZA" autoCapitalize="sentences" className={input} value={fields.note} onChange={(event) => setField("note", event.target.value)} onBlur={(event) => { const cleaned = tidyPasted(event.target.value); if (cleaned !== event.target.value) setField("note", cleaned); }} placeholder={isInvoice ? "Optional: add a thank-you or payment reminder." : "Optional: add a warm note for your client."} />
             <div className="mt-3 flex flex-wrap gap-2">
               <label className="sr-only" htmlFor="note-tone">Personal note tone</label>
               <select
@@ -841,8 +892,8 @@ export default function QuoteForm({ clients, items, vatRegistered, docType = "qu
       <QuoteCheck items={checks} kind={isInvoice ? "invoice" : "quote"}>
         {clientId && clientId !== "new" && (
           <div id="contact-fix" className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <input aria-label={`${firstName}'s WhatsApp number`} autoComplete="tel" type="tel" className={input} placeholder="WhatsApp number" value={contactFix.whatsapp} onChange={(event) => setContactFix({ ...contactFix, whatsapp: event.target.value })} />
-            <input aria-label={`${firstName}'s email address`} autoComplete="email" type="email" className={input} placeholder="Email address" value={contactFix.email} onChange={(event) => setContactFix({ ...contactFix, email: event.target.value })} />
+            <input aria-label={`${firstName}'s WhatsApp number`} autoComplete="tel" type="tel" className={input} placeholder="WhatsApp number" value={contactFix.whatsapp} onChange={(event) => setContactFix({ ...contactFix, whatsapp: event.target.value })} onBlur={(event) => setContactFix((c) => ({ ...c, whatsapp: tidyPhone(event.target.value) }))} />
+            <input aria-label={`${firstName}'s email address`} autoComplete="email" type="email" className={input} placeholder="Email address" value={contactFix.email} onChange={(event) => setContactFix({ ...contactFix, email: event.target.value })} onBlur={(event) => setContactFix((c) => ({ ...c, email: tidyEmail(event.target.value) }))} />
             <p className="text-xs text-ink/55 sm:col-span-2">Saved to {firstName}&apos;s profile when you save this {isInvoice ? "invoice" : "quote"}.</p>
           </div>
         )}
