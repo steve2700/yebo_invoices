@@ -111,7 +111,25 @@ function drawYeboPromo(pdf: PDFDocument, page: PDFPage, font: PDFFont, bold: PDF
   page.node.addAnnot(annot);
 }
 
-async function buildQuotePdf({ document: d, lines, business: b, client: c, signature }: Pub, link: string): Promise<Uint8Array> {
+const logoCache = new Map<string, { bytes: Uint8Array; contentType: string }>();
+
+// A short quote should fit on one page. Build it with comfortable spacing first; if that spills onto a second page,
+// build it again with tighter spacing and keep that one when it saves a page.
+async function buildQuotePdf(input: Pub, link: string): Promise<Uint8Array> {
+  const roomy = await buildQuotePdfAt(input, link, 1);
+  const pages = (await PDFDocument.load(roomy)).getPageCount();
+  if (pages === 1) return roomy;
+  // Try gentler squeezes first, so the quote is only as tight as it needs to be.
+  for (const k of [0.85, 0.7, 0.55, 0.4]) {
+    const tighter = await buildQuotePdfAt(input, link, k);
+    if ((await PDFDocument.load(tighter)).getPageCount() < pages) return tighter;
+  }
+  return roomy;
+}
+
+async function buildQuotePdfAt({ document: d, lines, business: b, client: c, signature }: Pub, link: string, k: number): Promise<Uint8Array> {
+  const sp = (n: number) => Math.max(Math.round(n * k * 10) / 10, Math.min(n, 8)); // vertical breathing room, tighter when k < 1, never cramped
+  const tight = k < 1;
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -143,11 +161,12 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c, signa
     }
   };
   const heading = (text: string) => {
-    need(34);
+    need(38);
+    y -= sp(4);
     put(text.toUpperCase(), M, 8.5, bold, brand);
     y -= 13;
     page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 0.7, color: rule });
-    y -= 14;
+    y -= tight ? 10 : 14;
   };
 
   const top = y;
@@ -155,9 +174,15 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c, signa
   let businessY = top - 14;
   if (b.logo_url) {
     try {
-      const response = await fetch(b.logo_url);
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      const contentType = response.headers.get("content-type") ?? "";
+      // The quote may be drawn more than once to fit on one page, so the logo is only downloaded once.
+      let logo = logoCache.get(b.logo_url);
+      if (!logo) {
+        const response = await fetch(b.logo_url);
+        logo = { bytes: new Uint8Array(await response.arrayBuffer()), contentType: response.headers.get("content-type") ?? "" };
+        if (logoCache.size > 40) logoCache.clear();
+        logoCache.set(b.logo_url, logo);
+      }
+      const { bytes, contentType } = logo;
       const image = contentType.includes("png") ? await pdf.embedPng(bytes) : contentType.includes("jp") ? await pdf.embedJpg(bytes) : null;
       if (image) {
         const scale = Math.min(46 / image.height, 46 / image.width);
@@ -185,11 +210,11 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c, signa
   putRight(`Valid through ${formatDate(d.expiry_date)}`, R, 8.5, font, mute, top - 62);
   y = Math.min(businessY, top - 74) - 14;
   page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 1.5, color: brand });
-  y -= 20;
+  y -= sp(20);
 
   const projectTitle = String(d.title || "Project quotation");
   const titleRows = wrap(projectTitle, bold, 17, 274);
-  const heroHeight = Math.max(112, titleRows.length * 19 + 72);
+  const heroHeight = Math.max(tight ? 94 : 112, titleRows.length * 19 + 72);
   need(heroHeight + 12);
   const heroTop = y;
   const summaryWidth = R - M;
@@ -208,14 +233,14 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c, signa
   putRight(total, R - 12, amountSize, bold, onBrand, heroTop - 52);
   put("Valid through", termsX + 13, 7.5, font, onBrand, heroTop - 74);
   put(String(formatDate(d.expiry_date)), termsX + 13, 9, bold, onBrand, heroTop - 88);
-  y = heroTop - heroHeight - 14;
+  y = heroTop - heroHeight - sp(14);
 
   const jobDetails = [
     d.location ? ["PROJECT LOCATION", String(d.location)] as const : null,
     d.job_date_tbd || d.job_date ? ["SCHEDULE", d.job_date_tbd ? "To be agreed" : formatDate(d.job_date)] as const : null,
   ].filter(Boolean) as [string, string][];
   if (jobDetails.length) {
-    const detailsHeight = 48;
+    const detailsHeight = tight ? 40 : 48;
     need(detailsHeight + 8);
     const columnWidth = summaryWidth / jobDetails.length;
     page.drawRectangle({ x: M, y: y - detailsHeight, width: summaryWidth, height: detailsHeight, color: rgb(0.98, 0.985, 0.98) });
@@ -225,35 +250,35 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c, signa
       put(label, x + 12, 7.5, bold, mute, y - 15);
       wrap(value, font, 9, columnWidth - 26).forEach((row, rowIndex) => put(row, x + 12, 9, font, ink, y - 31 - rowIndex * 12));
     });
-    y -= detailsHeight + 12;
+    y -= detailsHeight + sp(12);
   }
 
   if (d.description) {
     heading("What is included");
-    paragraph(String(d.description), 9.5, font, ink, summaryWidth, 13);
-    y -= 4;
+    paragraph(String(d.description), 9.5, font, ink, summaryWidth, tight ? 12 : 13);
+    y -= sp(6);
   }
   for (const [key, title] of [["exclusions", "Not included"], ["assumptions", "Assumptions"], ["timeline", "Timeline"]] as const) {
     if (d[key]) {
       heading(title);
-      paragraph(String(d[key]), 9.5, font, ink, summaryWidth, 13);
-      y -= 4;
+      paragraph(String(d[key]), 9.5, font, ink, summaryWidth, tight ? 12 : 13);
+      y -= sp(6);
     }
   }
   if (d.labour_only) {
     need(22);
     put("Labour only - materials are not included.", M, 9, bold, mute);
-    y -= 20;
+    y -= sp(20);
   }
   if (d.note) {
     const noteRows = wrap(String(d.note), font, 9, summaryWidth - 34);
-    const noteHeight = Math.max(42, noteRows.length * 13 + 22);
+    const noteHeight = Math.max(44, noteRows.length * 13 + 32);
     need(noteHeight + 10);
     page.drawRectangle({ x: M, y: y - noteHeight, width: summaryWidth, height: noteHeight, color: panel });
     page.drawRectangle({ x: M, y: y - noteHeight, width: 3, height: noteHeight, color: brand });
     put("A NOTE FOR YOU", M + 14, 7.5, bold, brand, y - 15);
     noteRows.forEach((row, index) => put(row, M + 14, 9, font, ink, y - 30 - index * 13));
-    y -= noteHeight + 10;
+    y -= noteHeight + sp(18);
   }
 
   heading("Investment breakdown");
@@ -266,7 +291,7 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c, signa
   putRight("AMOUNT", R, 7.5, bold, mute);
   y -= 9;
   page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 0.8, color: rule });
-  y -= 15;
+  y -= sp(15);
 
   // Good / Better / Best: until the client chooses, each option is shown with its own total. Afterwards only the chosen one.
   const hasOptions = Boolean(d.has_options);
@@ -274,16 +299,17 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c, signa
   const allLines: any[] = lines ?? [];
   const drawItem = (item: any) => {
     const itemRows = wrap(String(item.description ?? ""), font, 9.5, 235);
-    const rowHeight = Math.max(21, itemRows.length * 13 + 8);
-    need(rowHeight + 5);
+    const lastRow = (itemRows.length - 1) * 13;
+    const below = tight ? 7 : 8;   // from the last line of text down to the rule
+    const gap = tight ? 14 : 16;   // from the rule down to the next row's text
+    need(lastRow + below + gap + 5);
     itemRows.forEach((row, index) => put(row, descriptionX, 9.5, index === 0 ? bold : font, ink, y - index * 13));
     putRight(String(Number(item.quantity)), qtyRight, 9, font, ink, y);
     putRight(formatRand(item.unit_price_cents), unitRight, 9, font, ink, y);
     putRight(formatRand(item.line_total_cents), R, 9, bold, ink, y);
-    y -= rowHeight;
-    page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 0.5, color: rule });
-    y -= 7;
-  
+    const ruleY = y - lastRow - below;
+    page.drawLine({ start: { x: M, y: ruleY }, end: { x: R, y: ruleY }, thickness: 0.5, color: rule });
+    y = ruleY - gap;
   };
   if (hasOptions && !chosen) {
     const shared = allLines.filter((l) => !l.option_key);
@@ -319,59 +345,125 @@ async function buildQuotePdf({ document: d, lines, business: b, client: c, signa
         : `A ${d.deposit_percent}% deposit confirms the booking. The balance is due ${d.payment_terms}.`)
       : `No deposit is needed. Full payment is due ${d.payment_terms}.`;
   const paymentRows = wrap(paymentPlan, font, 9, 300);
-  const nextStepHeight = Math.max(72, paymentRows.length * 13 + 34);
+  const nextStepHeight = Math.max(tight ? 64 : 72, paymentRows.length * 13 + (tight ? 28 : 34));
+  if (tight) {
+    // Tight layout: the payment panel sits beside the totals instead of under them, and the bank details and the signature
+    // share one row. This is what lets a normal short quote stay on a single page.
+    const smallVat = !b.vat_registered;
+    const tH = showTotals ? (smallVat ? 67 : 87) : 0;
+    const panelW = totalsX - 12 - M;
+    const qrSize = 40;
+    const payRows = wrap(paymentPlan, font, 9, panelW - 14 - qrSize - 24);
+    const bandH = Math.max(tH, payRows.length * 13 + 34, 66);
+    need(bandH + 16);
+    const bandTop = y;
+    page.drawRectangle({ x: M, y: bandTop - bandH, width: panelW, height: bandH, color: panel });
+    page.drawRectangle({ x: M, y: bandTop - bandH, width: 3, height: bandH, color: brand });
+    put("PAYMENT & BOOKING", M + 14, 7.5, bold, brand, bandTop - 17);
+    payRows.forEach((row, index) => put(row, M + 14, 9, font, ink, bandTop - 32 - index * 13));
+    const qrLeft = M + panelW - qrSize - 10;
+    try {
+      const qrData = await QRCode.toDataURL(link, { margin: 1, width: 160 });
+      const qr = await pdf.embedPng(Buffer.from(qrData.split(",")[1], "base64"));
+      page.drawImage(qr, { x: qrLeft, y: bandTop - bandH + 16, width: qrSize, height: qrSize });
+      put("Open online", qrLeft + 2, 6.5, font, mute, bandTop - bandH + 6);
+    } catch { /* QR is optional */ }
+    if (showTotals) {
+      page.drawRectangle({ x: totalsX, y: bandTop - tH, width: totalsWidth, height: tH, color: rgb(0.985, 0.99, 0.985), borderColor: rule, borderWidth: 0.7 });
+      put("Subtotal", totalsX + 12, 8.5, font, mute, bandTop - 18);
+      putRight(formatRand(d.subtotal_cents), R - 12, 8.5, font, ink, bandTop - 18);
+      let barTop = 30;
+      if (!smallVat) {
+        put("VAT", totalsX + 12, 8.5, font, mute, bandTop - 36);
+        putRight(formatRand(d.vat_cents), R - 12, 8.5, font, ink, bandTop - 36);
+        barTop = 48;
+      }
+      page.drawLine({ start: { x: totalsX + 12, y: bandTop - barTop }, end: { x: R - 12, y: bandTop - barTop }, thickness: 0.6, color: rule });
+      page.drawRectangle({ x: totalsX + 1, y: bandTop - barTop - 34, width: totalsWidth - 2, height: 33, color: brand });
+      put("TOTAL", totalsX + 12, 10, bold, onBrand, bandTop - barTop - 22);
+      putRight(formatRand(d.total_cents), R - 12, 12, bold, onBrand, bandTop - barTop - 23);
+    }
+    y = bandTop - bandH - 14;
+
+    const bankOn = Boolean(b.bank_account_holder && b.bank_account_number && b.bank_branch_code) && d.status === "accepted";
+    const signedOn = d.status === "accepted" && Boolean(signature?.name);
+    if (bankOn || signedOn) {
+      need(52);
+      const rowTop = y;
+      const colX = bankOn && signedOn ? M + 310 : M;
+      let used = 0;
+      if (bankOn) {
+        put("PAY BY EFT", M, 8, bold, brand, rowTop);
+        const rows = [
+          ...wrap(`${b.bank_account_holder}  |  ${b.bank_name ?? ""}  |  ${b.bank_account_type ?? ""}`, font, 8.5, signedOn ? 295 : summaryWidth),
+          ...wrap(`Account: ${b.bank_account_number}  |  Branch: ${b.bank_branch_code}  |  Reference: ${d.number}`, font, 8.5, signedOn ? 295 : summaryWidth),
+        ];
+        rows.forEach((row, index) => put(row, M, 8.5, font, ink, rowTop - 13 - index * 12));
+        used = Math.max(used, rows.length);
+      }
+      if (signedOn) {
+        put("ACCEPTED BY", colX, 8, bold, brand, rowTop);
+        const when = new Date(signature!.at).toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+        const rows = wrap(`${signature!.name}, ${when}`, font, 9, R - colX);
+        rows.forEach((row, index) => put(row, colX, 9, font, ink, rowTop - 13 - index * 12));
+        used = Math.max(used, rows.length);
+      }
+      y = rowTop - 13 - used * 12 - 4;
+    }
+  } else {
   // Keep the totals and the payment box together: if both do not fit on this page, both move to the next,
-  // so the payment box is never left alone on a nearly empty page.
-  need(totalsHeight + 12 + nextStepHeight + 6);
-  const totalsTop = y;
-  if (showTotals) {
-  page.drawRectangle({ x: totalsX, y: totalsTop - totalsHeight, width: totalsWidth, height: totalsHeight, color: rgb(0.985, 0.99, 0.985), borderColor: rule, borderWidth: 0.7 });
-  put("Subtotal", totalsX + 12, 8.5, font, mute, totalsTop - 18);
-  putRight(formatRand(d.subtotal_cents), R - 12, 8.5, font, ink, totalsTop - 18);
-  put("VAT", totalsX + 12, 8.5, font, mute, totalsTop - 36);
-  putRight(b.vat_registered ? formatRand(d.vat_cents) : "Not applicable", R - 12, 8.5, font, ink, totalsTop - 36);
-  page.drawLine({ start: { x: totalsX + 12, y: totalsTop - 48 }, end: { x: R - 12, y: totalsTop - 48 }, thickness: 0.6, color: rule });
-  page.drawRectangle({ x: totalsX + 1, y: totalsTop - 82, width: totalsWidth - 2, height: 33, color: brand });
-  put("TOTAL", totalsX + 12, 10, bold, onBrand, totalsTop - 70);
-  putRight(formatRand(d.total_cents), R - 12, 12, bold, onBrand, totalsTop - 71);
-  }
-  y = totalsTop - totalsHeight - (showTotals ? 12 : 0);
-
-  need(nextStepHeight);
-  const nextStepTop = y;
-  const actionX = R - 172;
-  const qrX = R - 66;
-  page.drawRectangle({ x: M, y: nextStepTop - nextStepHeight, width: summaryWidth, height: nextStepHeight, color: panel });
-  page.drawRectangle({ x: M, y: nextStepTop - nextStepHeight, width: 3, height: nextStepHeight, color: brand });
-  page.drawLine({ start: { x: actionX, y: nextStepTop - nextStepHeight + 8 }, end: { x: actionX, y: nextStepTop - 8 }, thickness: 0.7, color: rule });
-  put("PAYMENT & BOOKING", M + 14, 7.5, bold, brand, nextStepTop - 17);
-  paymentRows.forEach((row, index) => put(row, M + 14, 9, font, ink, nextStepTop - 32 - index * 13));
-  put("VIEW ONLINE", actionX + 12, 7, bold, brand, nextStepTop - 22);
-  put("Scan to open this quote", actionX + 12, 7, font, mute, nextStepTop - 35);
-  try {
-    const qrData = await QRCode.toDataURL(link, { margin: 1, width: 160 });
-    const qr = await pdf.embedPng(Buffer.from(qrData.split(",")[1], "base64"));
-    page.drawImage(qr, { x: qrX, y: nextStepTop - nextStepHeight + 12, width: 52, height: 52 });
-  } catch { /* QR is optional */ }
-  y -= nextStepHeight + 10;
-
-  const hasBank = b.bank_account_holder && b.bank_account_number && b.bank_branch_code;
-  if (hasBank && d.status === "accepted") {
-    need(53);
-    put("PAY BY EFT", M, 8, bold, brand);
-    y -= 14;
-    paragraph(`${b.bank_account_holder}  |  ${b.bank_name ?? ""}  |  ${b.bank_account_type ?? ""}`, 8.5, font, ink, summaryWidth, 12);
-    paragraph(`Account: ${b.bank_account_number}  |  Branch: ${b.bank_branch_code}  |  Reference: ${d.number}`, 8.5, font, ink, summaryWidth, 12);
-    y -= 8;
-  }
-
-  if (d.status === "accepted" && signature?.name) {
-    need(44);
-    put("ACCEPTED BY", M, 8, bold, brand);
-    y -= 14;
-    const when = new Date(signature.at).toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
-    paragraph(`${signature.name}, ${when}`, 9, font, ink, summaryWidth, 12);
-    y -= 8;
+    // so the payment box is never left alone on a nearly empty page.
+    need(totalsHeight + sp(12) + nextStepHeight + 6);
+    const totalsTop = y;
+    if (showTotals) {
+    page.drawRectangle({ x: totalsX, y: totalsTop - totalsHeight, width: totalsWidth, height: totalsHeight, color: rgb(0.985, 0.99, 0.985), borderColor: rule, borderWidth: 0.7 });
+    put("Subtotal", totalsX + 12, 8.5, font, mute, totalsTop - 18);
+    putRight(formatRand(d.subtotal_cents), R - 12, 8.5, font, ink, totalsTop - 18);
+    put("VAT", totalsX + 12, 8.5, font, mute, totalsTop - 36);
+    putRight(b.vat_registered ? formatRand(d.vat_cents) : "Not applicable", R - 12, 8.5, font, ink, totalsTop - 36);
+    page.drawLine({ start: { x: totalsX + 12, y: totalsTop - 48 }, end: { x: R - 12, y: totalsTop - 48 }, thickness: 0.6, color: rule });
+    page.drawRectangle({ x: totalsX + 1, y: totalsTop - 82, width: totalsWidth - 2, height: 33, color: brand });
+    put("TOTAL", totalsX + 12, 10, bold, onBrand, totalsTop - 70);
+    putRight(formatRand(d.total_cents), R - 12, 12, bold, onBrand, totalsTop - 71);
+    }
+    y = totalsTop - totalsHeight - (showTotals ? sp(12) : 0);
+  
+    need(nextStepHeight);
+    const nextStepTop = y;
+    const actionX = R - 172;
+    const qrX = R - 66;
+    page.drawRectangle({ x: M, y: nextStepTop - nextStepHeight, width: summaryWidth, height: nextStepHeight, color: panel });
+    page.drawRectangle({ x: M, y: nextStepTop - nextStepHeight, width: 3, height: nextStepHeight, color: brand });
+    page.drawLine({ start: { x: actionX, y: nextStepTop - nextStepHeight + 8 }, end: { x: actionX, y: nextStepTop - 8 }, thickness: 0.7, color: rule });
+    put("PAYMENT & BOOKING", M + 14, 7.5, bold, brand, nextStepTop - 17);
+    paymentRows.forEach((row, index) => put(row, M + 14, 9, font, ink, nextStepTop - 32 - index * 13));
+    put("VIEW ONLINE", actionX + 12, 7, bold, brand, nextStepTop - 22);
+    put("Scan to open this quote", actionX + 12, 7, font, mute, nextStepTop - 35);
+    try {
+      const qrData = await QRCode.toDataURL(link, { margin: 1, width: 160 });
+      const qr = await pdf.embedPng(Buffer.from(qrData.split(",")[1], "base64"));
+      page.drawImage(qr, { x: qrX, y: nextStepTop - nextStepHeight + 12, width: 52, height: 52 });
+    } catch { /* QR is optional */ }
+    y -= nextStepHeight + sp(10);
+  
+    const hasBank = b.bank_account_holder && b.bank_account_number && b.bank_branch_code;
+    if (hasBank && d.status === "accepted") {
+      need(53);
+      put("PAY BY EFT", M, 8, bold, brand);
+      y -= sp(14);
+      paragraph(`${b.bank_account_holder}  |  ${b.bank_name ?? ""}  |  ${b.bank_account_type ?? ""}`, 8.5, font, ink, summaryWidth, 12);
+      paragraph(`Account: ${b.bank_account_number}  |  Branch: ${b.bank_branch_code}  |  Reference: ${d.number}`, 8.5, font, ink, summaryWidth, 12);
+      y -= sp(8);
+    }
+  
+    if (d.status === "accepted" && signature?.name) {
+      need(44);
+      put("ACCEPTED BY", M, 8, bold, brand);
+      y -= sp(14);
+      const when = new Date(signature.at).toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      paragraph(`${signature.name}, ${when}`, 9, font, ink, summaryWidth, 12);
+      y -= sp(8);
+    }
   }
 
   drawYeboPromo(pdf, page, font, bold, "quote");
