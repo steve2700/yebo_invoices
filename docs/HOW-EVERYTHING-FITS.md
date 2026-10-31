@@ -10,11 +10,19 @@ One page to read before you change anything. Last updated 31 October 2026.
 4. **The owner makes the quote** with one tap from the request. The client, the job and the place are already filled in.
 5. **The client answers** on `/d/<token>`: Accept (types their full name), Ask for a change, or Decline (with a reason).
    - Accept: the owner is emailed at once. The client gets their own copy by email if we have their address.
+   - Site address: after a yes, the client is asked "Where should we come?" (address, gate code, a note). The owner is emailed and sees a card with Open in Maps.
    - Change request: the owner taps **Revise this quote**. When the revised quote is sent, the old one closes and its link points to the new one.
    - Decline: the owner is emailed with the reason. The client can undo for 24 hours. After a "price" decline (14 days) or "not needed any more" (30 days) the owner gets one email with a ready WhatsApp message.
    - No answer: follow-up emails, then an expiry warning. An expired quote has a **Yes, I still want this** button; the owner extends it by 14 days.
 6. **Invoice and payment.** The owner turns the accepted quote into an invoice. The client pays by card (PayFast) or EFT and can upload proof. Reminders go out before and after the due date.
 7. **Numbers.** The home screen shows money collected, quotes sent and accepted, and the win rate. The Win rate page shows why quotes were lost.
+
+## Making a quote or invoice
+
+- **Your typing is never lost.** The form saves on the device as you type and restores it if you leave and come back (kept 14 days; "Start fresh" clears it). Once there is a client and a priced item, a real draft is also saved in Yebo after 5 seconds of quiet, and the form says "Saved to your drafts".
+- **Paste-friendly.** Phone numbers (`+27 76 142 4550`), emails and AI-written text are tidied when you leave the field: spaces and hidden marks removed, `0027` and `27` turned into `+27`, markdown stars and hashes removed, line breaks kept.
+- **Three steps on one page.** A strip (Who, What and price, Review and send) jumps to each part.
+- **The PDF is one page when it can be.** It tries a roomy layout first and tightens in steps (payment panel beside the totals) only if that saves a page. A very long quote still runs to two pages.
 
 ## Pages
 
