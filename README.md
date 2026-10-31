@@ -555,6 +555,17 @@ Email sign-in uses a 6-digit code (no magic link), so it works on any device. Go
 | `SURVEY_NOTIFY_EMAIL` | Where survey answers and error alerts are emailed. Defaults to the support address. |
 | `CRON_SECRET` | Already used by the crons. Also signs the unsubscribe links. |
 
+## Quote requests, site visits and quote answers
+
+The owner shares a request link (with a QR code and one link per place, so we know where jobs come from). Clients describe the job, with an optional date and photos. The owner can propose a site visit that the client confirms from a link and adds to their calendar. When a quote is sent, the client can accept, ask for a change or decline, and every answer has a next step:
+
+- **Accepted:** the owner is emailed at once and the client gets their own copy.
+- **Change asked:** **Revise this quote** makes a copy; sending it closes the old quote and points its link to the new one.
+- **Declined:** the client can undo for 24 hours; after a price or timing decline the owner gets one check-in email with a ready message.
+- **Expired:** the client can tap "Yes, I still want this" and the owner extends it by 14 days.
+
+The whole picture, with the pages, emails, daily job, migrations (`0026` to `0032`) and environment variables, is in [docs/HOW-EVERYTHING-FITS.md](docs/HOW-EVERYTHING-FITS.md).
+
 ## Testing checklist
 
 Run this after deploying, on a phone as well as a desktop browser. Payment confirmation must be tested on the live site, not `localhost`.
