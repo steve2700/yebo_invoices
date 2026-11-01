@@ -1,3 +1,4 @@
+import { formatPayshap } from "./payshap";
 import { LineCapStyle, PDFDocument, PDFString, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import QRCode from "qrcode";
 import { formatRand } from "./money";
@@ -385,7 +386,9 @@ async function buildQuotePdfAt({ document: d, lines, business: b, client: c, sig
     }
     y = bandTop - bandH - 14;
 
-    const bankOn = Boolean(b.bank_account_holder && b.bank_account_number && b.bank_branch_code) && d.status === "accepted";
+    const bankDetails = Boolean(b.bank_account_holder && b.bank_account_number && b.bank_branch_code);
+    const payshapTxt = formatPayshap(b.payshap_number);
+    const bankOn = (bankDetails || Boolean(payshapTxt)) && d.status === "accepted";
     const signedOn = d.status === "accepted" && Boolean(signature?.name);
     if (bankOn || signedOn) {
       need(52);
@@ -393,10 +396,11 @@ async function buildQuotePdfAt({ document: d, lines, business: b, client: c, sig
       const colX = bankOn && signedOn ? M + 310 : M;
       let used = 0;
       if (bankOn) {
-        put("PAY BY EFT", M, 8, bold, brand, rowTop);
+        put(payshapTxt ? "PAY INSTANTLY: ARRIVES IN MINUTES, EVEN ON WEEKENDS" : "PAY BY EFT", M, 8, bold, brand, rowTop);
         const rows = [
-          ...wrap(`${b.bank_account_holder}  |  ${b.bank_name ?? ""}  |  ${b.bank_account_type ?? ""}`, font, 8.5, signedOn ? 295 : summaryWidth),
-          ...wrap(`Account: ${b.bank_account_number}  |  Branch: ${b.bank_branch_code}  |  Reference: ${d.number}`, font, 8.5, signedOn ? 295 : summaryWidth),
+          ...(payshapTxt ? wrap(`Instant payment (PayShap): ${payshapTxt}  |  Reference: ${d.number}`, font, 8.5, signedOn ? 295 : summaryWidth) : []),
+          ...(bankDetails ? wrap(`${b.bank_account_holder}  |  ${b.bank_name ?? ""}  |  ${b.bank_account_type ?? ""}`, font, 8.5, signedOn ? 295 : summaryWidth) : []),
+          ...(bankDetails ? wrap(`Account: ${b.bank_account_number}  |  Branch: ${b.bank_branch_code}  |  Reference: ${d.number}`, font, 8.5, signedOn ? 295 : summaryWidth) : []),
         ];
         rows.forEach((row, index) => put(row, M, 8.5, font, ink, rowTop - 13 - index * 12));
         used = Math.max(used, rows.length);
@@ -447,12 +451,16 @@ async function buildQuotePdfAt({ document: d, lines, business: b, client: c, sig
     y -= nextStepHeight + sp(10);
   
     const hasBank = b.bank_account_holder && b.bank_account_number && b.bank_branch_code;
-    if (hasBank && d.status === "accepted") {
-      need(53);
-      put("PAY BY EFT", M, 8, bold, brand);
+    const payshapTxt = formatPayshap(b.payshap_number);
+    if ((hasBank || payshapTxt) && d.status === "accepted") {
+      need(payshapTxt ? 66 : 53);
+      put(payshapTxt ? "PAY INSTANTLY: ARRIVES IN MINUTES, EVEN ON WEEKENDS" : "PAY BY EFT", M, 8, bold, brand);
       y -= sp(14);
-      paragraph(`${b.bank_account_holder}  |  ${b.bank_name ?? ""}  |  ${b.bank_account_type ?? ""}`, 8.5, font, ink, summaryWidth, 12);
-      paragraph(`Account: ${b.bank_account_number}  |  Branch: ${b.bank_branch_code}  |  Reference: ${d.number}`, 8.5, font, ink, summaryWidth, 12);
+      if (payshapTxt) paragraph(`Instant payment (PayShap): ${payshapTxt}  |  Reference: ${d.number}`, 8.5, font, ink, summaryWidth, 12);
+      if (hasBank) {
+        paragraph(`${b.bank_account_holder}  |  ${b.bank_name ?? ""}  |  ${b.bank_account_type ?? ""}`, 8.5, font, ink, summaryWidth, 12);
+        paragraph(`Account: ${b.bank_account_number}  |  Branch: ${b.bank_branch_code}  |  Reference: ${d.number}`, 8.5, font, ink, summaryWidth, 12);
+      }
       y -= sp(8);
     }
   
@@ -596,11 +604,17 @@ export async function buildDocumentPdf({ document: d, lines, business: b, client
 
   // ---- banking (same rule as the web page) ----
   const hasBank = b.bank_account_holder && b.bank_account_number && b.bank_branch_code;
-  if (hasBank && !isCredit && (!isQuote || d.status === "accepted")) {
-    need(70);
-    put("Pay by EFT", M, 10, bold, ink); y -= 15;
-    put(`${b.bank_account_holder}  |  ${b.bank_name ?? ""}  |  ${b.bank_account_type ?? ""}`, M, 9.5); y -= 13;
-    put(`Account: ${b.bank_account_number}  |  Branch: ${b.bank_branch_code}  |  Reference: ${d.number}`, M, 9.5); y -= 22;
+  const payshapTxt = formatPayshap(b.payshap_number);
+  if ((hasBank || payshapTxt) && !isCredit && (!isQuote || d.status === "accepted")) {
+    need(payshapTxt ? 84 : 70);
+    put(payshapTxt ? "Pay instantly: arrives in minutes, even on weekends" : "Pay by EFT", M, 10, bold, ink); y -= 15;
+    if (payshapTxt) { put(`Instant payment (PayShap): ${payshapTxt}  |  Reference: ${d.number}`, M, 9.5); y -= 13; }
+    if (hasBank) {
+      put(`${b.bank_account_holder}  |  ${b.bank_name ?? ""}  |  ${b.bank_account_type ?? ""}`, M, 9.5); y -= 13;
+      put(`Account: ${b.bank_account_number}  |  Branch: ${b.bank_branch_code}  |  Reference: ${d.number}`, M, 9.5); y -= 22;
+    } else {
+      y -= 9;
+    }
   }
   if (b.guarantee_months && !isCredit) { para(`${b.guarantee_months}-month workmanship guarantee on all work by ${b.name}.`, 9, font, mute); y -= 4; }
   para(isQuote ? "Accept before the validity date to hold this price." : isCredit ? "Thank you." : "Thank you for your business.", 9, font, mute);

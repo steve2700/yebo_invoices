@@ -14,6 +14,8 @@ import { depositCents } from "@/lib/deposit";
 import { OPTION_LABELS, linesForChoice, optionsPresent, subtotalFor, withVat, type OptionKey } from "@/lib/quote-options";
 import { BADGE_LABELS, parseReviews } from "@/lib/trust";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { formatPayshap } from "@/lib/payshap";
+import { INSTANT_HELP, eftNote } from "@/lib/instant-pay";
 import { emailClientCopy, requestRevive } from "@/lib/quote-followup";
 import { saveSiteAccess } from "@/lib/site-access";
 import ViewBeacon from "./ViewBeacon";
@@ -83,7 +85,11 @@ export default async function PublicDocument({ params, searchParams }: { params:
   const chosen: string | null = d.chosen_option ?? null;
   const unpaidInvoice = !isQuote && d.status !== "paid" && d.status !== "draft";
   const hasBank = b.bank_account_holder && b.bank_account_number && b.bank_branch_code;
-  const showBank = hasBank && (!isQuote || d.status === "accepted");
+  // The instant-payment number is not in the shared business record, so read it here.
+  const { data: payRow } = await adminDb.from("documents").select("businesses(payshap_number)").eq("public_token", token).maybeSingle();
+  const payshapNumber = formatPayshap((payRow as any)?.businesses?.payshap_number);
+  const hasPayshap = Boolean(payshapNumber);
+  const showBank = Boolean(hasBank || hasPayshap) && (!isQuote || d.status === "accepted");
   const canPayOnline = unpaidInvoice && Boolean(b.online_payments);
   // Photos the business attached. The token has already been checked above, so short-lived links are safe to make.
   const photoLinks: string[] = [];
@@ -198,6 +204,18 @@ export default async function PublicDocument({ params, searchParams }: { params:
   const bar = "fixed inset-x-0 bottom-0 z-20 flex gap-3 border-t border-black/10 bg-white/95 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur md:static md:mt-6 md:border-0 md:bg-transparent md:p-0 md:pb-0";
   const soft = { background: fg === "#ffffff" ? "rgba(0,0,0,.2)" : "rgba(255,255,255,.55)" };
   const Row = ({ k, v, copy }: { k: string; v: string; copy?: string }) => (<div className="flex items-center justify-between gap-4 py-1.5"><dt className="text-ink/55">{k}</dt><dd className="flex items-center text-right font-semibold">{v}{copy && <CopyButton value={copy} label={k.toLowerCase()} />}</dd></div>);
+  const PayshapBox = ({ amount }: { amount?: number }) => hasPayshap ? (
+    <div className="mt-4 rounded-xl border border-lime/60 bg-lime/15 p-3">
+      <b className="block">Pay instantly (PayShap)</b>
+      <p className="mt-1 text-xs leading-5 text-ink/65">{INSTANT_HELP}</p>
+      <dl className="mt-1">
+        {amount && amount > 0 ? <Row k="Amount" v={formatRand(amount)} copy={(amount / 100).toFixed(2)} /> : null}
+        <Row k="Cellphone number" v={payshapNumber} copy={payshapNumber.replace(/\s/g, "")} />
+        <Row k="Reference" v={d.number} copy={String(d.number)} />
+      </dl>
+      <p className="mt-1 text-xs text-ink/55">Check that the name your bank shows is {b.name} before you pay.</p>
+    </div>
+  ) : null;
 
   return (
     <main className="min-h-dvh bg-paper pb-28 text-ink md:pb-12">
@@ -404,19 +422,25 @@ export default async function PublicDocument({ params, searchParams }: { params:
                       <p className="mt-2 text-center text-xs text-ink/55">Card or instant EFT. You come straight back here when you are done.</p>
                     </form>
                   )}
-                  {hasBank ? (
+                  <PayshapBox amount={depositOutstanding} />
+                  {hasBank || hasPayshap ? (
                     <div className="mt-4 border-t border-ink/10 pt-3">
-                      <b className="block">{payDepositOnline ? "Or pay by EFT" : "Pay by EFT"}</b>
-                      <dl className="mt-1">
-                        <Row k="Amount" v={formatRand(depositOutstanding)} copy={(depositOutstanding / 100).toFixed(2)} />
-                        <Row k="Account holder" v={b.bank_account_holder} /><Row k="Bank" v={`${b.bank_name ?? ""} ${b.bank_account_type ?? ""}`.trim()} />
-                        <Row k="Account number" v={b.bank_account_number} copy={String(b.bank_account_number)} /><Row k="Branch code" v={b.bank_branch_code} copy={String(b.bank_branch_code)} /><Row k="Reference" v={d.number} copy={String(d.number)} />
-                      </dl>
+                      {hasBank && (
+                        <>
+                          <b className="block">{payDepositOnline || hasPayshap ? "Or pay by normal EFT" : "Pay by EFT"}</b>
+                          <p className="mt-1 rounded-xl bg-orange/10 p-2.5 text-xs leading-5 text-ink/75">{eftNote(b.name, hasPayshap)}</p>
+                          <dl className="mt-1">
+                            <Row k="Amount" v={formatRand(depositOutstanding)} copy={(depositOutstanding / 100).toFixed(2)} />
+                            <Row k="Account holder" v={b.bank_account_holder} /><Row k="Bank" v={`${b.bank_name ?? ""} ${b.bank_account_type ?? ""}`.trim()} />
+                            <Row k="Account number" v={b.bank_account_number} copy={String(b.bank_account_number)} /><Row k="Branch code" v={b.bank_branch_code} copy={String(b.bank_branch_code)} /><Row k="Reference" v={d.number} copy={String(d.number)} />
+                          </dl>
+                        </>
+                      )}
                       {depositClaimed ? (
                         <p role="status" className="mt-3 rounded-xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} has been told and will confirm once the money reaches their account.</p>
                       ) : (
                         <form action={claimDeposit} className="mt-3">
-                          <button type="submit" className="min-h-12 w-full rounded-2xl border border-black/15 px-4 text-sm font-black active:scale-[.98]">I have paid the deposit by EFT</button>
+                          <button type="submit" className="min-h-12 w-full rounded-2xl border border-black/15 px-4 text-sm font-black active:scale-[.98]">I have paid the deposit</button>
                           <p className="mt-2 text-center text-xs text-ink/55">Tap this after you have paid, so {b.name} knows to look for it.</p>
                         </form>
                       )}
@@ -487,12 +511,18 @@ export default async function PublicDocument({ params, searchParams }: { params:
 
           {showBank && !depositActive && (
             <section id="pay" className="mt-5 rounded-2xl border border-ink/10 p-4 text-sm">
-              <b className="block">Pay by EFT</b>
-              <dl className="mt-1">
-                <Row k="Account holder" v={b.bank_account_holder} /><Row k="Bank" v={`${b.bank_name ?? ""} ${b.bank_account_type ?? ""}`.trim()} />
-                {unpaidInvoice && invoiceBalance > 0 && <Row k="Amount" v={formatRand(invoiceBalance)} copy={(invoiceBalance / 100).toFixed(2)} />}
-                <Row k="Account number" v={b.bank_account_number} copy={String(b.bank_account_number)} /><Row k="Branch code" v={b.bank_branch_code} copy={String(b.bank_branch_code)} /><Row k="Reference" v={d.number} copy={String(d.number)} />
-              </dl>
+              <PayshapBox amount={unpaidInvoice ? invoiceBalance : undefined} />
+              {hasBank && (
+                <>
+                  <b className={`block ${hasPayshap ? "mt-4" : ""}`}>{hasPayshap ? "Or pay by normal EFT" : "Pay by EFT"}</b>
+                  <p className="mt-1 rounded-xl bg-orange/10 p-2.5 text-xs leading-5 text-ink/75">{eftNote(b.name, hasPayshap)}</p>
+                  <dl className="mt-1">
+                    <Row k="Account holder" v={b.bank_account_holder} /><Row k="Bank" v={`${b.bank_name ?? ""} ${b.bank_account_type ?? ""}`.trim()} />
+                    {unpaidInvoice && invoiceBalance > 0 && <Row k="Amount" v={formatRand(invoiceBalance)} copy={(invoiceBalance / 100).toFixed(2)} />}
+                    <Row k="Account number" v={b.bank_account_number} copy={String(b.bank_account_number)} /><Row k="Branch code" v={b.bank_branch_code} copy={String(b.bank_branch_code)} /><Row k="Reference" v={d.number} copy={String(d.number)} />
+                  </dl>
+                </>
+              )}
               {unpaidInvoice && (
                 invoiceClaimed ? (
                   <>
@@ -510,7 +540,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
                     <label className="block text-xs font-bold text-ink/55">Attach your proof of payment (optional)
                       <input type="file" name="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-1 block w-full text-sm font-normal file:mr-3 file:min-h-10 file:rounded-xl file:border file:border-ink/15 file:bg-white file:px-3 file:font-bold" />
                     </label>
-                    <button type="submit" className="mt-3 min-h-12 w-full rounded-2xl border border-black/15 px-4 text-sm font-black active:scale-[.98]">I have paid by EFT</button>
+                    <button type="submit" className="mt-3 min-h-12 w-full rounded-2xl border border-black/15 px-4 text-sm font-black active:scale-[.98]">I have paid</button>
                     <p className="mt-2 text-center text-xs text-ink/55">Tap this after you have paid, so {b.name} knows to look for it.</p>
                     {proof === "bad" && <p role="alert" className="mt-2 rounded-xl bg-orange/15 p-2 text-center text-xs font-bold">That file could not be used. Send a photo or PDF under 5 MB.</p>}
                   </form>
@@ -578,7 +608,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
                     : "grid min-h-12 flex-1 place-items-center rounded-2xl px-4 text-base font-black"}
                   style={canPayOnline ? undefined : { background: color, color: fg }}
                 >
-                  Pay by EFT
+                  {hasPayshap ? "Pay instantly" : "Pay by EFT"}
                 </a>
               )}
               <a

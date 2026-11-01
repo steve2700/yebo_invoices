@@ -55,7 +55,7 @@ export async function sendDocumentEmail(documentId: string): Promise<EmailResult
 
   const [{ data: client }, { data: business }] = await Promise.all([
     sb.from("clients").select("name,email").eq("id", doc.client_id).maybeSingle(),
-    sb.from("businesses").select("name,email,brand_color").eq("id", doc.business_id).maybeSingle(),
+    sb.from("businesses").select("name,email,brand_color,payshap_number").eq("id", doc.business_id).maybeSingle(),
   ]);
   const isCredit = doc.type === "credit_note";
   const kind = doc.type === "quote" ? "quote" : isCredit ? "credit note" : "invoice";
@@ -82,7 +82,7 @@ export async function sendDocumentEmail(documentId: string): Promise<EmailResult
 
   let sent = false;
   try {
-    const pdf = await buildDocumentPdf(pub, link);
+    const pdf = await buildDocumentPdf({ ...pub, business: { ...pub.business, payshap_number: business?.payshap_number ?? null } }, link);
     sent = await sendEmail({
       to,
       fromName: businessName,

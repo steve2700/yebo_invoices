@@ -6,6 +6,9 @@ import { formatRand } from "@/lib/money";
 import { formatDate } from "@/lib/dates";
 import { readableOn } from "@/lib/color";
 import CopyButton from "@/app/d/[token]/CopyButton";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { formatPayshap } from "@/lib/payshap";
+import { INSTANT_HELP, eftNote } from "@/lib/instant-pay";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Statement", robots: { index: false, follow: false } };
@@ -27,6 +30,10 @@ export default async function Statement({ params }: { params: Promise<{ token: s
   const overdue = invoices.filter((i) => i.due_date && i.due_date < today);
   const overdueTotal = overdue.reduce((sum, i) => sum + Number(i.balance_cents), 0);
   const hasBank = b.bank_account_holder && b.bank_account_number && b.bank_branch_code;
+  // The instant-payment number is not in the shared business record, so read it here.
+  const { data: payRow } = await createAdminClient().from("clients").select("businesses(payshap_number)").eq("statement_token", token).maybeSingle();
+  const payshapNumber = formatPayshap((payRow as any)?.businesses?.payshap_number);
+  const hasPayshap = Boolean(payshapNumber);
   const Row = ({ k, v, copy }: { k: string; v: string; copy?: string }) => (
     <div className="flex items-center justify-between gap-4 py-1.5"><dt className="text-ink/55">{k}</dt><dd className="flex items-center text-right font-semibold">{v}{copy && <CopyButton value={copy} label={k.toLowerCase()} />}</dd></div>
   );
@@ -79,10 +86,24 @@ export default async function Statement({ params }: { params: Promise<{ token: s
             </>
           )}
 
-          {invoices.length > 0 && hasBank && (
+          {invoices.length > 0 && (hasBank || hasPayshap) && (
             <section className="mt-6 rounded-2xl border border-ink/10 p-4 text-sm">
-              <b className="block">Pay everything by EFT</b>
-              <p className="mt-1 text-xs text-ink/55">Use the invoice number as your reference. If you pay several together, put all the numbers in the reference.</p>
+              {hasPayshap && (
+                <div className="mb-4 rounded-xl border border-lime/60 bg-lime/15 p-3">
+                  <b className="block">Pay everything instantly (PayShap)</b>
+                  <p className="mt-1 text-xs leading-5 text-ink/65">{INSTANT_HELP}</p>
+                  <dl className="mt-1">
+                    <Row k="Amount" v={formatRand(total)} copy={(total / 100).toFixed(2)} />
+                    <Row k="Cellphone number" v={payshapNumber} copy={payshapNumber.replace(/\s/g, "")} />
+                    <Row k="Reference" v={invoices.map((i) => i.number).join(", ").slice(0, 60)} copy={invoices.map((i) => i.number).join(" ").slice(0, 60)} />
+                  </dl>
+                  <p className="mt-1 text-xs text-ink/55">Check that the name your bank shows is {b.name} before you pay.</p>
+                </div>
+              )}
+              {hasBank && (<>
+              <b className="block">{hasPayshap ? "Or pay by normal EFT" : "Pay everything by EFT"}</b>
+              <p className="mt-1 rounded-xl bg-orange/10 p-2.5 text-xs leading-5 text-ink/75">{eftNote(b.name, hasPayshap)}</p>
+              <p className="mt-2 text-xs text-ink/55">Use the invoice number as your reference. If you pay several together, put all the numbers in the reference.</p>
               <dl className="mt-1">
                 <Row k="Amount" v={formatRand(total)} copy={(total / 100).toFixed(2)} />
                 <Row k="Account holder" v={b.bank_account_holder} />
@@ -91,6 +112,7 @@ export default async function Statement({ params }: { params: Promise<{ token: s
                 <Row k="Branch code" v={b.bank_branch_code} copy={String(b.bank_branch_code)} />
                 <Row k="Reference" v={invoices.map((i) => i.number).join(", ").slice(0, 60)} copy={invoices.map((i) => i.number).join(" ").slice(0, 60)} />
               </dl>
+              </>)}
             </section>
           )}
 

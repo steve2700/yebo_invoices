@@ -1,3 +1,4 @@
+import { formatPayshap } from "./payshap";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { appUrl } from "@/lib/url";
 import { formatRand } from "@/lib/money";
@@ -38,12 +39,14 @@ export async function runDepositNudges(admin: Admin, now: Date = new Date()): Pr
     if (doc.deposit_nudged_at && now.getTime() - new Date(doc.deposit_nudged_at).getTime() < 2 * DAY) continue;
 
     const [{ data: business }, { data: client }] = await Promise.all([
-      admin.from("businesses").select("name,email,brand_color,bank_name,bank_account_holder,bank_account_number,bank_branch_code,bank_account_type").eq("id", doc.business_id).maybeSingle(),
+      admin.from("businesses").select("name,email,brand_color,bank_name,bank_account_holder,bank_account_number,bank_branch_code,bank_account_type,payshap_number").eq("id", doc.business_id).maybeSingle(),
       admin.from("clients").select("name,email").eq("id", doc.client_id).maybeSingle(),
     ]);
     if (!business || !isEmail(client?.email)) continue;
     const first = greetingName(client.name);
     const rows: [string, string][] = [["Quote", doc.number], ["Deposit due", formatRand(due)]];
+    const instant = formatPayshap(business.payshap_number);
+    if (instant) rows.push(["Pay instantly (PayShap)", instant], ["Reference", doc.number]);
     if (business.bank_account_holder && business.bank_account_number && business.bank_branch_code) {
       rows.push(["Account holder", business.bank_account_holder], ["Bank", `${business.bank_name ?? ""} ${business.bank_account_type ?? ""}`.trim() || "-"],
         ["Account number", business.bank_account_number], ["Branch code", business.bank_branch_code], ["Reference", doc.number]);
@@ -56,10 +59,10 @@ export async function runDepositNudges(admin: Admin, now: Date = new Date()): Pr
         brandColor: business.brand_color,
         heading: n === 0 ? "One more step to lock in your date" : "Your booking is not confirmed yet",
         intro: n === 0
-          ? `Hi ${first}, thank you for accepting quote ${doc.number}. The deposit of ${formatRand(due)} confirms your booking with ${business.name}. You can pay online or by EFT.`
+          ? `Hi ${first}, thank you for accepting quote ${doc.number}. The deposit of ${formatRand(due)} confirms your booking with ${business.name}. ${instant ? "Paying instantly with PayShap means the money reaches " + business.name + " in minutes, even on a weekend." : "If you pay by EFT, please use an instant payment option if your bank has one, so it reaches " + business.name + " today."}`
           : `Hi ${first}, ${business.name} is holding your spot, but the booking is only confirmed once the ${formatRand(due)} deposit is in. If something has changed, just reply to this email and we will sort it out.`,
         rows, buttonLabel: "Pay the deposit", buttonUrl: `${appUrl()}/d/${doc.public_token}`,
-        footer: "Already paid by EFT? Open the quote and tap \"I have paid the deposit\" so we can confirm it.",
+        footer: "Already paid? Open the quote and tap \"I have paid the deposit\" so we can confirm it.",
       }),
     });
     if (ok) {
