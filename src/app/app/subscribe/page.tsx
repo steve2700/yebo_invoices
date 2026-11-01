@@ -30,12 +30,12 @@ export default async function Subscribe({ searchParams }: { searchParams: Promis
   return (
     <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
       {onboarding && (
-        <div className="mb-8" role="group" aria-label="Step 3 of 4">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange">Step 3 of 4</p>
+        <div className="mb-8" role="group" aria-label="Step 4 of 5">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange">Step 4 of 5</p>
           <div className="mt-2 flex max-w-sm gap-1.5" aria-hidden="true">
-            {[0, 1, 2, 3].map((index) => (
+            {[0, 1, 2, 3, 4].map((index) => (
               <span key={index} className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink/10">
-                {index < 3 && <span style={{ "--d": `${index * 0.15}s` } as React.CSSProperties} className="bar-grow block h-full w-full rounded-full bg-orange" />}
+                {index < 4 && <span style={{ "--d": `${index * 0.15}s` } as React.CSSProperties} className="bar-grow block h-full w-full rounded-full bg-orange" />}
               </span>
             ))}
           </div>

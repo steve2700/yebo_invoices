@@ -12,6 +12,7 @@ import { workPhotoLimit } from "@/lib/work-photos";
 import { entitlement } from "@/lib/subscription";
 import { BADGES, MAX_REVIEWS, parseReviews } from "@/lib/trust";
 import { isValidBankName } from "@/lib/sa-banks";
+import { formatPayshap, normalizePayshap } from "@/lib/payshap";
 import { signOut } from "../account-actions";
 import Icon from "../icons";
 import AlertSoundToggle from "./AlertSoundToggle";
@@ -29,6 +30,8 @@ async function save(fd: FormData) {
   if (!isValidBankName(t("bank_name"))) {
     redirect(`/app/settings?error=${encodeURIComponent("Please choose your bank from the list.")}`);
   }
+  const payshap = normalizePayshap(t("payshap_number"));
+  if (payshap.error) redirect(`/app/settings?error=${encodeURIComponent(payshap.error)}#banking`);
   const yearRaw = t("year_started");
   const thisYear = +new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg", year: "numeric" }).format(new Date());
   const year = yearRaw ? Number(yearRaw) : null;
@@ -56,6 +59,7 @@ async function save(fd: FormData) {
     email, phone: t("phone"), website: t("website"), address: t("address"),
     bank_name: t("bank_name"), bank_account_type: t("bank_account_type"), bank_account_holder: t("bank_account_holder"),
     bank_account_number: t("bank_account_number"), bank_branch_code: t("bank_branch_code"),
+    payshap_number: payshap.value,
     guarantee_months: g ? +g : null, brand_color: t("brand_color") ?? "#0F8A5F",
     default_expiry_days: +(t("default_expiry_days") ?? 14),
   }).eq("owner_id", user.id);
@@ -251,7 +255,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
               <SaveRow />
             </section>
 
-            <section id="banking" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8"><p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">03 · Get paid</p><h2 className="mt-2 text-xl font-black">Banking details <span className="text-sm font-medium text-yebo-deep/40">(optional)</span></h2><p className="mt-1 text-sm text-yebo-deep/55">Add these once and they&apos;ll be ready on every quote.</p><div className="mt-6 grid gap-5 sm:grid-cols-2"><BankFields defaultBank={b.bank_name} defaultBranchCode={b.bank_branch_code} labelClass={label} inputClass={input} /><label className={label}>Account type<select name="bank_account_type" defaultValue={b.bank_account_type ?? "Business cheque"} className={input}>{["Business cheque", "Savings", "Current"].map((x) => <option key={x}>{x}</option>)}</select></label><label className={label}>Account holder<input name="bank_account_holder" placeholder="Your registered business name" defaultValue={b.bank_account_holder ?? ""} className={input} /></label><label className={label}>Account number<input name="bank_account_number" inputMode="numeric" placeholder="8–11 digits" defaultValue={b.bank_account_number ?? ""} className={input} /></label></div><SaveRow /></section>
+            <section id="banking" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8"><p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">03 · Get paid</p><h2 className="mt-2 text-xl font-black">Banking details <span className="text-sm font-medium text-yebo-deep/40">(optional)</span></h2><p className="mt-1 text-sm text-yebo-deep/55">Add these once and they&apos;ll be ready on every quote.</p><div className="mt-6 grid gap-5 sm:grid-cols-2"><BankFields defaultBank={b.bank_name} defaultBranchCode={b.bank_branch_code} labelClass={label} inputClass={input} /><label className={label}>Account type<select name="bank_account_type" defaultValue={b.bank_account_type ?? "Business cheque"} className={input}>{["Business cheque", "Savings", "Current"].map((x) => <option key={x}>{x}</option>)}</select></label><label className={label}>Account holder<input name="bank_account_holder" placeholder="Your registered business name" defaultValue={b.bank_account_holder ?? ""} className={input} /></label><label className={label}>Account number<input name="bank_account_number" inputMode="numeric" placeholder="8–11 digits" defaultValue={b.bank_account_number ?? ""} className={input} /></label></div><div className="mt-6 rounded-2xl border border-lime/60 bg-lime/15 p-4"><p className="text-sm font-bold text-yebo-deep">Instant payment (PayShap) <span className="text-sm font-medium text-yebo-deep/40">(optional)</span></p><p className="mt-1 text-xs leading-5 text-yebo-deep/65">The cellphone number linked to your bank account. Clients pay it from their banking app and the money arrives in minutes, also on weekends and holidays. Normal EFTs can take until Monday or Tuesday.</p><label className={`${label} mt-3 block`}>Cellphone number<input name="payshap_number" type="tel" inputMode="tel" autoComplete="tel" placeholder="082 123 4567" defaultValue={formatPayshap(b.payshap_number)} className={input} /></label><p className="mt-2 text-xs leading-5 text-yebo-deep/60">Set up PayShap in your banking app first, otherwise clients&apos; payments will fail. This number is shown to clients on your quotes and invoices.</p></div><SaveRow /></section>
 
             <section id="trust" className="rounded-3xl border border-yebo-deep/10 bg-white px-6 py-7 shadow-[0_12px_40px_rgba(12,59,46,0.06)] sm:px-8">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-yebo">04 · Build trust</p>
