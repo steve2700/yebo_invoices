@@ -11,6 +11,11 @@ export default function LandingFooter() {
         <div>
           <Logo />
           <p className="mt-3 max-w-xs">Quoting and invoicing for South African small business.</p>
+          {/* Startup Fame listing badge. A plain img on purpose: it is a third-party image and needs no optimising. */}
+          <a href="https://startupfa.me/s/yebo?utm_source=www.yeboinvoices.com" target="_blank" rel="noopener" className="mt-4 inline-block">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://startupfa.me/badges/featured-badge-small.webp" alt="Yebo Invoices - Featured on Startup Fame" width="224" height="36" loading="lazy" />
+          </a>
         </div>
         <nav aria-label="Features" className="flex flex-col">
           <p className="font-bold text-yebo-deep">Features</p>
