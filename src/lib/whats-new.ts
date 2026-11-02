@@ -4,6 +4,14 @@ export type NewsItem = { id: string; date: string; title: string; text: string; 
 
 export const NEWS: NewsItem[] = [
   {
+    id: "on-the-way-2026-11",
+    date: "2026-11-02",
+    title: "New: tell your client you are on the way",
+    text: "Open a quote or invoice and tap one button. WhatsApp opens with your arrival time written, and your client's page shows you are coming.",
+    href: "/app/documents",
+    cta: "Open a job",
+  },
+  {
     id: "dashboard-2026-11",
     date: "2026-11-02",
     title: "Your dashboard now leads with what matters",

@@ -25,6 +25,18 @@ Three short screens, then the welcome tour (a plan step comes before the tour wh
 6. **Invoice and payment.** The owner turns the accepted quote into an invoice. The client pays by card (PayFast) or EFT and can upload proof. Reminders go out before and after the due date.
 7. **Numbers.** The home screen shows money collected, quotes sent and accepted, and the win rate. The Win rate page shows why quotes were lost.
 
+## The home screen
+
+Top to bottom, so the best news and the next step are always first:
+
+1. **What's new**, a small orange card for anything we just added. "Got it" hides it on that device, and each item disappears by itself after 30 days. To announce something, add one entry at the top of `src/lib/whats-new.ts`.
+2. **Good news:** payments that came in and clients who said yes, with a button to thank them or make the invoice.
+3. **Do this next**, the one thing worth doing now (reminders, an invoice to make, a quote to follow up). Reminder, quote request and site visit cards sit just under it.
+4. **Your month**, with targets, then three money tiles: collected, waiting for a yes, waiting to be paid.
+5. **Your numbers** (quotes sent and accepted, win rate) and the list of things that need attention.
+
+Month comparisons are fair: this month so far is compared with the same stretch of last month, and in the first 7 days a dip says "Just getting started" instead of a scary percentage.
+
 ## Making a quote or invoice
 
 - **Your typing is never lost.** The form saves on the device as you type and restores it if you leave and come back (kept 14 days; "Start fresh" clears it). Once there is a client and a priced item, a real draft is also saved in Yebo after 5 seconds of quiet, and the form says "Saved to your drafts".
