@@ -16,6 +16,11 @@ export default function LandingFooter() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="https://startupfa.me/badges/featured-badge-small.webp" alt="Yebo Invoices - Featured on Startup Fame" width="224" height="36" loading="lazy" />
           </a>
+          {/* Claude AI Directory listing badge (third-party image, so a plain img). */}
+          <a href="https://www.claudeai.directory/launches/yebo-invoices" target="_blank" rel="noopener" className="mt-3 block">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://www.claudeai.directory/badge/yebo-invoices" alt="Yebo Invoices - Listed on Claude AI Directory" width="220" height="54" loading="lazy" />
+          </a>
         </div>
         <nav aria-label="Features" className="flex flex-col">
           <p className="font-bold text-yebo-deep">Features</p>
