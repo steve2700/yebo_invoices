@@ -202,6 +202,8 @@ export async function updateDraft(input: NewQuote & { id: string }): Promise<{ e
     await sb.from("document_lines").delete().eq("document_id", input.id);
     const { error: lErr } = await sb.from("document_lines").insert(lines.map((l) => ({ ...l, document_id: input.id })));
     if (lErr) throw lErr;
+    // Saving on purpose keeps the draft: it is no longer a background save. Best effort.
+    await sb.from("documents").update({ autosaved_at: null }).eq("id", input.id);
     if (input.send) await sb.from("events").insert({ document_id: input.id, type: "sent" });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Something went wrong. Please try again." };

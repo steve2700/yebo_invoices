@@ -12,6 +12,7 @@ import { runNudges } from "@/lib/nudges";
 import { runVisitReminders } from "@/lib/visit-reminders";
 import { runWinbacks } from "@/lib/quote-followup";
 import { runDepositNudges, runInvoiceNudges } from "@/lib/money-followup";
+import { runDraftCleanup } from "@/lib/draft-cleanup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -210,5 +211,7 @@ export async function GET(request: Request) {
   // After a client says yes: nudge an unpaid deposit (client) and an accepted quote with no invoice (owner).
   const depositNudges = await runDepositNudges(admin).catch((e) => { console.error("[deposit-nudges] failed:", e); return null; });
   const invoiceNudges = await runInvoiceNudges(admin).catch((e) => { console.error("[invoice-nudges] failed:", e); return null; });
-  return Response.json({ ...result, expiry, morning, recurring, nudges, visits, winbacks, depositNudges, invoiceNudges });
+  // Drafts saved in the background that nobody came back to for 14 days are cleared out.
+  const drafts = await runDraftCleanup(admin).catch((e) => { console.error("[draft-cleanup] failed:", e); return null; });
+  return Response.json({ ...result, expiry, morning, recurring, nudges, visits, winbacks, depositNudges, invoiceNudges, drafts });
 }

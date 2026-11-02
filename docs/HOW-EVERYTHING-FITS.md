@@ -2,6 +2,14 @@
 
 One page to read before you change anything. Last updated 31 October 2026.
 
+## Signing up
+
+Three short screens, then the welcome tour (a plan step comes before the tour when billing is on). Each screen saves as you go, "Back" never loses anything, and every screen except the first can be skipped.
+
+1. **Your business:** name, email, phone. These create the account.
+2. **Look professional:** logo, address, website, registration number and VAT (the VAT number only shows once "I am VAT registered" is ticked).
+3. **Get paid:** the PayShap cellphone number first, then bank details for normal EFT. Both are optional and can be added later in Settings.
+
 ## The journey of one job
 
 1. **A client finds the business.** Through a link the owner shared (WhatsApp, Facebook, a van sticker QR code). Each place has its own link: `/r/<token>?s=<place>`.
@@ -22,6 +30,7 @@ One page to read before you change anything. Last updated 31 October 2026.
 - **Your typing is never lost.** The form saves on the device as you type and restores it if you leave and come back (kept 14 days; "Start fresh" clears it). Once there is a client and a priced item, a real draft is also saved in Yebo after 5 seconds of quiet, and the form says "Saved to your drafts".
 - **Paste-friendly.** Phone numbers (`+27 76 142 4550`), emails and AI-written text are tidied when you leave the field: spaces and hidden marks removed, `0027` and `27` turned into `+27`, markdown stars and hashes removed, line breaks kept.
 - **Three steps on one page.** A strip (Who, What and price, Review and send) jumps to each part.
+- **Drafts are tidied.** A draft saved in the background and not touched for 14 days is removed by the daily job. A draft the owner saved on purpose, or sent, is never removed.
 - **The PDF is one page when it can be.** It tries a roomy layout first and tightens in steps (payment panel beside the totals) only if that saves a page. A very long quote still runs to two pages.
 
 ## Pages
