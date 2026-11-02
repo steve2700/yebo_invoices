@@ -14,6 +14,7 @@ import { southAfricaMonth } from "@/lib/time";
 import { entitlement } from "@/lib/subscription";
 import { change, nextMove, thoughtFor, winRate } from "@/lib/insights";
 import type { ScoreboardData } from "./Scoreboard";
+import { currentNews } from "@/lib/whats-new";
 
 type DocumentRow = {
   id: string;
@@ -207,11 +208,14 @@ export default async function Dashboard() {
   // Last month and the last 90 days, so the numbers on the dashboard have something to be compared with.
   // Any query that fails (for example a table that is not there yet) simply counts as zero.
   const prevMonthStart = new Date(Date.UTC(year, month - 2, 1) - 2 * 60 * 60 * 1000);
+  // Compare with the same stretch of last month (day 2 against day 2), not the whole month, and be kind in the first week.
+  const lastMonthSoFarEnd = new Date(Math.min(prevMonthStart.getTime() + (now.getTime() - monthStart.getTime()), monthStart.getTime()));
+  const earlyMonth = Number(part("day")) <= 7;
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
   const [{ data: lastMonthPayments }, { count: sentLastCount }, { count: acceptedLastCount }, { count: sent90Count }, { count: accepted90Count }, { count: anyDocsCount }] = await Promise.all([
-    supabase.from("payments").select("amount_cents,provider_reference").neq("method", "credit").gte("paid_at", prevMonthStart.toISOString()).lt("paid_at", monthStart.toISOString()),
-    supabase.from("documents").select("id", { count: "exact", head: true }).eq("type", "quote").neq("status", "draft").gte("created_at", prevMonthStart.toISOString()).lt("created_at", monthStart.toISOString()),
-    supabase.from("events").select("id", { count: "exact", head: true }).eq("type", "accepted").gte("created_at", prevMonthStart.toISOString()).lt("created_at", monthStart.toISOString()),
+    supabase.from("payments").select("amount_cents,provider_reference").neq("method", "credit").gte("paid_at", prevMonthStart.toISOString()).lt("paid_at", lastMonthSoFarEnd.toISOString()),
+    supabase.from("documents").select("id", { count: "exact", head: true }).eq("type", "quote").neq("status", "draft").gte("created_at", prevMonthStart.toISOString()).lt("created_at", lastMonthSoFarEnd.toISOString()),
+    supabase.from("events").select("id", { count: "exact", head: true }).eq("type", "accepted").gte("created_at", prevMonthStart.toISOString()).lt("created_at", lastMonthSoFarEnd.toISOString()),
     supabase.from("documents").select("id", { count: "exact", head: true }).eq("type", "quote").neq("status", "draft").gte("created_at", ninetyDaysAgo),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("type", "accepted").gte("created_at", ninetyDaysAgo),
     supabase.from("documents").select("id", { count: "exact", head: true }),
@@ -219,11 +223,23 @@ export default async function Dashboard() {
   const collectedLastMonth = (lastMonthPayments ?? [])
     .filter((payment) => !String(payment.provider_reference ?? "").startsWith("from-quote:"))
     .reduce((total, payment) => total + Number(payment.amount_cents), 0);
-  const collectedChange = change(paidThisMonth, collectedLastMonth);
+  const collectedChange = change(paidThisMonth, collectedLastMonth, { early: earlyMonth });
   const sent90 = sent90Count ?? 0;
   const rate = winRate(accepted90Count ?? 0, sent90);
   const outstandingCents = openInvoices.reduce((total, document) => total + balanceDue(document), 0);
   const overdueCents = overdueInvoices.reduce((total, document) => total + balanceDue(document), 0);
+  const waitingQuoteCents = waitingQuotes.reduce((total, document) => total + Number(document.total_cents), 0);
+
+  // A client said yes: celebrate it, and point straight at the invoice.
+  let yes: { text: string; href: string } | null = null;
+  let yesCheer = "";
+  if (readyQuotes.length) {
+    const doc = readyQuotes[0];
+    const who = greetingName(clientName(doc));
+    const more = readyQuotes.length > 1 ? ` ${readyQuotes.length - 1} more said yes too.` : "";
+    yes = { text: `${who} said yes to ${doc.number}: ${formatRand(Number(doc.total_cents))}. Send the invoice.${more}`, href: `/app/documents/${doc.id}` };
+    yesCheer = `${who} said yes!`;
+  }
 
   const actionItems: DashboardActionItem[] = [
     ...openInvoices.map((document): DashboardActionItem => {
@@ -302,14 +318,15 @@ export default async function Dashboard() {
       ready: readyQuotes.length,
       winRate: rate,
     }),
+    early: earlyMonth,
     thought: thoughtFor(today),
   };
+  // When nothing is overdue, the "do this next" bar is the celebration itself.
+  if (yes && overdueInvoices.length === 0) {
+    scoreboard.move = { cheer: yesCheer, text: yes.text.replace("Send the invoice.", "Make the invoice while they are keen."), href: yes.href, label: "Make the invoice" };
+  }
 
   return (
-    <>
-      <RemindersReady />
-      <InstantPayCard />
-      <RequestsReady />
     <DashboardView
       businessName={business.name}
       greeting={greeting}
@@ -328,7 +345,20 @@ export default async function Dashboard() {
       scoreboard={scoreboard}
       collectedChange={collectedChange.text}
       hasAnyDocs={(anyDocsCount ?? 0) > 0}
+      waitingQuoteCents={waitingQuoteCents}
+      yes={yes}
+      news={currentNews(today)}
+      nudges={
+        <>
+          <div className="-mx-4 -mt-4 empty:hidden sm:-mx-6 lg:-mx-8">
+            <RemindersReady />
+            <RequestsReady />
+          </div>
+          <div className="[&>section]:mb-0 empty:hidden">
+            <InstantPayCard />
+          </div>
+        </>
+      }
     />
-    </>
   );
 }

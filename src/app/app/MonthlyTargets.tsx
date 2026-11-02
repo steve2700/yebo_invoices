@@ -76,12 +76,6 @@ export default function MonthlyTargets({ stats }: { stats: MonthlyStats }) {
 
       {message && <p className="mt-5 rounded-2xl bg-lime/20 px-4 py-3 text-sm font-semibold leading-6 text-ink">{message}</p>}
 
-      <dl className="mt-5 grid grid-cols-3 gap-2 text-center sm:gap-3">
-        <div className="rounded-2xl bg-paper px-2 py-3"><dt className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink/45">Collected</dt><dd className="mt-1 truncate text-sm font-extrabold tabular-nums text-ink sm:text-base">{formatRand(stats.collectedCents)}</dd></div>
-        <div className="rounded-2xl bg-paper px-2 py-3"><dt className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink/45">Quotes sent</dt><dd className="mt-1 text-sm font-extrabold tabular-nums text-ink sm:text-base">{stats.quotesSent}</dd></div>
-        <div className="rounded-2xl bg-paper px-2 py-3"><dt className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink/45">Quotes won</dt><dd className="mt-1 text-sm font-extrabold tabular-nums text-ink sm:text-base">{stats.quotesAccepted}</dd></div>
-      </dl>
-
       <details className="group mt-5" open={!hasAnyTarget}>
         <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-xl border-2 border-ink/15 px-4 text-sm font-bold text-ink transition hover:bg-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo">
           {hasAnyTarget ? "Change this month's targets" : "Set this month's targets"}

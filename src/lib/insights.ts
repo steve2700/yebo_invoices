@@ -1,11 +1,13 @@
 // Plain-English numbers for the dashboard. Pure logic, so it is easy to test.
 
-export function change(current: number, previous: number, unit = ""): { text: string; tone: "up" | "down" | "flat" | "new" } {
-  if (previous <= 0) return current > 0 ? { text: "First month to compare", tone: "new" } : { text: "Nothing yet", tone: "flat" };
-  if (current === previous) return { text: "Same as last month", tone: "flat" };
+// Compares this month so far with the same stretch of last month, so day 2 is never judged against a whole month.
+// Early in the month a dip is shown kindly ("Just getting started"), because one quote either way is not a trend.
+export function change(current: number, previous: number, opts: { early?: boolean } = {}): { text: string; tone: "up" | "down" | "flat" | "new" } {
+  if (previous <= 0) return current > 0 ? { text: "Off to a good start", tone: "up" } : { text: "Ready when you are", tone: "flat" };
+  if (current === previous) return { text: "Same as this time last month", tone: "flat" };
+  if (current < previous && opts.early) return { text: "Just getting started", tone: "flat" };
   const pct = Math.round((Math.abs(current - previous) * 100) / previous);
-  const word = current > previous ? "Up" : "Down";
-  return { text: `${word} ${pct}%${unit} on last month`, tone: current > previous ? "up" : "down" };
+  return current > previous ? { text: `Up ${pct}% on this time last month`, tone: "up" } : { text: `Down ${pct}% on this time last month`, tone: "down" };
 }
 
 // Share of quotes that were accepted. null until there are enough quotes for the number to mean anything.
@@ -14,7 +16,8 @@ export function winRate(accepted: number, sent: number): number | null {
   return Math.max(0, Math.min(100, Math.round((accepted * 100) / sent)));
 }
 
-export type Move = { text: string; href: string; label: string };
+// cheer is an optional warm headline (for example when a client has just said yes).
+export type Move = { text: string; href: string; label: string; cheer?: string };
 
 // The one thing worth doing next, chosen from simple rules, most urgent first.
 export function nextMove(input: {

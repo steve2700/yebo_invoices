@@ -10,6 +10,7 @@ export type ScoreboardData = {
   winRate: number | null; // last 90 days
   sent90: number;
   move: Move;
+  early: boolean; // first days of the month: dips are shown kindly
   thought: string;
 };
 
@@ -27,8 +28,8 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub: 
 }
 
 export default function Scoreboard({ data }: { data: ScoreboardData }) {
-  const sent = change(data.quotesSent, data.quotesSentLast);
-  const won = change(data.accepted, data.acceptedLast);
+  const sent = change(data.quotesSent, data.quotesSentLast, { early: data.early });
+  const won = change(data.accepted, data.acceptedLast, { early: data.early });
   return (
     <section aria-labelledby="score-heading" className="fade-up">
       <div className="flex flex-wrap items-end justify-between gap-2">
@@ -48,16 +49,6 @@ export default function Scoreboard({ data }: { data: ScoreboardData }) {
           sub={data.winRate === null ? "Send 3 quotes and this starts counting" : `Of ${data.sent90} quotes sent, ${data.winRate}% were accepted`}
           tone="flat"
         />
-      </div>
-
-      <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-yebo-deep p-4 text-white sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-yebo-sun">Do this next</p>
-          <p className="mt-1.5 text-sm font-semibold leading-6 sm:text-base">{data.move.text}</p>
-        </div>
-        <Link href={data.move.href} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-lime px-5 text-sm font-extrabold text-ink hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
-          {data.move.label} <span className="ml-1" aria-hidden="true">→</span>
-        </Link>
       </div>
 
       <p className="mt-4 text-center text-sm italic leading-6 text-ink/55">&ldquo;{data.thought}&rdquo;</p>
