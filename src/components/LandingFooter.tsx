@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Logo from "@/components/Logo";
 import { FEATURE_GROUPS } from "@/lib/features";
+import FeaturedOn from "@/components/FeaturedOn";
 
 const link = "inline-flex min-h-10 items-center transition-colors hover:text-yebo hover:underline";
 
@@ -11,36 +12,6 @@ export default function LandingFooter() {
         <div>
           <Logo />
           <p className="mt-3 max-w-xs">Quoting and invoicing for South African small business.</p>
-          {/* Startup Fame listing badge. A plain img on purpose: it is a third-party image and needs no optimising. */}
-          <a href="https://startupfa.me/s/yebo?utm_source=www.yeboinvoices.com" target="_blank" rel="noopener" className="mt-4 inline-block">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://startupfa.me/badges/featured-badge-small.webp" alt="Yebo Invoices - Featured on Startup Fame" width="224" height="36" loading="lazy" />
-          </a>
-          {/* Claude AI Directory listing badge (third-party image, so a plain img). */}
-          <a href="https://www.claudeai.directory/launches/yebo-invoices" target="_blank" rel="noopener" className="mt-3 block">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://www.claudeai.directory/badge/yebo-invoices" alt="Yebo Invoices - Listed on Claude AI Directory" width="220" height="54" loading="lazy" />
-          </a>
-          {/* Neura Market listing badge. Keep the link followable (no nofollow). */}
-          <a href="https://www.neura.market/directories/ai-tools" title="Featured on Neura Market — the AI tools & companies directory" target="_blank" rel="noopener" data-neura-market-badge="tool" className="mt-3 block">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://ykpiumpcqlgqzgslxicn.supabase.co/storage/v1/object/public/brand-assets/featured-badge.png" alt="Featured on Neura Market" width={240} height={80} loading="lazy" style={{ maxWidth: "100%", height: "auto", borderRadius: 8 }} />
-          </a>
-          {/* Twelve Tools listing badge. */}
-          <a href="https://twelve.tools" target="_blank" rel="noopener" className="mt-3 block">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://twelve.tools/badge0-white.svg" alt="Featured on Twelve Tools" width="148" height="40" loading="lazy" />
-          </a>
-          {/* SuperLaunch List listing badge. */}
-          <a href="https://superlaunchlist.com?ref=https%3A%2F%2Fwww.yeboinvoices.com%2F" target="_blank" rel="noopener" className="mt-3 block">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://superlaunchlist.com/badge.svg" alt="Featured on SuperLaunch List" width="174" height="42" loading="lazy" />
-          </a>
-          {/* My Launch Stash listing badge. */}
-          <a href="https://mylaunchstash.com/product/yeboinvoices" target="_blank" rel="noopener" className="mt-3 block">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://mylaunchstash.com/assets/images/badge.png" alt="My Launch Stash" height="54" loading="lazy" style={{ height: 54, width: "auto" }} />
-          </a>
         </div>
         <nav aria-label="Features" className="flex flex-col">
           <p className="font-bold text-yebo-deep">Features</p>
@@ -65,6 +36,7 @@ export default function LandingFooter() {
           <Link className={link} href="/terms">Terms</Link>
         </nav>
       </div>
+      <FeaturedOn />
     </footer>
   );
 }
