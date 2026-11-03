@@ -36,6 +36,11 @@ export default function LandingFooter() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="https://superlaunchlist.com/badge.svg" alt="Featured on SuperLaunch List" width="174" height="42" loading="lazy" />
           </a>
+          {/* My Launch Stash listing badge. */}
+          <a href="https://mylaunchstash.com/product/yeboinvoices" target="_blank" rel="noopener" className="mt-3 block">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://mylaunchstash.com/assets/images/badge.png" alt="My Launch Stash" height="54" loading="lazy" style={{ height: 54, width: "auto" }} />
+          </a>
         </div>
         <nav aria-label="Features" className="flex flex-col">
           <p className="font-bold text-yebo-deep">Features</p>
