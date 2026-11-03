@@ -31,6 +31,11 @@ export default function LandingFooter() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="https://twelve.tools/badge0-white.svg" alt="Featured on Twelve Tools" width="148" height="40" loading="lazy" />
           </a>
+          {/* SuperLaunch List listing badge. */}
+          <a href="https://superlaunchlist.com?ref=https%3A%2F%2Fwww.yeboinvoices.com%2F" target="_blank" rel="noopener" className="mt-3 block">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://superlaunchlist.com/badge.svg" alt="Featured on SuperLaunch List" width="174" height="42" loading="lazy" />
+          </a>
         </div>
         <nav aria-label="Features" className="flex flex-col">
           <p className="font-bold text-yebo-deep">Features</p>
