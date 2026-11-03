@@ -12,6 +12,7 @@ const BADGES: Badge[] = [
   { href: "https://mylaunchstash.com/product/yeboinvoices", src: "https://mylaunchstash.com/assets/images/badge.png", alt: "My Launch Stash" },
   { href: "https://goodaitools.com/ai/yeboinvoices", src: "https://goodaitools.com/assets/images/badge.png", alt: "Good AI Tools" },
   { href: "https://fastlaunch.io", src: "https://fastlaunch.io/images/badges/featured-light.svg", alt: "Featured on FastLaunch" },
+  { href: "https://navfolders.com", src: "https://navfolders.com/badge/nav_light.svg", alt: "NavFolders" },
 ];
 
 export default function FeaturedOn() {
