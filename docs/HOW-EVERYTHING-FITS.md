@@ -103,3 +103,4 @@ Environment variables (Vercel, Settings, Environment Variables): `NEXT_PUBLIC_AP
 - [Request a quote link, step by step](REQUEST-A-QUOTE.md)
 - [QR codes, places, date and photos](REQUEST-LINKS-PLUS.md)
 - [Site visits](SITE-VISITS.md)
+- [Opportunities: research, plan, subscription model, fast repairs, scaling](OPPORTUNITIES.md)
