@@ -26,11 +26,12 @@ async function shrink(file: File): Promise<File | null> {
   }
 }
 
-export default function JobForm({ slug, areaName }: { slug: string; areaName: string }) {
+export default function JobForm({ slug, areaName, chips }: { slug: string; areaName: string; chips: string[] }) {
   const color = "#0F8A5F";
   const [pending, setPending] = useState(false);
   const [state, setState] = useState<"form" | "done">("form");
   const [matched, setMatched] = useState(0);
+  const [chip, setChip] = useState("");
   const [error, setError] = useState("");
   const [photos, setPhotos] = useState<{ file: File; url: string }[]>([]);
   const [note, setNote] = useState("");
@@ -70,6 +71,9 @@ export default function JobForm({ slug, areaName }: { slug: string; areaName: st
     try {
       const data = new FormData(form);
       data.delete("photos");
+      const more = String(data.get("more") ?? "").trim();
+      data.delete("more");
+      data.set("details", `Needs: ${chip || "a carpenter job"}${more ? ". " + more : ""}`);
       photos.forEach((p, i) => data.append("photos", p.file, `photo-${i}.jpg`));
       const res = await fetch(`/api/jobs/${slug}`, { method: "POST", body: data });
       const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; matched?: number } | null;
@@ -87,21 +91,31 @@ export default function JobForm({ slug, areaName }: { slug: string; areaName: st
       className="rounded-3xl bg-white p-5 shadow-sm sm:p-8"
       onSubmit={(e) => { e.preventDefault(); if (!pending) void send(e.currentTarget); }}
     >
-      <label className={label + " mt-0"} htmlFor="name">Your name</label>
+      <p className="text-lg font-extrabold tracking-tight text-ink">What do you need?</p>
+      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="What do you need?">
+        {chips.map((c) => (
+          <button key={c} type="button" aria-pressed={chip === c} onClick={() => setChip(chip === c ? "" : c)}
+            className={"min-h-11 rounded-full border-2 px-4 text-sm font-bold transition active:scale-95 " + (chip === c ? "border-yebo bg-yebo text-white" : "border-ink/15 bg-white text-ink hover:border-yebo")}>
+            {c}
+          </button>
+        ))}
+      </div>
+
+      <label className={label} htmlFor="name">Your name</label>
       <input id="name" name="name" required maxLength={80} autoComplete="name" className={field} />
 
       <label className={label} htmlFor="whatsapp">WhatsApp number</label>
       <input id="whatsapp" name="whatsapp" type="tel" inputMode="tel" autoComplete="tel" maxLength={30} placeholder="082 123 4567" className={field} />
 
-      <label className={label} htmlFor="email">Email <span className="font-normal text-ink/50">(optional)</span></label>
-      <input id="email" name="email" type="email" inputMode="email" autoComplete="email" maxLength={120} className={field} />
-
-      <label className={label} htmlFor="location">Where is the job? <span className="font-normal text-ink/50">(suburb or town)</span></label>
+      <label className={label} htmlFor="location">Which suburb?</label>
       <input id="location" name="location" maxLength={100} className={field} />
 
-      <label className={label} htmlFor="details">What do you need done?</label>
-      <textarea id="details" name="details" required minLength={8} maxLength={1500} rows={5} placeholder="For example: replace a leaking geyser, about 150 litres, in the garage." className={field} />
-
+      <details className="mt-5 rounded-2xl bg-yebo-chalk p-4 open:pb-5">
+        <summary className="cursor-pointer text-sm font-bold text-ink">Add more detail <span className="font-normal text-ink/55">(optional, helps you get a better quote)</span></summary>
+        <label className={label} htmlFor="more">Tell us more</label>
+        <textarea id="more" name="more" maxLength={1400} rows={4} placeholder="For example: the bedroom door drags on the floor and the hinge screws are loose." className={field} />
+        <label className={label} htmlFor="email">Email</label>
+        <input id="email" name="email" type="email" inputMode="email" autoComplete="email" maxLength={120} className={field} />
       <label className={label} htmlFor="preferred_date">When would you like it done? <span className="font-normal text-ink/50">(optional)</span></label>
       <input id="preferred_date" name="preferred_date" type="date" min={today} className={field} />
 
@@ -127,6 +141,7 @@ export default function JobForm({ slug, areaName }: { slug: string; areaName: st
         </>
       )}
       {note && <p className="mt-2 text-xs text-ink/60">{note}</p>}
+      </details>
 
       {/* A hidden field only bots fill in. */}
       <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
@@ -140,9 +155,9 @@ export default function JobForm({ slug, areaName }: { slug: string; areaName: st
         type="submit"
         disabled={pending}
         style={{ backgroundColor: color }}
-        className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-2xl px-5 text-base font-extrabold text-white transition hover:brightness-95 disabled:cursor-wait disabled:opacity-60"
+        className="tap mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-2xl px-5 text-base font-extrabold text-white transition hover:brightness-95 disabled:cursor-wait disabled:opacity-60"
       >
-        {pending ? (photos.length ? "Sending photos…" : "Sending…") : "Get quotes"}
+        {pending ? (photos.length ? "Sending photos…" : "Sending…") : "Get my free quotes"}
       </button>
       <p className="mt-3 text-center text-xs leading-5 text-ink/50">Free to ask. Your details go only to the carpenters who get this job.</p>
     </form>

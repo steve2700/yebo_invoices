@@ -2,9 +2,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { submitRequest, type SubmitResult } from "@/lib/submit-request";
 import { cleanRequest } from "@/lib/requests";
 import { pageBySlug } from "@/lib/opportunities";
+import { loadPros } from "@/lib/opp-pros";
 
 // A homeowner on a public /jobs page asks for quotes. The job is sent, as a normal quote request, to up to 3 businesses that
-// opted in for this trade and area (the one who has waited longest first). Each owner gets the usual email and one-tap quote.
+// opted in for this trade and area: the top 3 by the open ranking in opp-rank.ts. Each owner gets the usual email and one-tap quote.
 export async function submitOpportunity(slug: string, form: FormData): Promise<SubmitResult & { matched?: number }> {
   const page = pageBySlug(slug);
   if (!page) return { ok: false, error: "This page is not valid." };
@@ -18,10 +19,7 @@ export async function submitOpportunity(slug: string, form: FormData): Promise<S
   const { count } = await admin.from("opportunity_jobs").select("id", { count: "exact", head: true }).gte("created_at", hourAgo);
   if ((count ?? 0) >= 40) return { ok: false, error: "We are getting a lot of requests right now. Please try again in a little while." };
 
-  const { data: found, error } = await admin.from("businesses").select("id,request_token")
-    .eq("opp_enabled", true).contains("opp_trades", [page.trade]).contains("opp_areas", [page.area])
-    .order("opp_last_at", { ascending: true, nullsFirst: true }).limit(3);
-  if (error) { console.error("[opportunity] match failed:", error.message); return { ok: false, error: "Something went wrong. Please try again in a minute." }; }
+  const found = (await loadPros(page.trade, page.area, 3)).map((x) => ({ id: x.id, request_token: x.token }));
   if (!found?.length) return { ok: false, error: `We do not have a carpenter signed up for ${page.areaName} yet, so nothing was sent. Please try again soon.` };
 
   form.set("source", `yebo-${page.tag}`.slice(0, 30));

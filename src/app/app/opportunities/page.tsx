@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AREAS, TRADES } from "@/lib/opportunities";
 import { formatSouthAfricaDateTime } from "@/lib/time";
+import { profileScore } from "@/lib/opp-rank";
 import { saveOpportunities } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +13,14 @@ const box = "flex min-h-11 items-center gap-3 rounded-2xl bg-white px-4 text-bas
 export default async function Opportunities({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
   const { e } = await searchParams;
   const sb = await createClient();
-  const { data: business, error } = await sb.from("businesses").select("opp_enabled,opp_trades,opp_areas").maybeSingle();
+  const { data: business, error } = await sb.from("businesses").select("opp_enabled,opp_trades,opp_areas,logo_url,phone,about,year_started,work_photos,google_reviews_url,reviews").maybeSingle();
   if (!business && !error) redirect("/app/onboarding");
   const { data: jobs } = await sb.from("quote_requests").select("id,created_at,name,location,source").like("source", "yebo-%").order("created_at", { ascending: false }).limit(10);
+  const since = new Date(Date.now() - 30 * 86400000).toISOString();
+  const { data: taps } = await sb.from("opportunity_clicks").select("kind").gte("created_at", since);
+  const calls = (taps ?? []).filter((t) => t.kind === "call").length;
+  const whats = (taps ?? []).filter((t) => t.kind === "whatsapp").length;
+  const prof = profileScore({ ...(business ?? {}), jobs30: 0, handled30: 0 });
   const trades: string[] = business?.opp_trades ?? [];
   const areas: string[] = business?.opp_areas ?? [];
 
@@ -35,6 +41,19 @@ export default async function Opportunities({ searchParams }: { searchParams: Pr
         {e === "off" && <p role="status" className="rounded-2xl bg-yebo-chalk p-4 text-sm font-bold text-yebo-deep">Switched off. You will not get new local jobs.</p>}
         {e === "pick" && <p role="alert" className="rounded-2xl bg-orange/10 p-4 text-sm">Pick at least one trade and one area, then save.</p>}
         {e === "save" && <p role="alert" className="rounded-2xl bg-orange/10 p-4 text-sm">Could not save that. Please try again.</p>}
+
+        <section className="grid grid-cols-3 gap-3 text-center" aria-label="Last 30 days">
+          {[["Jobs sent to you", String(jobs?.length ?? 0)], ["Taps on Call now", String(calls)], ["Taps on WhatsApp now", String(whats)]].map(([l, v]) => (
+            <div key={l} className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-3xl font-extrabold">{v}</p><p className="mt-1 text-xs font-bold text-ink/55">{l}</p></div>
+          ))}
+        </section>
+
+        <section className="rounded-3xl bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-extrabold">Your profile on the local pages: {prof.score} of 40</h2>
+          <p className="mt-1 text-sm leading-6 text-ink/60">Your business name, logo, phone, about line and work photos show on the pages, with Call now and WhatsApp now buttons. A fuller profile ranks higher.</p>
+          {prof.missing.length > 0 ? <p className="mt-2 text-sm font-bold">Add: {prof.missing.join(", ")}. <Link href="/app/settings" className="underline">Open Settings</Link></p> : <p className="mt-2 text-sm font-bold text-yebo-deep">Your profile is complete.</p>}
+          <p className="mt-2 text-xs text-ink/50">Ranking: profile up to 40, replies to local jobs up to 40, a fair turn up to 20. Replying fast to the jobs you get is the biggest lever.</p>
+        </section>
 
         <form action={saveOpportunities} className="flex flex-col gap-5 rounded-3xl bg-yebo-chalk p-5">
           <label className={box}><input type="checkbox" name="enabled" defaultChecked={business?.opp_enabled ?? false} className="size-5" /> Send me local jobs</label>
