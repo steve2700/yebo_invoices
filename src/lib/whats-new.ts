@@ -4,6 +4,14 @@ export type NewsItem = { id: string; date: string; title: string; text: string; 
 
 export const NEWS: NewsItem[] = [
   {
+    id: "opportunities-2026-11",
+    date: "2026-11-04",
+    title: "New: local jobs, sent to you",
+    text: "Still rolling out. Homeowners now ask for quotes on Yebo's local pages. Switch Opportunities on, pick your trade and areas, and jobs land in your Quote requests.",
+    href: "/app/opportunities",
+    cta: "Switch it on",
+  },
+  {
     id: "on-the-way-2026-11",
     date: "2026-11-02",
     title: "New: tell your client you are on the way",

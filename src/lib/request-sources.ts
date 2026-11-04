@@ -46,6 +46,7 @@ export function cleanSource(raw: unknown): string {
 
 export function sourceLabel(key: string | null | undefined): string {
   if (!key) return "Direct link";
+  if (key.startsWith("yebo-")) return "Yebo Opportunities: " + key.slice(5).replace(/-/g, " ");
   const known = LABELS.get(key);
   if (known) return known;
   return key.replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase());
