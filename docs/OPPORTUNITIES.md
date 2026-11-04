@@ -307,3 +307,5 @@ As of 3 November 2026. Facts about rivals come partly from rivals' own marketing
 - [Plan a Job pricing](https://planajob.com/za/pricing)
 - [Procompare survey of clients and professionals, Oct to Nov 2022](https://www.procompare.co.za/articles/for-customers/survey-client-challenges)
 - [Near a Builder gains traction (ITWeb Africa, 2013)](https://itweb.africa/article/south-african-startup-near-a-builder-gains-traction/kYbe97XxBGe7AWpG)
+
+> **Built version:** see [OPPORTUNITIES-BUILT.md](./OPPORTUNITIES-BUILT.md) for how Yebo Opportunities works today, including the full ranking.
