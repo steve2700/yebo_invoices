@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AREAS, TRADES } from "@/lib/opportunities";
 import { formatSouthAfricaDateTime } from "@/lib/time";
 import { profileScore } from "@/lib/opp-rank";
-import { saveOpportunities } from "./actions";
+import { saveOpportunities, setOutcome } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -15,9 +15,11 @@ export default async function Opportunities({ searchParams }: { searchParams: Pr
   const sb = await createClient();
   const { data: business, error } = await sb.from("businesses").select("opp_enabled,opp_trades,opp_areas,logo_url,phone,about,year_started,work_photos,google_reviews_url,reviews").maybeSingle();
   if (!business && !error) redirect("/app/onboarding");
-  const { data: jobs } = await sb.from("quote_requests").select("id,created_at,name,location,source").like("source", "yebo-%").order("created_at", { ascending: false }).limit(10);
+  const { data: jobs } = await sb.from("quote_requests").select("id,created_at,name,location,source,outcome,status").like("source", "yebo-%").order("created_at", { ascending: false }).limit(30);
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
   const { data: taps } = await sb.from("opportunity_clicks").select("kind").gte("created_at", since);
+  const ask = (jobs ?? []).filter((j) => !j.outcome && j.status !== "dismissed" && Date.now() - Date.parse(j.created_at) > 86400000).slice(0, 5);
+  const wins = (jobs ?? []).filter((j) => j.outcome === "won" && j.created_at >= since).length;
   const calls = (taps ?? []).filter((t) => t.kind === "call").length;
   const whats = (taps ?? []).filter((t) => t.kind === "whatsapp").length;
   const prof = profileScore({ ...(business ?? {}), jobs30: 0, handled30: 0 });
@@ -42,8 +44,8 @@ export default async function Opportunities({ searchParams }: { searchParams: Pr
         {e === "pick" && <p role="alert" className="rounded-2xl bg-orange/10 p-4 text-sm">Pick at least one trade and one area, then save.</p>}
         {e === "save" && <p role="alert" className="rounded-2xl bg-orange/10 p-4 text-sm">Could not save that. Please try again.</p>}
 
-        <section className="grid grid-cols-3 gap-3 text-center" aria-label="Last 30 days">
-          {[["Jobs sent to you", String(jobs?.length ?? 0)], ["Taps on Call now", String(calls)], ["Taps on WhatsApp now", String(whats)]].map(([l, v]) => (
+        <section className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4" aria-label="Last 30 days">
+          {[["Jobs sent to you", String((jobs ?? []).filter((j) => j.created_at >= since).length)], ["Jobs you won", String(wins)], ["Taps on Call now", String(calls)], ["Taps on WhatsApp now", String(whats)]].map(([l, v]) => (
             <div key={l} className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-3xl font-extrabold">{v}</p><p className="mt-1 text-xs font-bold text-ink/55">{l}</p></div>
           ))}
         </section>
@@ -52,7 +54,7 @@ export default async function Opportunities({ searchParams }: { searchParams: Pr
           <h2 className="text-lg font-extrabold">Your profile on the local pages: {prof.score} of 40</h2>
           <p className="mt-1 text-sm leading-6 text-ink/60">Your business name, logo, phone, about line and work photos show on the pages, with Call now and WhatsApp now buttons. A fuller profile ranks higher.</p>
           {prof.missing.length > 0 ? <p className="mt-2 text-sm font-bold">Add: {prof.missing.join(", ")}. <Link href="/app/settings" className="underline">Open Settings</Link></p> : <p className="mt-2 text-sm font-bold text-yebo-deep">Your profile is complete.</p>}
-          <p className="mt-2 text-xs text-ink/50">Ranking: profile up to 40, replies to local jobs up to 40, a fair turn up to 20. Replying fast to the jobs you get is the biggest lever.</p>
+          <p className="mt-2 text-xs text-ink/50">Ranking out of 100: profile up to 40, replying to local jobs and how fast up to 30, telling us how each job ended up to 15 (winning does not matter, answering does), a fair turn up to 15. Close scores take turns at the top.</p>
         </section>
 
         <form action={saveOpportunities} className="flex flex-col gap-5 rounded-3xl bg-yebo-chalk p-5">
@@ -72,11 +74,30 @@ export default async function Opportunities({ searchParams }: { searchParams: Pr
           <button type="submit" className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-yebo px-5 text-base font-extrabold text-white hover:brightness-95">Save</button>
         </form>
 
+        {ask.length > 0 && (
+          <section className="rounded-3xl bg-yebo-chalk p-5">
+            <h2 className="text-lg font-extrabold">Did you get these jobs?</h2>
+            <p className="mt-1 text-sm leading-6 text-ink/60">One tap each. It helps your ranking, and it helps us see whether Opportunities really brings you work.</p>
+            <ul className="mt-3 space-y-2">
+              {ask.map((j) => (
+                <li key={j.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 text-sm shadow-sm">
+                  <span><b>{j.name}</b>{j.location ? `, ${j.location}` : ""}<span className="block text-ink/55">{formatSouthAfricaDateTime(j.created_at)}</span></span>
+                  <form action={setOutcome} className="flex gap-2">
+                    <input type="hidden" name="id" value={j.id} />
+                    <button name="outcome" value="won" className="min-h-11 rounded-xl bg-yebo px-4 font-bold text-white">Yes, I got it</button>
+                    <button name="outcome" value="lost" className="min-h-11 rounded-xl bg-white px-4 font-bold ring-1 ring-ink/20">No</button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <section>
           <h2 className="text-lg font-extrabold">Latest local jobs</h2>
           {jobs?.length ? (
             <ul className="mt-3 space-y-2">
-              {jobs.map((j) => (
+              {jobs.slice(0, 10).map((j) => (
                 <li key={j.id} className="rounded-2xl bg-white p-4 text-sm shadow-sm">
                   <b>{j.name}</b>{j.location ? `, ${j.location}` : ""}
                   <span className="block text-ink/55">{formatSouthAfricaDateTime(j.created_at)}</span>

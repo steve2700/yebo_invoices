@@ -50,7 +50,9 @@ function Logo({ x, size }: { x: Pro; size: number }) {
 export default async function JobPage({ params }: { params: Promise<{ slug: string }> }) {
   const p = pageBySlug((await params).slug);
   if (!p) notFound();
-  const pros = await loadPros(p.trade, p.area, 3);
+  const ranked = await loadPros(p.trade, p.area, 12);
+  const pros = ranked.slice(0, 3);
+  const more = ranked.slice(3);
   const photos = photosFor(p);
   const hero = photos[0];
   const sameArea = PAGES.filter((o) => o.area === p.area && o.slug !== p.slug);
@@ -182,6 +184,24 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
               <p className="mt-3 text-xs leading-5 text-yebo-deep/55">Shown in the order explained under “How we choose”. Yebo&apos;s founder also runs a carpentry business that is listed here, ranked by the same rules.</p>
             </div>
 
+            {more.length > 0 && (
+              <div>
+                <h2 className="text-xl font-extrabold tracking-tight">More carpenters on Yebo in {p.areaName}</h2>
+                <p className="mt-1 text-sm text-yebo-deep/60">You can call or WhatsApp these directly. New requests from the form go to the first three.</p>
+                <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {more.map((x) => {
+                    const l = links(x);
+                    return (
+                      <li key={x.id} className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-ink/5">
+                        <div className="flex items-center gap-3"><Logo x={x} size={44} /><div className="min-w-0"><p className="truncate font-extrabold">{x.name}</p><p className="text-xs text-yebo-deep/60">{x.since ? `Since ${x.since}` : "Carpenter"} · {p.areaName}</p></div></div>
+                        <ProActions id={x.id} page={p.slug} tel={l.tel} wa={l.wa} color={x.color} />
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
             {photos.length > 0 && (
               <div>
                 <h2 className={h2}>Real work, real kitchens, real doors</h2>
@@ -244,7 +264,7 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
 
             <div>
               <h2 className="text-xl font-extrabold tracking-tight">How we choose who you see</h2>
-              <p className="mt-2 text-base leading-7 text-yebo-deep/70">Carpenters are ranked out of 100: up to 40 for a complete profile (logo, phone, about, work photos, reviews), up to 40 for how many local jobs they actually reply to, and up to 20 so everyone gets a turn. We do not sell the top spot, and carpenters do not pay per lead.</p>
+              <p className="mt-2 text-base leading-7 text-yebo-deep/70">Carpenters are ranked out of 100: up to 40 for a complete profile (logo, phone, about, work photos, reviews), up to 30 for replying to local jobs and how fast, up to 15 for telling us how each job ended (winning does not matter, answering does), and up to 15 so everyone gets a turn. Carpenters with close scores take turns at the top. We do not sell the top spot, and carpenters do not pay per lead.</p>
               <h3 className="mt-6 text-base font-extrabold">{sameArea.length ? `More in ${p.areaName}` : "More local pages"}</h3>
               <ul className="mt-2 flex flex-wrap gap-2">
                 {[...sameArea, ...nearby].slice(0, 8).map((o) => <li key={o.slug}><Link href={`/jobs/${o.slug}`} className="inline-flex min-h-11 items-center rounded-full bg-yebo-chalk px-4 text-sm font-bold hover:underline">{o.h1}</Link></li>)}

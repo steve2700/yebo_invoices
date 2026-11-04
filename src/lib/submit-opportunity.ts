@@ -19,7 +19,7 @@ export async function submitOpportunity(slug: string, form: FormData): Promise<S
   const { count } = await admin.from("opportunity_jobs").select("id", { count: "exact", head: true }).gte("created_at", hourAgo);
   if ((count ?? 0) >= 40) return { ok: false, error: "We are getting a lot of requests right now. Please try again in a little while." };
 
-  const found = (await loadPros(page.trade, page.area, 3)).map((x) => ({ id: x.id, request_token: x.token }));
+  const found = (await loadPros(page.trade, page.area, 12)).slice(0, 3).map((x) => ({ id: x.id, request_token: x.token }));
   if (!found?.length) return { ok: false, error: `We do not have a carpenter signed up for ${page.areaName} yet, so nothing was sent. Please try again soon.` };
 
   form.set("source", `yebo-${page.tag}`.slice(0, 30));

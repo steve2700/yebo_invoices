@@ -17,3 +17,13 @@ export async function saveOpportunities(formData: FormData) {
   revalidatePath("/app/opportunities");
   redirect(`/app/opportunities?e=${on ? "on" : formData.get("enabled") === "on" ? "pick" : "off"}`);
 }
+
+// "Did you get this job?" Only the owner's own Yebo job can be marked. Winning does not change the ranking, answering does.
+export async function setOutcome(formData: FormData) {
+  const id = formData.get("id");
+  const outcome = formData.get("outcome");
+  if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id) || (outcome !== "won" && outcome !== "lost")) return;
+  const sb = await createClient();
+  await sb.from("quote_requests").update({ outcome, outcome_at: new Date().toISOString() }).eq("id", id).like("source", "yebo-%");
+  revalidatePath("/app/opportunities");
+}
