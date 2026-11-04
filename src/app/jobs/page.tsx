@@ -25,6 +25,10 @@ export default function Jobs() {
             </li>
           ))}
         </ul>
+        <div className="mt-12 grid gap-4 sm:grid-cols-2">
+          <div className="rounded-3xl bg-yebo-chalk p-6"><h2 className="text-xl font-extrabold tracking-tight">Not pay per lead</h2><p className="mt-2 text-base leading-7 text-yebo-deep/75">Carpenters on Yebo do not buy your details, and Yebo does not sell them. You can call a carpenter directly or send one request to up to 3 of them. It is free to ask.</p></div>
+          <div className="rounded-3xl bg-yebo-chalk p-6"><h2 className="text-xl font-extrabold tracking-tight">Opening area by area</h2><p className="mt-2 text-base leading-7 text-yebo-deep/75">Yebo Opportunities is new. We are opening one trade and one area at a time, starting with carpenters in Gauteng, so every request has someone ready to reply. Other trades will follow.</p></div>
+        </div>
         <p className="mt-10 text-base text-yebo-deep/70">Are you a carpenter? Yebo Opportunities sends local jobs to the businesses that use Yebo. <Link href="/login" className="font-bold underline">Sign in</Link> and open Opportunities to switch it on.</p>
       </section>
     </InfoPage>

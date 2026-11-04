@@ -19,6 +19,7 @@ export default function LandingFooter() {
             <Link key={g.slug} className={link} href={`/features/${g.slug}`}>{g.name}</Link>
           ))}
           <Link className={link} href="/tenders">Tenders</Link>
+          <Link className={link} href="/jobs">Local carpenters</Link>
         </nav>
         <nav aria-label="Company" className="flex flex-col">
           <p className="font-bold text-yebo-deep">Yebo</p>
