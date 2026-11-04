@@ -22,7 +22,7 @@ export default async function Opportunities({ searchParams }: { searchParams: Pr
   const wins = (jobs ?? []).filter((j) => j.outcome === "won" && j.created_at >= since).length;
   const calls = (taps ?? []).filter((t) => t.kind === "call").length;
   const whats = (taps ?? []).filter((t) => t.kind === "whatsapp").length;
-  const prof = profileScore({ ...(business ?? {}), jobs30: 0, handled30: 0 });
+  const prof = profileScore({ ...(business ?? {}) });
   const trades: string[] = business?.opp_trades ?? [];
   const areas: string[] = business?.opp_areas ?? [];
 
