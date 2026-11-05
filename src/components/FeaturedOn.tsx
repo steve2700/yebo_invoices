@@ -4,6 +4,8 @@
 type Badge = { href: string; src: string; alt: string; title?: string; extra?: Record<string, string> };
 
 const BADGES: Badge[] = [
+  { href: "https://startupbenchmarks.com/product/yeboinvoices", src: "https://startupbenchmarks.com/assets/images/badge.png", alt: "Yebo Invoices on Startup Benchmarks" },
+  { href: "https://trustiner.com/product/yeboinvoices", src: "https://trustiner.com/assets/images/badge.png", alt: "Yebo Invoices on Trustiner" },
   { href: "https://startupfa.me/s/yebo?utm_source=www.yeboinvoices.com", src: "https://startupfa.me/badges/featured-badge-small.webp", alt: "Yebo Invoices - Featured on Startup Fame" },
   { href: "https://www.claudeai.directory/launches/yebo-invoices", src: "https://www.claudeai.directory/badge/yebo-invoices", alt: "Yebo Invoices - Listed on Claude AI Directory" },
   { href: "https://www.neura.market/directories/ai-tools", src: "https://ykpiumpcqlgqzgslxicn.supabase.co/storage/v1/object/public/brand-assets/featured-badge.png", alt: "Featured on Neura Market", title: "Featured on Neura Market — the AI tools & companies directory", extra: { "data-neura-market-badge": "tool" } },
