@@ -4,6 +4,7 @@
 type Badge = { href: string; src: string; alt: string; title?: string; extra?: Record<string, string> };
 
 const BADGES: Badge[] = [
+  { href: "https://unitelist.com/product/yeboinvoices", src: "https://unitelist.com/assets/images/badge.png", alt: "Yebo Invoices on Unite List" },
   { href: "https://startupfa.st", src: "https://startupfa.st/images/badges/powered-by-light.svg", alt: "Yebo Invoices - Powered by Startup Fast", title: "Powered by Startup Fast" },
   { href: "https://www.tools.rodeo/?ref=yeboinvoices.com", src: "https://www.tools.rodeo/badge/tools-rodeo-badge-dark-33368f08.svg", alt: "Featured on Tools Rodeo", title: "Featured on Tools Rodeo" },
   { href: "https://lift-off.sh/p/yebo-invoices", src: "https://lift-off.sh/images/badges/badgeLaunchedLight.webp", alt: "Yebo Invoices on LiftOff", title: "LiftOff launch badge" },
