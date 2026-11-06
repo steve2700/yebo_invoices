@@ -4,8 +4,8 @@
 type Badge = { href: string; src: string; alt: string; title?: string; extra?: Record<string, string> };
 
 const BADGES: Badge[] = [
+  { href: "https://lift-off.sh/p/yebo-invoices", src: "https://lift-off.sh/images/badges/badgeLaunchedLight.webp", alt: "Yebo Invoices on LiftOff", title: "LiftOff launch badge" },
   { href: "https://productwing.com/product/yeboinvoices", src: "https://productwing.com/assets/images/badge.png", alt: "Yebo Invoices on Product Wing" },
-  { href: "https://smollaunch.com", src: "https://smollaunch.com/badges/featured.svg", alt: "Yebo Invoices - Featured on Smol Launch" },
   { href: "https://startupbenchmarks.com/product/yeboinvoices", src: "https://startupbenchmarks.com/assets/images/badge.png", alt: "Yebo Invoices on Startup Benchmarks" },
   { href: "https://trustiner.com/product/yeboinvoices", src: "https://trustiner.com/assets/images/badge.png", alt: "Yebo Invoices on Trustiner" },
   { href: "https://startupfa.me/s/yebo?utm_source=www.yeboinvoices.com", src: "https://startupfa.me/badges/featured-badge-small.webp", alt: "Yebo Invoices - Featured on Startup Fame" },
