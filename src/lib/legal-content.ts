@@ -35,7 +35,7 @@ export const privacyPolicy: LegalDocument = {
   title: "Your information, handled with care.",
   description:
     "This notice explains what Yebo Invoices handles when you create business documents, share them with clients, take payments, or use AI-assisted drafting.",
-  updated: "12 October 2026",
+  updated: "10 November 2026",
   sections: [
     {
       id: "scope",
@@ -57,7 +57,7 @@ export const privacyPolicy: LegalDocument = {
         "Client and document information, such as client names, phone or WhatsApp numbers, email addresses and addresses; job descriptions and locations; quote and invoice line items, prices, tax, dates, payment terms, notes, and document status or response events.",
         "Information you choose to submit to AI features, including typed work details and voice recordings. A voice recording is transcribed to return an editable quote draft.",
         "Payment information: if you connect PayFast, we store your PayFast merchant details securely on our server. When a client pays an invoice through PayFast, we receive the status, amount and PayFast reference of the payment. We do not receive or store card numbers.",
-        "Subscription information: your plan, its status and billing dates. Card or bank details for your Yebo subscription are handled by PayFast, not stored by Yebo.",
+        "Subscription information: your plan, its status and billing dates. Card details for your Yebo subscription are handled by our payment provider, Paystack, and are not stored by Yebo.",
         "Targets and progress: the monthly money and quote targets you set, which are used to show your progress.",
         "Basic technical and security information that hosting, authentication, and other service providers may process to deliver and protect the website, such as request timestamps, browser information, and network information.",
       ],
@@ -106,7 +106,7 @@ export const privacyPolicy: LegalDocument = {
       id: "service-providers",
       title: "Service providers and other disclosures",
       paragraphs: [
-        "We use third-party providers to run Yebo and deliver features. Based on the current service, these include Supabase for authentication, database, and logo storage; Vercel for hosting; Groq for AI requests; Resend to deliver emails and attached PDFs; and PayFast to process online payments and subscription payments.",
+        "We use third-party providers to run Yebo and deliver features. Based on the current service, these include Supabase for authentication, database, and logo storage; Vercel for hosting; Groq for AI requests; Resend to deliver emails and attached PDFs; PayFast to process the online invoice payments of contractors who connect their own PayFast account, and Paystack to process Yebo subscription payments.",
         "WhatsApp buttons in Yebo only open WhatsApp on your own device with a message already written. Yebo does not send WhatsApp messages on your behalf. WhatsApp's own terms and privacy notice apply to anything you send there.",
         "We may also disclose information when needed to comply with law, respond to valid legal requests, protect users and the service, or transfer the service as part of a business reorganisation. We do not sell personal information for advertising.",
       ],
@@ -171,7 +171,7 @@ export const termsOfService: LegalDocument = {
   title: "Good work starts with clear terms.",
   description:
     "These terms cover your use of Yebo Invoices, from preparing a quote to sharing a finished invoice with a client.",
-  updated: "12 October 2026",
+  updated: "10 November 2026",
   sections: [
     {
       id: "agreement",
@@ -266,10 +266,10 @@ export const termsOfService: LegalDocument = {
       title: "Fees and subscriptions",
       paragraphs: [
         `Yebo has three paid plans: ${planSummary}. Each plan has monthly limits on quotes, invoices and voice quotes, shown on the pricing page. Plans described as unlimited are subject to fair use, which currently means up to ${FAIR_USE.documentsPerMonth} documents and ${FAIR_USE.voicePerMonth} voice quotes a month. Features marked "coming soon" are not part of a plan until they are released.`,
-        "The price is shown before you subscribe. It is billed monthly in advance through PayFast and renews automatically each month until you cancel. You can change plan at any time. When you switch, your new plan starts when your payment for it is received.",
+        "The price is shown before you subscribe. It is billed monthly in advance through our payment provider, Paystack, and renews automatically each month until you cancel. You can change plan at any time. When you switch, your new plan starts when your payment for it is received.",
         "You can cancel at any time in Settings. After you cancel, you keep access until the end of the month you have already paid for, and you will not be charged again. We do not refund part-months unless the law requires it.",
         "If a payment fails, we may limit your ability to create new documents until it is sorted out. Your clients can still view and pay documents you have already sent, and you can still see and download your information.",
-        "We will give you at least 30 days' notice before a price change takes effect for you. Payments are also subject to PayFast's terms.",
+        "We will give you at least 30 days' notice before a price change takes effect for you. Subscription payments are also subject to Paystack's terms.",
       ],
     },
     {
