@@ -6,11 +6,12 @@ type Props = {
   mode: "landing" | "subscribe";
   currentPlan?: PlanId | null;
   onboarding?: boolean;
+  renewable?: boolean; // their own plan is cancelled or failed: let them pay again
 };
 
 // The three plans side by side. On the landing page the buttons lead to sign-in. On the subscribe step they start checkout.
 // Only the recommended plan gets a filled button, so there is one obvious choice.
-export default function PlanGrid({ mode, currentPlan = null, onboarding = false }: Props) {
+export default function PlanGrid({ mode, currentPlan = null, onboarding = false, renewable = false }: Props) {
   return (
     <div className="grid gap-5 lg:grid-cols-3 lg:items-stretch">
       {PLAN_ORDER.map((id) => {
@@ -62,7 +63,7 @@ export default function PlanGrid({ mode, currentPlan = null, onboarding = false 
                 <Link href="/login" className={`inline-flex min-h-12 w-full items-center justify-center rounded-md px-6 py-3 text-sm font-bold transition ${btn}`}>
                   Get {plan.name}
                 </Link>
-              ) : isCurrent ? (
+              ) : isCurrent && !renewable ? (
                 <p className="rounded-md bg-yebo-chalk px-6 py-3 text-center text-sm font-bold text-yebo-deep">Your current plan</p>
               ) : (
                 <form method="post" action="/app/subscribe/checkout">
@@ -72,7 +73,7 @@ export default function PlanGrid({ mode, currentPlan = null, onboarding = false 
                     pendingLabel="Taking you to secure payment…"
                     className={`inline-flex min-h-12 w-full items-center justify-center rounded-md px-6 py-3 text-sm font-bold transition ${btn}`}
                   >
-                    {currentPlan ? `Switch to ${plan.name}` : `Subscribe for ${priceLabel(id)} a month`}
+                    {isCurrent ? `Keep ${plan.name} (${priceLabel(id)} a month)` : currentPlan ? `Switch to ${plan.name}` : `Subscribe for ${priceLabel(id)} a month`}
                   </SubmitButton>
                 </form>
               )}

@@ -266,7 +266,7 @@ export const termsOfService: LegalDocument = {
       title: "Fees and subscriptions",
       paragraphs: [
         `Yebo has three paid plans: ${planSummary}. Each plan has monthly limits on quotes, invoices and voice quotes, shown on the pricing page. Plans described as unlimited are subject to fair use, which currently means up to ${FAIR_USE.documentsPerMonth} documents and ${FAIR_USE.voicePerMonth} voice quotes a month. Features marked "coming soon" are not part of a plan until they are released.`,
-        "The price is shown before you subscribe. It is billed monthly in advance through our payment provider, Paystack, and renews automatically each month until you cancel. You can change plan at any time. When you switch, your new plan starts when your payment for it is received.",
+        "The price is shown before you subscribe. It is billed monthly in advance through our payment provider, Paystack, and renews automatically each month until you cancel. You can change plan at any time. When you switch, your new plan starts when your payment for it is received, and any days you have already paid for are added on top.",
         "You can cancel at any time in Settings. After you cancel, you keep access until the end of the month you have already paid for, and you will not be charged again. We do not refund part-months unless the law requires it.",
         "If a payment fails, we may limit your ability to create new documents until it is sorted out. Your clients can still view and pay documents you have already sent, and you can still see and download your information.",
         "We will give you at least 30 days' notice before a price change takes effect for you. Subscription payments are also subject to Paystack's terms.",

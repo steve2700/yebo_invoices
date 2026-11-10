@@ -50,7 +50,13 @@ export default async function BillingCard() {
           <div className="mt-6 flex flex-wrap items-start gap-3 border-t border-yebo-deep/10 pt-6">
             <Link href="/app/subscribe?change=1" className="inline-flex min-h-11 items-center rounded-xl bg-yebo px-5 text-sm font-extrabold text-white shadow-sm transition hover:bg-yebo-deep">Change plan</Link>
             {(status === "active" || status === "past_due") && <CancelPlanButton />}
+            {(status === "cancelled" || status === "past_due") && <Link href="/app/subscribe?change=1" className="inline-flex min-h-11 items-center rounded-xl border border-yebo/30 px-5 text-sm font-extrabold text-yebo-deep transition hover:bg-yebo-chalk">{status === "cancelled" ? "Keep my plan" : "Fix my payment"}</Link>}
           </div>
+          {status !== "comped" && (
+            <p className="mt-5 rounded-2xl bg-lime/25 p-4 text-sm leading-6 text-yebo-deep/80">
+              <b className="text-yebo-deep">Thank you for backing Yebo.</b> We hope it is saving you time. We keep measuring what helps and improving it, so if something is missing or slow, <Link href="/app/help" className="font-bold underline underline-offset-2">tell us</Link> and it goes on our list.
+            </p>
+          )}
         </>
       ) : (
         <>

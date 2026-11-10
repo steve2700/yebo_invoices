@@ -41,7 +41,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
       {banner && (
         <div role="status" className={`border-b px-4 py-2.5 text-center text-sm font-semibold ${banner.tone === "warn" ? "border-orange/30 bg-orange/10 text-yebo-deep" : "border-yebo/20 bg-lime/25 text-yebo-deep"}`}>
-          {banner.text} <Link href="/app/settings#billing" className="underline underline-offset-2">Manage plan</Link>
+          {banner.text}{" "}
+          {banner.cta && <Link href={banner.cta.href} className="mx-1 inline-flex rounded-full bg-yebo-deep px-3 py-1 text-xs font-extrabold text-white no-underline">{banner.cta.label}</Link>}
+          <Link href="/app/settings#billing" className="underline underline-offset-2">Manage plan</Link>
         </div>
       )}
       <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">

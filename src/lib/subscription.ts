@@ -1,7 +1,8 @@
+import { billingNoticeFor, type BillingNotice } from "@/lib/billing-notice";
 import { createClient } from "@/lib/supabase/server";
 import { billingEnforced, hasAccess, planOf, type SubscriptionRow } from "@/lib/access";
 import { FAIR_USE, PLANS, type Plan } from "@/lib/plans";
-import { formatSouthAfricaDateTime, southAfricaMonth } from "@/lib/time";
+import { southAfricaMonth } from "@/lib/time";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -92,15 +93,12 @@ export async function checkAiAccess(supabase: Supabase, needs?: "reminders"): Pr
 }
 
 // A short note shown at the top of the app when the plan needs attention.
-export async function billingBanner(): Promise<{ tone: "warn" | "info"; text: string } | null> {
+export async function billingBanner(): Promise<BillingNotice | null> {
   if (!billingEnforced()) return null;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
   const sub = await loadSubscription(supabase);
-  if (!sub || sub.status === "comped" || !hasAccess(sub)) return null;
-  const until = sub.current_period_end ? formatSouthAfricaDateTime(sub.current_period_end).split(",").slice(0, 2).join(",") : "";
-  if (sub.status === "cancelled") return { tone: "info", text: `Your plan is cancelled and stays active until ${until}. You will not be charged again.` };
-  if (sub.status === "past_due") return { tone: "warn", text: `Your last payment did not go through. Please check your card details so your plan stays active past ${until}.` };
-  return null;
+  if (!hasAccess(sub)) return null;
+  return billingNoticeFor(sub);
 }

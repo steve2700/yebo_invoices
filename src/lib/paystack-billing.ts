@@ -34,7 +34,7 @@ export async function recordPaystackCharge(admin: Admin, cfg: PaystackConfig, tx
   if (!businessId) return { ok: false, reason: "could not tell which business this payment is for", retry: true };
   const { data: business } = await admin.from("businesses").select("id,name,email,brand_color,owner_id").eq("id", businessId).maybeSingle();
   if (!business) return { ok: false, reason: "unknown business", retry: false };
-  const { data: existing } = await admin.from("subscriptions").select("status,plan,provider,pf_token,started_at").eq("business_id", businessId).maybeSingle();
+  const { data: existing } = await admin.from("subscriptions").select("status,plan,provider,pf_token,started_at,current_period_end").eq("business_id", businessId).maybeSingle();
 
   const { error: insertError } = await admin.from("subscription_payments").insert({ business_id: businessId, pf_payment_id: `ps_${tx.reference}`, plan: planId, amount_cents: tx.amountCents });
   const repeat = insertError?.code === "23505";
@@ -44,6 +44,18 @@ export async function recordPaystackCharge(admin: Admin, cfg: PaystackConfig, tx
   const periodEnd = new Date(now);
   periodEnd.setMonth(periodEnd.getMonth() + 1);
   periodEnd.setDate(periodEnd.getDate() + 3); // one month plus 3 spare days in case a renewal is a little late
+  // Our own checkout carries business_id in the metadata; a monthly renewal from Paystack does not.
+  // So this is a brand-new subscription (a plan switch, or paying again early): keep the days already paid for.
+  const carryOver = typeof tx.metadata.business_id === "string" && existing && existing.status !== "comped" && existing.current_period_end && new Date(existing.current_period_end) > now;
+  if (carryOver) {
+    if (repeat && existing.status === "active" && existing.plan === planId && existing.provider === "paystack") {
+      periodEnd.setTime(new Date(existing.current_period_end as string).getTime()); // already counted: do not add it twice
+    } else {
+      const base = new Date(existing.current_period_end as string);
+      base.setMonth(base.getMonth() + 1);
+      periodEnd.setTime(base.getTime());
+    }
+  }
   const { error: updateError } = await admin.from("subscriptions").upsert({
     business_id: businessId, status: "active", plan: planId, provider: "paystack",
     ps_customer_code: tx.customerCode, started_at: existing?.started_at ?? now.toISOString(),

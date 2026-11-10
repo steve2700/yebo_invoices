@@ -52,10 +52,16 @@ export default async function Subscribe({ searchParams }: { searchParams: Promis
 
       {reason && reasons[reason] && <p role="status" className="mt-6 max-w-3xl rounded-2xl border border-orange/30 bg-orange/10 p-4 text-sm font-semibold text-ink">{reasons[reason]}</p>}
       {testMode && <p role="note" className="mt-6 max-w-3xl rounded-2xl bg-lime/30 p-4 text-sm font-semibold text-ink">Test mode: payments here are practice only and no real money is taken.</p>}
+      {change && active && (
+        <div role="note" className="mt-6 max-w-3xl rounded-2xl bg-white p-4 text-sm leading-6 text-ink/75 ring-1 ring-black/5">
+          <p className="font-bold text-ink">How switching works</p>
+          <p className="mt-1">Pick a plan and pay for it today. Your old plan is stopped automatically, so you are never charged twice. The days you already paid for are added on top, so nothing is wasted. Going down to a smaller plan works the same way.</p>
+        </div>
+      )}
       {!paymentsReady && <p role="alert" className="mt-6 max-w-3xl rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">Subscriptions are not switched on yet. Please check back soon.</p>}
 
       <div className="mt-10">
-        <PlanGrid mode="subscribe" currentPlan={active ? planOf(sub) : null} onboarding={Boolean(onboarding)} />
+        <PlanGrid mode="subscribe" currentPlan={active ? planOf(sub) : null} onboarding={Boolean(onboarding)} renewable={sub?.status === "cancelled" || sub?.status === "past_due"} />
       </div>
 
       <p className="mt-8 max-w-3xl text-xs leading-6 text-ink/50">
