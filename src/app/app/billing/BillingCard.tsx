@@ -39,7 +39,7 @@ export default async function BillingCard() {
         <>
           <h2 className="mt-2 text-xl font-black">{ent.plan.name} <span className="text-sm font-semibold text-yebo-deep/50">{status === "comped" ? "· free access" : `· ${priceLabel(ent.plan.id)} a month`}</span></h2>
           <p className="mt-1 text-sm text-yebo-deep/60">
-            {status === "cancelled" ? `Cancelled. You keep access until ${until}. You will not be charged again.` : status === "past_due" ? `Your last payment did not go through. Please check your PayFast details so your plan stays active past ${until}.` : status === "comped" ? "Your account has free access." : until ? `Active. Your plan is paid up to about ${until}.` : "Active."}
+            {status === "cancelled" ? `Cancelled. You keep access until ${until}. You will not be charged again.` : status === "past_due" ? `Your last payment did not go through. Please check your card details so your plan stays active past ${until}.` : status === "comped" ? "Your account has free access." : until ? `Active. Your plan is paid up to about ${until}.` : "Active."}
           </p>
           {usage && (
             <div className="mt-6 grid gap-5 sm:grid-cols-2">

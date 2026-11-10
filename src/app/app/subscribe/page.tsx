@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasAccess, planOf } from "@/lib/access";
 import { loadSubscription } from "@/lib/subscription";
 import { yeboPayfast } from "@/lib/billing-config";
+import { paystackConfig } from "@/lib/paystack";
 import PlanGrid from "@/components/PlanGrid";
 
 const reasons: Record<string, string> = {
@@ -24,8 +25,9 @@ export default async function Subscribe({ searchParams }: { searchParams: Promis
   // Someone who is already paid up only sees this page when they choose to change plan.
   if (active && !change && !reason) redirect(onboarding ? "/app/onboarding/welcome" : "/app");
 
-  const testMode = yeboPayfast()?.sandbox ?? false;
-  const paymentsReady = Boolean(yeboPayfast());
+  const ps = paystackConfig();
+  const testMode = ps ? ps.test : (yeboPayfast()?.sandbox ?? false);
+  const paymentsReady = Boolean(ps || yeboPayfast());
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
@@ -45,7 +47,7 @@ export default async function Subscribe({ searchParams }: { searchParams: Promis
       <header className="fade-up max-w-3xl">
         <p className="text-xs font-extrabold uppercase tracking-[.2em] text-yebo">Choose your plan</p>
         <h1 className="mt-3 text-4xl font-black leading-[1.02] tracking-[-.05em] text-ink sm:text-5xl">Pick the one that matches your business.</h1>
-        <p className="mt-4 text-base leading-7 text-ink/65">Pay monthly. Cancel any time, and you keep access until the end of the month you have paid for. You pay securely on PayFast, and Yebo never sees your card details.</p>
+        <p className="mt-4 text-base leading-7 text-ink/65">Pay monthly. Cancel any time, and you keep access until the end of the month you have paid for. You pay securely through our payment partner, and Yebo never sees your card details.</p>
       </header>
 
       {reason && reasons[reason] && <p role="status" className="mt-6 max-w-3xl rounded-2xl border border-orange/30 bg-orange/10 p-4 text-sm font-semibold text-ink">{reasons[reason]}</p>}

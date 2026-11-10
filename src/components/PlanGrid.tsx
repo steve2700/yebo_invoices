@@ -69,7 +69,7 @@ export default function PlanGrid({ mode, currentPlan = null, onboarding = false 
                   <input type="hidden" name="plan" value={id} />
                   {onboarding && <input type="hidden" name="onboarding" value="1" />}
                   <SubmitButton
-                    pendingLabel="Taking you to PayFast…"
+                    pendingLabel="Taking you to secure payment…"
                     className={`inline-flex min-h-12 w-full items-center justify-center rounded-md px-6 py-3 text-sm font-bold transition ${btn}`}
                   >
                     {currentPlan ? `Switch to ${plan.name}` : `Subscribe for ${priceLabel(id)} a month`}

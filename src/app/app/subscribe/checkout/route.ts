@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/url";
 import { yeboPayfast, addOneMonth } from "@/lib/billing-config";
+import { paystackConfig, initializePaystack } from "@/lib/paystack";
 import { buildPayfastSubscriptionCheckout } from "@/lib/payfast";
 import { PLANS, isPlanId } from "@/lib/plans";
 import { southAfricaDate } from "@/lib/time";
@@ -23,6 +24,20 @@ export async function POST(request: Request) {
   if (!user) return messagePage("Please sign in", "Sign in again to choose your plan.", 401, "/login", "Sign in");
   const { data: business } = await supabase.from("businesses").select("id").maybeSingle();
   if (!business) return messagePage("Set up your business first", "We need your business details before you choose a plan.", 409, "/app/onboarding", "Set up my business");
+
+  const ps = paystackConfig();
+  if (ps) {
+    const chosen = PLANS[planId];
+    if (!user.email) return messagePage("We need your email", "Your account has no email address, so we cannot start the payment.", 409, back, "Back to the plans");
+    const reference = `yebo_${business.id.replace(/-/g, "")}_${Date.now()}`;
+    const url = await initializePaystack(ps, {
+      email: user.email, planCode: ps.plans[planId], amountCents: chosen.priceRand * 100, reference,
+      callbackUrl: `${appUrl()}/app/subscribe/done`,
+      metadata: { business_id: business.id, plan: planId, onboarding: onboarding ? "1" : "0" },
+    });
+    if (!url) return messagePage("We could not start your payment", "Something went wrong on our side. Nothing was charged. Please try again in a minute.", 503, back, "Back to the plans");
+    return Response.redirect(url, 303);
+  }
 
   const creds = yeboPayfast();
   if (!creds) {

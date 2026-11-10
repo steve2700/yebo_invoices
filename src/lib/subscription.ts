@@ -101,6 +101,6 @@ export async function billingBanner(): Promise<{ tone: "warn" | "info"; text: st
   if (!sub || sub.status === "comped" || !hasAccess(sub)) return null;
   const until = sub.current_period_end ? formatSouthAfricaDateTime(sub.current_period_end).split(",").slice(0, 2).join(",") : "";
   if (sub.status === "cancelled") return { tone: "info", text: `Your plan is cancelled and stays active until ${until}. You will not be charged again.` };
-  if (sub.status === "past_due") return { tone: "warn", text: `Your last payment did not go through. Please check your PayFast details so your plan stays active past ${until}.` };
+  if (sub.status === "past_due") return { tone: "warn", text: `Your last payment did not go through. Please check your card details so your plan stays active past ${until}.` };
   return null;
 }
