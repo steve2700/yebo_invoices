@@ -25,5 +25,8 @@ export function billingNoticeFor(sub: SubscriptionRow | null | undefined, now: D
     }
     return { tone: "info", text: `Your plan is cancelled and stays active until ${until}. You will not be charged again.`, cta: { label: "Keep my plan", href: "/app/subscribe?change=1" } };
   }
+  if (sub.provider === "eft" && sub.status === "active" && days <= 5) {
+    return { tone: "warn", text: `Your plan ends ${inDays} (${until}). You pay by EFT, so please pay again to carry on without a break.`, cta: { label: "Pay for next month", href: "/app/subscribe?change=1" } };
+  }
   return null;
 }

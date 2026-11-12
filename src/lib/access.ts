@@ -8,6 +8,7 @@ export type SubscriptionRow = {
   current_period_end: string | null;
   pf_token?: string | null;
   cancelled_at?: string | null;
+  provider?: string | null;
 };
 
 export const billingEnforced = () => process.env.BILLING_ENFORCED === "true";

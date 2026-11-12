@@ -18,7 +18,7 @@ export type Entitlement = {
 };
 
 export async function loadSubscription(supabase: Supabase): Promise<SubscriptionRow | null> {
-  const { data } = await supabase.from("subscriptions").select("status,plan,current_period_end,pf_token,cancelled_at").maybeSingle();
+  const { data } = await supabase.from("subscriptions").select("status,plan,current_period_end,pf_token,cancelled_at,provider").maybeSingle();
   return (data as SubscriptionRow | null) ?? null;
 }
 

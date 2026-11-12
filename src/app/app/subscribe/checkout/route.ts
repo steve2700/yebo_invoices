@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { appUrl } from "@/lib/url";
 import { yeboPayfast, addOneMonth } from "@/lib/billing-config";
 import { paystackConfig, initializePaystack } from "@/lib/paystack";
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
       metadata: { business_id: business.id, plan: planId, onboarding: onboarding ? "1" : "0" },
     });
     if (!url) return messagePage("We could not start your payment", "Something went wrong on our side. Nothing was charged. Please try again in a minute.", 503, back, "Back to the plans");
+    try { await createAdminClient().from("checkout_starts").insert({ business_id: business.id, plan: planId, provider: "paystack", reference }); } catch { /* the log must never stop a payment */ }
     return Response.redirect(url, 303);
   }
 
