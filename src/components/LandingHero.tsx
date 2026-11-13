@@ -1,6 +1,8 @@
 import Link from "next/link";
+import HeroPhotos from "@/components/HeroPhotos";
 import { InstallAppButton } from "@/app/app/InstallPrompt";
-import SignRotator from "@/components/SignRotator";
+
+const trades = ["Carpenters", "Electricians", "Plumbers", "Painters", "Builders"];
 
 const facts = [
   ["From R49 a month", "Cancel any time"],
@@ -12,29 +14,49 @@ const facts = [
 export default function LandingHero() {
   return (
     <section className="bg-yebo-chalk">
-      <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 pb-12 pt-10 sm:px-8 sm:pt-14 lg:grid-cols-[1fr_1fr] lg:gap-14 lg:px-12 lg:pb-16 lg:pt-16">
-        <div>
-          <h1 className="text-balance text-[clamp(2.75rem,7.5vw,5.5rem)] font-extrabold leading-[.92] tracking-[-.05em] text-yebo-deep">
-            Quotes clients say yes to.
-          </h1>
-          <p className="mt-6 max-w-xl text-pretty text-lg leading-8 text-yebo-deep/75">
-            Yebo is the quoting and invoicing app for South African small business. Say the job out loud, send the quote on WhatsApp or email, see when it is opened, and get paid by card or instant EFT.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-3">
-            <Link className="inline-flex min-h-[52px] items-center justify-center rounded-md bg-yebo px-7 text-base font-bold text-white transition hover:bg-yebo-deep" href="/login">
-              Send your first quote
-            </Link>
-            <Link className="text-base font-semibold text-yebo-deep underline decoration-yebo-deep/30 underline-offset-4 transition hover:decoration-yebo-deep" href="/features">
-              See everything it does
-            </Link>
-          </div>
-          <div className="mt-4">
-            <InstallAppButton className="press inline-flex min-h-11 items-center text-sm font-semibold text-yebo underline decoration-yebo/30 underline-offset-4 transition hover:text-yebo-deep">
-              Add Yebo to your phone
-            </InstallAppButton>
+      <style>{`
+        .hero-mark{background-image:linear-gradient(#F2B21B,#F2B21B);background-repeat:no-repeat;background-size:0 100%;color:#fff;animation:heroMark .8s .45s cubic-bezier(.2,.7,.2,1) forwards;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+        @keyframes heroMark{to{background-size:100% 100%;color:#0C3B2E}}
+        @media (prefers-reduced-motion:reduce){.hero-mark{animation:none;background-size:100% 100%;color:#0C3B2E}}
+      `}</style>
+
+      <div className="relative isolate overflow-hidden bg-yebo-deep lg:flex lg:min-h-[680px] lg:items-center">
+        {/* Phone: the photo on top, the words below it. Desktop: the photo fills the right side behind the words. */}
+        <HeroPhotos />
+
+        <div className="relative mx-auto -mt-10 w-full max-w-7xl px-5 pb-9 sm:px-8 sm:pb-14 lg:mt-0 lg:px-12 lg:py-20">
+          <div className="max-w-xl">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-white/85">
+              <span className="inline-block h-2 w-2 rounded-full bg-yebo-sun" aria-hidden="true" />
+              Made for people who work with their hands
+            </p>
+            <h1 className="mt-4 text-balance text-[clamp(2.5rem,8.6vw,4.9rem)] font-extrabold leading-[.98] tracking-[-.045em] text-white">
+              The <span className="hero-mark rounded-[.18em] px-[.12em]">first</span> sharp quote wins the job.
+            </h1>
+            <p className="mt-5 max-w-lg text-pretty text-lg leading-8 text-white/90">
+              Say the job out loud. Yebo turns it into a branded quote you can send on WhatsApp before you leave the driveway. See when it is opened, and get paid by card or instant EFT.
+            </p>
+            <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-4">
+              <Link
+                href="/login"
+                className="inline-flex min-h-[56px] items-center justify-center rounded-lg bg-yebo-sun px-8 text-lg font-extrabold text-yebo-deep shadow-[0_8px_30px_rgba(0,0,0,.28)] transition hover:brightness-95 active:scale-[.98]"
+              >
+                Send your first quote
+              </Link>
+              <Link href="/features" className="min-h-11 py-2 text-base font-semibold text-white underline decoration-white/40 underline-offset-4 transition hover:decoration-white">
+                See how it works
+              </Link>
+            </div>
+            <ul className="mt-6 flex flex-wrap gap-2" aria-label="Who Yebo is for">
+              {trades.map((t) => (
+                <li key={t} className="rounded-full border border-white/30 bg-white/10 px-3 py-1 text-sm font-semibold text-white backdrop-blur-sm">{t}</li>
+              ))}
+            </ul>
+            <p className="mt-4 text-sm text-white/75">
+              Built by a working carpenter in Gauteng. <InstallAppButton className="press inline-flex min-h-11 items-center font-semibold text-white underline decoration-white/40 underline-offset-4 transition hover:decoration-white">Add Yebo to your phone</InstallAppButton>
+            </p>
           </div>
         </div>
-        <SignRotator />
       </div>
 
       <div className="border-t border-yebo-deep/15">
