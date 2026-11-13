@@ -80,7 +80,7 @@ export default function FeatureBands() {
             </Link>
           </div>
           <div className="flex justify-center gap-4 lg:justify-end">
-            <PhoneFrame src="/screens/tenders-list.png" alt="Yebo tenders list with the tender hub, compliance vault and open bids" tone="light" className="w-[44vw] max-w-[230px] sm:w-[230px]" />
+            <PhoneFrame src="/screens/app-tenders.webp" alt="Yebo tenders list with the tender hub, compliance vault and open bids" tone="light" className="w-[44vw] max-w-[230px] sm:w-[230px]" />
             <PhoneFrame src="/screens/tender-boq.png" alt="Yebo tender bid with the BOQ read into editable lines" tone="light" className="mt-10 w-[44vw] max-w-[230px] sm:w-[230px]" />
           </div>
         </div>

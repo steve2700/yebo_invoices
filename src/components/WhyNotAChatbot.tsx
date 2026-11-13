@@ -52,7 +52,7 @@ export default function WhyNotAChatbot() {
             <p className="mt-4 max-w-lg text-base leading-7 text-white/80">Yebo shows how many quotes you sent, how many you won and how much you collected, every month.</p>
           </div>
           <PhoneFrame
-            src="/screens/home-targets.png"
+            src="/screens/app-numbers.webp"
             alt="Yebo monthly targets screen with money collected, quotes sent and quotes won"
             tone="light"
             className="mx-auto w-[220px] md:mb-[-6rem] md:w-[230px]"

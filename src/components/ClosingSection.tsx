@@ -21,7 +21,7 @@ export default function ClosingSection() {
         </div>
         <div className="flex justify-center">
           <PhoneFrame
-            src="/screens/quote-client.png"
+            src="/screens/app-home.webp"
             alt="Yebo quote screen with client name, WhatsApp, email and address fields"
             tone="light"
             className="w-[230px] translate-y-6 sm:w-[250px]"
