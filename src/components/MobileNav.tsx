@@ -6,11 +6,12 @@ import { usePathname } from "next/navigation";
 import { NAV_LINKS } from "@/lib/nav-links";
 import { InstallAppButton } from "@/app/app/InstallPrompt";
 
-export default function MobileNav() {
+export default function MobileNav({ light = false, onOpenChange }: { light?: boolean; onOpenChange?: (open: boolean) => void }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => setOpen(false), [pathname]);
+  useEffect(() => onOpenChange?.(open), [open, onOpenChange]);
 
   return (
     <div className="md:hidden">
@@ -19,7 +20,7 @@ export default function MobileNav() {
         aria-expanded={open}
         aria-controls="mobile-nav"
         onClick={() => setOpen((v) => !v)}
-        className="grid size-11 place-items-center rounded-full border border-yebo-deep/10 bg-white text-yebo-deep transition hover:bg-yebo-chalk"
+        className={`grid size-11 place-items-center rounded-full border backdrop-blur-sm transition ${light ? "border-white/35 bg-white/15 text-white hover:bg-white/25" : "border-yebo-deep/10 bg-white text-yebo-deep hover:bg-yebo-chalk"}`}
       >
         <span className="sr-only">{open ? "Close menu" : "Open menu"}</span>
         <span aria-hidden="true" className="relative block h-3 w-4">

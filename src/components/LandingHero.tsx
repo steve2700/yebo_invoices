@@ -24,7 +24,7 @@ export default function LandingHero() {
         {/* Phone: the photo on top, the words below it. Desktop: the photo fills the right side behind the words. */}
         <HeroPhotos />
 
-        <div className="relative mx-auto -mt-10 w-full max-w-7xl px-5 pb-9 sm:px-8 sm:pb-14 lg:mt-0 lg:px-12 lg:py-20">
+        <div className="relative mx-auto -mt-10 w-full max-w-7xl px-5 pb-9 sm:px-8 sm:pb-14 lg:mt-0 lg:px-12 lg:pb-20 lg:pt-32">
           <div className="max-w-xl">
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-white/85">
               <span className="inline-block h-2 w-2 rounded-full bg-yebo-sun" aria-hidden="true" />

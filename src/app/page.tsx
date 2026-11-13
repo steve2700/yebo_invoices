@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 export default function Home() {
   return (
     <>
-      <LandingHeader />
+      <LandingHeader overlay />
       <main>
         <LandingHero />
         <OldWaySection />

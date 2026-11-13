@@ -26,7 +26,7 @@ export default function HeroPhotos({ initial = 0 }: { initial?: number }) {
   }, [paused]);
 
   return (
-    <div className="relative h-[50svh] max-h-[440px] min-h-[300px] overflow-hidden lg:absolute lg:inset-y-0 lg:right-0 lg:-z-20 lg:h-auto lg:max-h-none lg:min-h-0 lg:w-[66%]">
+    <div className="relative h-[56svh] max-h-[480px] min-h-[340px] overflow-hidden lg:absolute lg:inset-y-0 lg:right-0 lg:-z-20 lg:h-auto lg:max-h-none lg:min-h-0 lg:w-[66%]">
       {SLIDES.map((s, n) => (
         <div
           key={s.src}
