@@ -174,7 +174,6 @@ export default function Login() {
       } catch {
         /* storage can be blocked */
       }
-      setMsg("We sent a 6-digit code to your email. Type it below. It can take a minute, so check spam too.");
     } catch (caught) {
       setError(true);
       track("request_failed", caught instanceof Error ? caught.message : undefined);
@@ -215,6 +214,14 @@ export default function Login() {
     } finally {
       setEmailPending(false);
     }
+  }
+
+  function changeEmail() {
+    setSent(false);
+    setCode("");
+    setMsg("");
+    setError(false);
+    forgetPending();
   }
 
   function verify(event: FormEvent<HTMLFormElement>) {
@@ -273,12 +280,12 @@ export default function Login() {
 
       <section className="flex min-h-[520px] flex-col justify-center px-5 py-12 sm:px-10 lg:min-h-screen lg:px-14 xl:px-20">
         <div className="mx-auto w-full max-w-md">
-          <p className="text-xs font-extrabold uppercase tracking-[.18em] text-yebo">Welcome to Yebo</p>
+          <p className="text-xs font-extrabold uppercase tracking-[.18em] text-yebo">{sent ? "Check your email" : "Welcome to Yebo"}</p>
           <h2 className="mt-3 text-3xl font-extrabold tracking-[-.05em] text-yebo-deep sm:text-4xl">
-            Sign in or create your account
+            {sent ? "Enter your code" : "Sign in or create your account"}
           </h2>
           <p className="mt-3 text-sm leading-6 text-yebo-deep/65">
-            New to Yebo? Sign in and your account will be created automatically.
+            {sent ? <>We sent a 6-digit code to <strong className="break-all font-bold text-yebo-deep">{email.trim()}</strong>. It can take a minute, so check spam too.</> : "New to Yebo? Sign in and your account will be created automatically."}
           </p>
 
           {inApp && (
@@ -291,6 +298,8 @@ export default function Login() {
             </div>
           )}
 
+          {!sent && (
+            <>
           <button
             type="button"
             onClick={() => void google()}
@@ -341,46 +350,62 @@ export default function Login() {
               {emailPending ? "Sending code…" : "Email me a sign-in code"}
             </button>
           </form>
+            </>
+          )}
 
           {sent && (
-            <form data-signin-code onSubmit={verify} className="mt-5 flex flex-col gap-3">
-              <p className="text-sm leading-6 text-yebo-deep/70">Check your email on any device, then type the code here.</p>
-              <label htmlFor="signin-code" className="text-xs font-extrabold uppercase tracking-[.14em] text-yebo-deep/60">Code from your email</label>
-              <input
-                id="signin-code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={10}
-                value={code}
-                onChange={(event) => {
-                  const next = event.target.value.replace(/[^0-9]/g, "");
-                  setCode(next);
-                  if (next.length === 6) void verifyCode(next);
-                }}
-                placeholder="123456"
-                className="min-h-12 w-full rounded-2xl border border-yebo-deep/15 bg-white px-4 py-3 text-center text-lg font-bold tracking-[.3em] text-yebo-deep outline-none focus:border-yebo focus:ring-2 focus:ring-yebo/15"
-              />
+            <form data-signin-code onSubmit={verify} className="mt-8 flex flex-col gap-4">
+              <div>
+                <label htmlFor="signin-code" className="block text-sm font-bold text-yebo-deep">Verification code</label>
+                <input
+                  id="signin-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  maxLength={10}
+                  value={code}
+                  onChange={(event) => {
+                    const next = event.target.value.replace(/[^0-9]/g, "");
+                    setCode(next);
+                    if (next.length === 6) void verifyCode(next);
+                  }}
+                  placeholder="Enter your 6-digit code"
+                  className="mt-2 min-h-14 w-full rounded-2xl border border-yebo-deep/20 bg-white px-4 py-3 text-center text-xl font-bold tracking-[.25em] text-yebo-deep outline-none transition placeholder:text-sm placeholder:font-medium placeholder:tracking-normal placeholder:text-yebo-deep/35 focus:border-yebo focus:ring-2 focus:ring-yebo/15"
+                />
+              </div>
               <button
                 type="submit"
                 disabled={verifying || code.length < 6}
-                className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-yebo px-5 py-3 text-sm font-extrabold text-white transition hover:bg-yebo-deep disabled:cursor-wait disabled:opacity-50"
+                className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-yebo-deep px-5 py-3 text-sm font-extrabold text-white transition hover:bg-yebo disabled:cursor-wait disabled:opacity-50"
               >
-                {verifying ? "Checking code…" : "Sign in with code"}
+                {verifying ? "Checking code…" : "Verify email address"}
               </button>
-              <p className="text-xs leading-5 text-yebo-deep/55">Tip: keep this page open while you check your email, then type the code here.</p>
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-                <button
-                  type="button"
-                  onClick={() => void resend()}
-                  disabled={cooldown > 0 || emailPending}
-                  className="min-h-11 text-sm font-bold text-yebo underline decoration-yebo/30 underline-offset-4 disabled:no-underline disabled:opacity-50"
-                >
-                  {cooldown > 0 ? "Send a new code in " + cooldown + "s" : "Send a new code"}
-                </button>
+              <div className="space-y-1 text-sm leading-6 text-yebo-deep/65">
+                <p>
+                  Not seeing the email in your inbox?{" "}
+                  <button
+                    type="button"
+                    onClick={() => void resend()}
+                    disabled={cooldown > 0 || emailPending}
+                    className="font-bold text-yebo underline decoration-yebo/30 underline-offset-4 disabled:no-underline disabled:opacity-50"
+                  >
+                    {cooldown > 0 ? "Send again in " + cooldown + "s" : "Try sending again"}
+                  </button>
+                  .
+                </p>
+                <p>
+                  Wrong email?{" "}
+                  <button type="button" onClick={changeEmail} className="font-bold text-yebo underline decoration-yebo/30 underline-offset-4">
+                    Change email address
+                  </button>
+                  .
+                </p>
                 {mail && (
-                  <a href={mail.url} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-sm font-bold text-yebo underline decoration-yebo/30 underline-offset-4">
-                    Open {mail.name}
-                  </a>
+                  <p>
+                    <a href={mail.url} target="_blank" rel="noreferrer" className="font-bold text-yebo underline decoration-yebo/30 underline-offset-4">
+                      Open {mail.name} →
+                    </a>
+                  </p>
                 )}
               </div>
             </form>
