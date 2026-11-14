@@ -69,7 +69,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     promise: "You see when it is opened, and how your client answers.",
     intro:
       "Your client opens a link on their phone. No account, no app, no PDF that will not open. You get told when they look, and what they decide.",
-    screens: [{ src: "/screens/quote-client.png", alt: "Yebo quote page for a client with the client details" }],
+    screens: [{ src: "/screens/app-opened.webp", alt: "Yebo quote page showing the client has opened the quote, with ways to send it again by email or WhatsApp" }, { src: "/screens/app-documents.webp", alt: "Yebo documents list with quotes and invoices and their status" }],
     features: [
       {
         title: "WhatsApp or email",
@@ -110,7 +110,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     promise: "Clients pay by card or instant EFT. You both get told.",
     intro:
       "Each business connects its own PayFast account, so the money goes from your client to you. Yebo never holds it.",
-    screens: [{ src: "/screens/home-dashboard.png", alt: "Yebo home screen with money collected, outstanding and overdue invoices" }],
+    screens: [{ src: "/screens/app-home.webp", alt: "Yebo home screen: a client said yes to a quote, with a button to make the invoice" }, { src: "/screens/app-documents.webp", alt: "Yebo documents list showing paid invoices" }],
     features: [
       {
         title: "Pay now, by card or instant EFT",
@@ -154,10 +154,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     promise: "What is collected, what is owed, and why quotes are lost.",
     intro:
       "“Busy” is a feeling. Yebo gives you the figures, so you can see what is working and what to chase this week.",
-    screens: [
-      { src: "/screens/home-targets.png", alt: "Yebo monthly targets for money collected and quotes sent" },
-      { src: "/screens/home-dashboard.png", alt: "Yebo home screen with collected, outstanding and overdue" },
-    ],
+    screens: [{ src: "/screens/app-numbers.webp", alt: "Yebo home numbers: money collected, waiting for a yes, quotes sent and win rate" }, { src: "/screens/app-results.webp", alt: "Yebo quote results: sent, won, lost and win rate" }],
     features: [
       {
         title: "Home screen",
@@ -189,7 +186,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     promise: "Rands, VAT, EFT, PayFast and WhatsApp.",
     intro:
       "A lot of invoicing software was built for somewhere else. Yebo starts from how you actually get quoted and paid here.",
-    screens: [{ src: "/screens/settings-defaults.png", alt: "Yebo settings with quote defaults and business details" }],
+    screens: [{ src: "/screens/app-vat.webp", alt: "Yebo VAT report with a download for your accountant" }],
     features: [
       {
         title: "Rands and VAT",
