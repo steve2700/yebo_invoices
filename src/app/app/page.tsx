@@ -2,6 +2,7 @@
 import RemindersReady from "./RemindersReady";
 import RequestsReady from "./RequestsReady";
 import InstantPayCard from "./InstantPayCard";
+import WeeklyCard from "./WeeklyCard";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, waLink } from "@/lib/dates";
@@ -350,6 +351,7 @@ export default async function Dashboard() {
       news={currentNews(today)}
       nudges={
         <>
+          <WeeklyCard />
           <div className="-mx-4 -mt-4 empty:hidden sm:-mx-6 lg:-mx-8">
             <RemindersReady />
             <RequestsReady />
