@@ -25,7 +25,14 @@ const jsonLd = {
 
 export default function Pricing() {
   return (
-    <InfoPage  title="Pick the plan that fits a normal month" intro="Start small and change plan any time. Every plan includes quotes, invoices, online payments and your own logo and colours. Cancel from Settings whenever you like." jsonLd={jsonLd}>
+    <InfoPage
+      eyebrow="Simple monthly plans"
+      title="Pick the plan that fits a normal month"
+      intro="Start small and change plan any time. Every plan includes quotes, invoices, online payments and your own logo and colours. Cancel from Settings whenever you like."
+      photo={{ src: "/hero/team-laptop.jpg", alt: "Two South African business owners working on a quote together on a laptop" }}
+      cta={{ label: "Start with Yebo", href: "/login" }}
+      jsonLd={jsonLd}
+    >
       <PricingSection />
     </InfoPage>
   );

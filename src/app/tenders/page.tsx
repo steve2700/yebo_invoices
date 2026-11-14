@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import LandingHeader from "@/components/LandingHeader";
 import LandingFooter from "@/components/LandingFooter";
@@ -73,26 +74,40 @@ const guide = [
 export default function TendersPage() {
   return (
     <>
-      <LandingHeader />
+      <LandingHeader overlay />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\u003c") }} />
       <main className="text-yebo-deep">
-        <section className="bg-yebo-chalk">
-          <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-14 pt-12 sm:px-8 sm:pt-16 lg:grid-cols-[1.05fr_.95fr] lg:px-12 lg:pb-20 lg:pt-20">
-            <div>
-              <h1 className="text-balance text-[clamp(2.5rem,6.5vw,4.75rem)] font-extrabold leading-[.95] tracking-[-.05em]">
-                Find the tender. Price it. Send it before it closes.
+        <section className="relative isolate overflow-hidden bg-yebo-deep text-white">
+          <div className="relative h-64 sm:h-80 lg:absolute lg:inset-y-0 lg:right-0 lg:h-auto lg:w-[58%]">
+            <Image src="/hero/team-tablet.jpg" alt="A site team checking a tender on a tablet" fill priority sizes="(max-width: 1024px) 100vw, 58vw" className="object-cover object-[70%_center]" />
+            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-yebo-deep lg:bg-gradient-to-r lg:from-yebo-deep lg:via-yebo-deep/25 lg:to-transparent" />
+          </div>
+          <div className="relative mx-auto -mt-12 max-w-7xl px-5 pb-12 sm:px-8 lg:mt-0 lg:flex lg:min-h-[640px] lg:items-center lg:px-12 lg:pb-20 lg:pt-28">
+            <div className="max-w-xl">
+              <p className="flex items-center gap-2 text-sm font-semibold text-white/85"><span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-yebo-sun" />Yebo Tenders, part of The Industry King</p>
+              <h1 className="mt-4 text-balance text-[clamp(2.4rem,6.4vw,4.6rem)] font-extrabold leading-[.97] tracking-[-.045em]">
+                Find the tender. Price it. Send it before it <span className="rounded-[.18em] bg-yebo-sun px-[.12em] text-yebo-deep">closes</span>.
               </h1>
-              <p className="mt-6 max-w-xl text-pretty text-lg leading-8 text-yebo-deep/75">
+              <p className="mt-5 max-w-lg text-pretty text-lg leading-8 text-white/85">
                 Yebo matches live South African tenders to your trade, reads the BOQ into lines and checks your compliance papers before you submit, so paperwork is not the reason you lose.
               </p>
-              <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-3">
-                <Link href="/login" className="inline-flex min-h-[52px] items-center justify-center rounded-md bg-yebo px-7 text-base font-bold text-white transition hover:bg-yebo-deep">Start your first bid</Link>
-                <a href="#how" className="text-base font-semibold text-yebo-deep underline decoration-yebo-deep/30 underline-offset-4 transition hover:decoration-yebo-deep">See how it works</a>
+              <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-4">
+                <Link href="/login" className="inline-flex min-h-[54px] items-center justify-center rounded-lg bg-yebo-sun px-8 text-base font-extrabold text-yebo-deep shadow-[0_8px_30px_rgba(0,0,0,.28)] transition hover:brightness-95 active:scale-[.98]">Start your first bid</Link>
+                <a href="#how" className="min-h-11 py-2 text-base font-semibold text-white underline decoration-white/40 underline-offset-4 transition hover:decoration-white">See how it works</a>
               </div>
-              <p className="mt-5 text-sm text-yebo-deep/70">Part of The Industry King plan, R499 a month. Works on your phone or laptop.</p>
+              <p className="mt-5 text-sm text-white/75">R499 a month. Works on your phone or laptop.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-yebo-chalk py-14 sm:py-20">
+          <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 sm:px-8 lg:grid-cols-[1fr_1fr] lg:gap-16 lg:px-12">
+            <div>
+              <h2 className="text-balance text-3xl font-extrabold leading-[1.02] tracking-[-.04em] sm:text-5xl">Your whole bid, in your pocket</h2>
+              <p className="mt-4 max-w-lg text-pretty text-lg leading-8 text-yebo-deep/75">Open a tender on site, price the lines from your phone, and send it when the numbers are right. The tender list on the left, the priced BOQ on the right.</p>
             </div>
             <div className="flex justify-center gap-4 lg:justify-end" aria-label="Screenshots of Yebo Tenders on a phone">
-              <PhoneFrame src="/screens/tenders-list.png" alt="Yebo tenders list with the tender hub, compliance vault warnings and open bids with closing dates" priority tone="light" className="w-[44vw] max-w-[230px] sm:w-[230px]" />
+              <PhoneFrame src="/screens/tenders-list.png" alt="Yebo tenders list with the tender hub, compliance vault warnings and open bids with closing dates" tone="light" className="w-[44vw] max-w-[230px] sm:w-[230px]" />
               <PhoneFrame src="/screens/tender-boq.png" alt="Yebo tender bid with BOQ items read into editable lines, quantities and rates" tone="light" className="mt-10 w-[44vw] max-w-[230px] sm:w-[230px]" />
             </div>
           </div>
@@ -204,7 +219,7 @@ export default function TendersPage() {
         <section className="bg-yebo-deep py-16 text-white sm:py-24">
           <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
             <h2 className="max-w-2xl text-balance text-3xl font-extrabold leading-[1.02] tracking-[-.04em] sm:text-5xl">Set up your vault once. Every bid after that starts with the hard part done.</h2>
-            <Link href="/login" className="mt-8 inline-flex min-h-[52px] items-center rounded-md bg-yebo-sun px-7 text-base font-bold text-yebo-deep transition hover:bg-white">Get started on Yebo</Link>
+            <Link href="/login" className="mt-8 inline-flex min-h-[52px] items-center rounded-lg bg-yebo-sun px-8 text-base font-extrabold text-yebo-deep transition hover:brightness-95">Get started on Yebo</Link>
           </div>
         </section>
       </main>
