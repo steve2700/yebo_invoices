@@ -21,6 +21,9 @@ import { saveSiteAccess } from "@/lib/site-access";
 import ViewBeacon from "./ViewBeacon";
 import CopyButton from "./CopyButton";
 import AnswerBar, { DECLINE_REASONS } from "./AnswerBar";
+import { notifySnoozed, snoozeDate } from "@/lib/snooze";
+import { validLabel } from "@/lib/held";
+import { southAfricaDate } from "@/lib/time";
 
 type Line = { description: string; quantity: number; unit_price_cents: number; line_total_cents: number; option_key?: string | null };
 
@@ -130,6 +133,14 @@ export default async function PublicDocument({ params, searchParams }: { params:
 
   async function answer(formData: FormData) {
     "use server";
+    if (formData.get("event") === "snooze") {
+      const days = [3, 7, 14].includes(Number(formData.get("days"))) ? Number(formData.get("days")) : 7;
+      const date = snoozeDate(days);
+      const sbs = await createClient();
+      const { data: ok } = await sbs.rpc("snooze_quote", { p_token: token, p_date: date });
+      if (ok) after(() => notifySnoozed(token, date));
+      redirect(`/d/${token}?undo=${ok ? "snoozed" : "failed"}${ok ? `&until=${date}` : ""}`);
+    }
     if (formData.get("event") === "change") {
       const sbc = await createClient();
       const text = String(formData.get("message") ?? "").slice(0, 600);
@@ -240,7 +251,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
                 <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">{isQuote ? "Estimated total" : "Amount due"}</p>
                 <p className="mt-1 text-4xl font-black tracking-tight sm:text-5xl">{showOptionCards && optionCards.length > 1 && <span className="mr-2 text-lg font-bold opacity-75">From</span>}{formatRand(d.total_cents)}</p>
               </div>
-              <p className="rounded-full px-3 py-1.5 text-xs font-bold" style={soft}>{isQuote ? `Valid until ${formatDate(d.expiry_date)}` : `Due ${formatDate(d.due_date)}`}</p>
+              <p className="rounded-full px-3 py-1.5 text-xs font-bold" style={soft}>{isQuote ? validLabel(d.expiry_date, southAfricaDate()) : `Due ${formatDate(d.due_date)}`}</p>
             </div>
           </div>
         </div>
@@ -292,6 +303,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
           {undo === "promised" && until && /^\d{4}-\d{2}-\d{2}$/.test(until) && <p role="status" className="mb-5 rounded-2xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} knows you will pay by {formatDate(until)}.</p>}
           {undo === "nodate" && <p role="alert" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">Please pick a date between tomorrow and 30 days from now.</p>}
           {undo === "changed" && <p role="status" className="mb-5 rounded-2xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} has your message and will update the quote or get back to you.</p>}
+          {undo === "snoozed" && until && /^\d{4}-\d{2}-\d{2}$/.test(until) && <p role="status" className="mb-5 rounded-2xl bg-lime p-3 text-center text-sm font-bold">No rush. {b.name} knows, and we will remind you on {formatDate(until)}. Your price is held until then.</p>}
           {undo === "failed" && <p role="alert" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">We could not send that message. Please try again, or contact {b.name} directly.</p>}
           {replacedBy && (
             <div className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">

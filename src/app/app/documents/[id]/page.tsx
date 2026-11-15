@@ -33,6 +33,8 @@ const EVENT_LABELS: Record<string, string> = {
   change_requested: "Client asked for a change",
   reopened: "Quote reopened",
   promise_to_pay: "Client promised a payment date",
+  snoozed: "Client said \"not yet\" and picked a follow-up day",
+  snooze_followup: "Follow-up day reached, you and the client were reminded",
 };
 
 type StepState = "done" | "current" | "todo" | "bad";
