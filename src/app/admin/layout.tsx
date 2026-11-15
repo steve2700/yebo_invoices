@@ -26,6 +26,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     { href: "/admin/survey", label: "Survey" },
     { href: "/admin/errors", label: "Errors", badge: count ?? 0 },
     { href: "/admin/reminders", label: "Reminder emails" },
+    { href: "/admin/weekly", label: "Weekly reviews" },
     { href: "/admin/monthly", label: "Monthly reports" },
   ];
 
