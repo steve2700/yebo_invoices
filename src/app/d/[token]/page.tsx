@@ -279,6 +279,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
           {d.status === "declined" && (
             <div className="mb-5 rounded-2xl bg-ink/5 p-3 text-center">
               <p className="font-bold">You declined this quote.</p>
+              {b.phone && <a href={waLink(b.phone, `Hi ${b.name}, thanks for quote ${d.number}. It is not for me this time, but I appreciate it.`)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-10 items-center rounded-full bg-lime px-4 text-sm font-bold">Say thanks on WhatsApp</a>}
               {undo === "late" && <p role="status" className="mt-1 text-sm">This can no longer be undone here. Please message {b.name} instead.</p>}
               <form action={reopen} className="mt-2"><button type="submit" className="inline-flex min-h-10 items-center rounded-full border border-ink/20 bg-white px-4 text-sm font-bold">Undo, I changed my mind</button></form>
               {b.phone && <a href={waLink(b.phone, `Hi, about quote ${d.number}: I would like to talk about changing it.`)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-10 items-center rounded-full bg-white px-4 text-sm font-bold">Changed your mind? Message {b.name}</a>}
@@ -302,7 +303,16 @@ export default async function PublicDocument({ params, searchParams }: { params:
           {undo === "sign" && <p role="alert" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">Please type your full name to accept the quote.</p>}
           {undo === "promised" && until && /^\d{4}-\d{2}-\d{2}$/.test(until) && <p role="status" className="mb-5 rounded-2xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} knows you will pay by {formatDate(until)}.</p>}
           {undo === "nodate" && <p role="alert" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">Please pick a date between tomorrow and 30 days from now.</p>}
-          {undo === "changed" && <p role="status" className="mb-5 rounded-2xl bg-lime p-3 text-center text-sm font-bold">Thanks! {b.name} has your message and will update the quote or get back to you.</p>}
+          {undo === "changed" && (
+            <div role="status" className="mb-5 rounded-2xl bg-lime p-4 text-center">
+              <p className="text-sm font-bold">Thanks! {b.name} has your message and will update the quote or get back to you.</p>
+              {b.phone && (
+                <a href={waLink(b.phone, `Hi ${b.name}, about quote ${d.number}: I have sent a change request on the quote page. Please have a look when you can.`)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 items-center rounded-full bg-ink px-5 text-sm font-extrabold text-white">
+                  Let {b.name} know on WhatsApp
+                </a>
+              )}
+            </div>
+          )}
           {undo === "snoozed" && until && /^\d{4}-\d{2}-\d{2}$/.test(until) && <p role="status" className="mb-5 rounded-2xl bg-lime p-3 text-center text-sm font-bold">No rush. {b.name} knows, and we will remind you on {formatDate(until)}. Your price is held until then.</p>}
           {undo === "failed" && <p role="alert" className="mb-5 rounded-2xl bg-orange/15 p-3 text-center text-sm font-bold">We could not send that message. Please try again, or contact {b.name} directly.</p>}
           {replacedBy && (
