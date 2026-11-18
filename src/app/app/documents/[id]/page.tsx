@@ -16,7 +16,7 @@ import SendEmailCard from "../SendEmailCard";
 import CreditNoteCard from "../CreditNoteCard";
 import ConfirmForm from "../ConfirmForm";
 import { convertToInvoice, deleteDraft, duplicateDocument, markDepositReceived, markPaid, reopenQuote, sendDraft, startRecurring, stopRecurring, deletePhoto } from "../actions";
-import { extendQuote, reviseQuote } from "../revise-actions";
+import { changeDueDate, extendQuote, reviseQuote } from "../revise-actions";
 import { ordinal } from "@/lib/recurring";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -456,6 +456,24 @@ export default async function DocumentPage({ params, searchParams }: { params: P
             <form action={reviseQuote}>
               <input type="hidden" name="id" value={d.id} />
               <SubmitButton pendingLabel="Making the copy…" className={btnOutline}>Revise this quote</SubmitButton>
+            </form>
+          </ActionCard>
+        </Section>
+      )}
+
+      {!isQuote && ["sent", "viewed", "partially_paid"].includes(d.status) && balanceDue > 0 && (
+        <Section title="Change the due date">
+          <ActionCard icon="📅" title={d.due_date ? `Due ${formatDate(d.due_date)}` : "No due date yet"} description={`Want it paid sooner? Pick a new date. ${first}'s invoice link updates straight away, nothing needs to be sent again.`}>
+            <form action={changeDueDate} className="flex flex-wrap items-center gap-2">
+              <input type="hidden" name="id" value={d.id} />
+              <button name="days" value="0" className={btnOutline}>Today</button>
+              <button name="days" value="2" className={btnOutline}>In 2 days</button>
+              <button name="days" value="5" className={btnOutline}>In 5 days</button>
+            </form>
+            <form action={changeDueDate} className="mt-3 flex flex-wrap items-center gap-2">
+              <input type="hidden" name="id" value={d.id} />
+              <input type="date" name="date" min={today} required defaultValue={d.due_date ?? undefined} className="min-h-11 rounded-xl border-2 border-ink/15 bg-white px-3 text-sm font-bold text-ink" />
+              <SubmitButton pendingLabel="Saving…" className={btnOutline}>Save date</SubmitButton>
             </form>
           </ActionCard>
         </Section>

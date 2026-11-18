@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { addDays } from "@/lib/dates";
+import { southAfricaDate } from "@/lib/time";
 import { duplicateDocument } from "./actions";
 
 const idOk = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v);
@@ -26,6 +27,28 @@ export async function reviseQuote(fd: FormData) {
     await sb.from("documents").update({ revises_id: id }).eq("id", m[1]);
     redirect(`/app/documents/${m[1]}/edit`);
   }
+}
+
+// Moves the due date of an unpaid invoice. Either a quick choice (days from today) or a date picked on the calendar.
+export async function changeDueDate(fd: FormData) {
+  const id = fd.get("id");
+  if (!idOk(id)) return;
+  const today = southAfricaDate();
+  const days = String(fd.get("days") ?? "");
+  let date = String(fd.get("date") ?? "");
+  if (/^\d{1,3}$/.test(days)) {
+    const base = new Date(today + "T00:00:00Z");
+    base.setUTCDate(base.getUTCDate() + Number(days));
+    date = base.toISOString().slice(0, 10);
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date) && date >= today) {
+    const sb = await createClient();
+    await sb.from("documents").update({ due_date: date }).eq("id", id).eq("type", "invoice").in("status", ["sent", "viewed", "partially_paid"]);
+  }
+  revalidatePath(`/app/documents/${id}`);
+  revalidatePath(`/app/documents`);
+  revalidatePath("/app");
+  redirect(`/app/documents/${id}`);
 }
 
 // The client asked "I still want this" on an expired quote: give them 14 more days on the same link.
