@@ -8,7 +8,7 @@ import { appUrl } from "./url";
 import { OPTION_LABELS, linesForChoice, optionsPresent, subtotalFor, withVat } from "./quote-options";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-type Pub = { document: any; lines: any[]; business: any; client: any; signature?: { name: string; at: string } | null };
+type Pub = { paid_cents?: number | null; document: any; lines: any[]; business: any; client: any; signature?: { name: string; at: string } | null };
 
 // Standard PDF fonts only support Latin-1. Instead of turning every other character into "?",
 // swap common typographic characters (curly quotes, dashes, ellipsis) for plain equivalents,
@@ -478,7 +478,7 @@ async function buildQuotePdfAt({ document: d, lines, business: b, client: c, sig
   return pdf.save();
 }
 
-export async function buildDocumentPdf({ document: d, lines, business: b, client: c, signature }: Pub, link: string): Promise<Uint8Array> {
+export async function buildDocumentPdf({ document: d, lines, business: b, client: c, signature, paid_cents }: Pub, link: string): Promise<Uint8Array> {
   if (d.type === "quote") return buildQuotePdf({ document: d, lines, business: b, client: c, signature }, link);
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -575,9 +575,16 @@ export async function buildDocumentPdf({ document: d, lines, business: b, client
   page.drawRectangle({ x: 340, y: y - 30, width: R - 340, height: 36, color: brand });
   const onBrand = readableOn(b.brand_color) === "#ffffff" ? rgb(1, 1, 1) : ink;
   put(isCredit ? "Total credit" : "Total", 352, 13, bold, onBrand, y - 17); putRight(formatRand(d.total_cents), R - 12, 15, bold, onBrand, y - 18); y -= 54;
+  const paidSoFar = !isQuote && !isCredit && d.status !== "paid" ? Math.min(Number(paid_cents ?? 0), Number(d.total_cents)) : 0;
+  const owing = paidSoFar > 0 ? Number(d.total_cents) - paidSoFar : Number(d.total_cents);
+  if (paidSoFar > 0) {
+    need(46);
+    put("Already paid", 360); putRight("-" + formatRand(paidSoFar), R); y -= 18;
+    put("Balance due", 360, 12, bold); putRight(formatRand(owing), R, 12, bold); y -= 24;
+  }
 
   // ---- payment plan ----
-  const plan = !isQuote ? `Please pay ${formatRand(d.total_cents)} by ${formatDate(d.due_date)}. Use ${d.number} as your payment reference.` : d.payment_plan === "full" ? "Payment in full is needed to confirm the booking."
+  const plan = !isQuote ? `Please pay ${formatRand(owing)} by ${formatDate(d.due_date)}. Use ${d.number} as your payment reference.` : d.payment_plan === "full" ? "Payment in full is needed to confirm the booking."
     : d.payment_plan === "deposit"
       ? `A ${d.deposit_percent}% deposit (${formatRand(Math.round((d.total_cents * d.deposit_percent) / 100))}) confirms the booking. Balance due ${d.payment_terms}.`
       : `No deposit. Full payment due ${d.payment_terms}.`;
