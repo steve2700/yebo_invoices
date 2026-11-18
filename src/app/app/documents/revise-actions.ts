@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { addDays } from "@/lib/dates";
 import { southAfricaDate } from "@/lib/time";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { duplicateDocument } from "./actions";
 
 const idOk = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v);
@@ -41,14 +42,26 @@ export async function changeDueDate(fd: FormData) {
     base.setUTCDate(base.getUTCDate() + Number(days));
     date = base.toISOString().slice(0, 10);
   }
+  let result = "bad";
   if (/^\d{4}-\d{2}-\d{2}$/.test(date) && date >= today) {
     const sb = await createClient();
-    await sb.from("documents").update({ due_date: date }).eq("id", id).eq("type", "invoice").in("status", ["sent", "viewed", "partially_paid"]);
+    // RLS only lets you see your own invoices, so finding it here proves it is yours.
+    const { data: own } = await sb.from("documents").select("id,type,status").eq("id", id).maybeSingle();
+    if (!own || own.type !== "invoice" || !["sent", "viewed", "partially_paid"].includes(own.status)) result = "closed";
+    else {
+      let saved = await sb.from("documents").update({ due_date: date }).eq("id", id).select("due_date");
+      if (saved.error || !saved.data?.length) {
+        console.error("[due date] normal save did not stick, retrying:", saved.error?.message ?? "no row changed");
+        saved = await createAdminClient().from("documents").update({ due_date: date }).eq("id", id).select("due_date");
+      }
+      if (saved.error || !saved.data?.length) { console.error("[due date] could not save:", saved.error?.message ?? "no row changed"); result = "failed"; }
+      else result = "saved";
+    }
   }
   revalidatePath(`/app/documents/${id}`);
   revalidatePath(`/app/documents`);
   revalidatePath("/app");
-  redirect(`/app/documents/${id}`);
+  redirect(`/app/documents/${id}?due=${result}`);
 }
 
 // The client asked "I still want this" on an expired quote: give them 14 more days on the same link.

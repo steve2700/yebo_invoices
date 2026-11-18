@@ -109,9 +109,9 @@ const btnPrimary = "inline-flex min-h-11 items-center justify-center rounded-xl 
 const btnDark = "inline-flex min-h-11 items-center justify-center rounded-xl bg-ink px-5 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-ink/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2";
 const btnOutline = "inline-flex min-h-11 items-center justify-center rounded-xl border-2 border-ink/15 px-4 py-2 text-sm font-bold text-ink transition hover:bg-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yebo focus-visible:ring-offset-2";
 
-export default async function DocumentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ photos?: string; credit?: string; issued?: string }> }) {
+export default async function DocumentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ photos?: string; credit?: string; issued?: string; due?: string }> }) {
   const { id } = await params;
-  const { photos: photosFlag, credit: creditFlag, issued: issuedFlag } = await searchParams;
+  const { photos: photosFlag, credit: creditFlag, issued: issuedFlag, due: dueResult } = await searchParams;
   const sb = await createClient();
   const { data: d } = await sb.from("documents").select("*,clients(name,email,whatsapp_number,statement_token)").eq("id", id).single();
   if (!d) notFound();
@@ -463,6 +463,9 @@ export default async function DocumentPage({ params, searchParams }: { params: P
 
       {!isQuote && ["sent", "viewed", "partially_paid"].includes(d.status) && balanceDue > 0 && (
         <Section title="Change the due date">
+          {dueResult === "saved" && <p role="status" className="rounded-2xl bg-lime/40 p-3 text-sm font-bold text-ink">Saved. The new due date is on {first}'s link now.</p>}
+          {dueResult === "failed" && <p role="alert" className="rounded-2xl bg-orange/15 p-3 text-sm font-bold text-ink">Could not save the new date. Please try again, and tell me if it keeps happening.</p>}
+          {dueResult === "bad" && <p role="alert" className="rounded-2xl bg-orange/15 p-3 text-sm font-bold text-ink">Pick today or a later date.</p>}
           <ActionCard icon="📅" title={d.due_date ? `Due ${formatDate(d.due_date)}` : "No due date yet"} description={`Want it paid sooner? Pick a new date. ${first}'s invoice link updates straight away, nothing needs to be sent again.`}>
             <form action={changeDueDate} className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="id" value={d.id} />
