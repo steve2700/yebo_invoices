@@ -467,12 +467,15 @@ export default async function DocumentPage({ params, searchParams }: { params: P
           {dueResult === "failed" && <p role="alert" className="rounded-2xl bg-orange/15 p-3 text-sm font-bold text-ink">Could not save the new date. Please try again, and tell me if it keeps happening.</p>}
           {dueResult === "bad" && <p role="alert" className="rounded-2xl bg-orange/15 p-3 text-sm font-bold text-ink">Pick today or a later date.</p>}
           <ActionCard icon="📅" title={d.due_date ? `Due ${formatDate(d.due_date)}` : "No due date yet"} description={`Want it paid sooner? Pick a new date. ${first}'s invoice link updates straight away, nothing needs to be sent again.`}>
-            <form action={changeDueDate} className="flex flex-wrap items-center gap-2">
-              <input type="hidden" name="id" value={d.id} />
-              <button name="days" value="0" className={btnOutline}>Today</button>
-              <button name="days" value="2" className={btnOutline}>In 2 days</button>
-              <button name="days" value="5" className={btnOutline}>In 5 days</button>
-            </form>
+            <div className="flex flex-wrap items-center gap-2">
+              {[["0", "Today"], ["2", "In 2 days"], ["5", "In 5 days"]].map(([n, label]) => (
+                <form key={n} action={changeDueDate}>
+                  <input type="hidden" name="id" value={d.id} />
+                  <input type="hidden" name="days" value={n} />
+                  <SubmitButton pendingLabel="Saving…" className={btnOutline}>{label}</SubmitButton>
+                </form>
+              ))}
+            </div>
             <form action={changeDueDate} className="mt-3 flex flex-wrap items-center gap-2">
               <input type="hidden" name="id" value={d.id} />
               <input type="date" name="date" min={today} required defaultValue={d.due_date ?? undefined} className="min-h-11 rounded-xl border-2 border-ink/15 bg-white px-3 text-sm font-bold text-ink" />
