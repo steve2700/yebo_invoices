@@ -124,7 +124,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
   const qr = await QRCode.toDataURL(pageUrl, { margin: 1, width: 240 });
   const label = isQuote ? "Quote" : b.vat_registered ? "Tax invoice" : "Invoice";
   const web = b.website ? (/^https?:/.test(b.website) ? b.website : `https://${b.website}`) : null;
-  const plan = !isQuote ? `Please pay ${formatRand(d.total_cents)} by ${formatDate(d.due_date)}. Use ${d.number} as your payment reference.` : d.payment_plan === "full" ? "Payment in full is needed to confirm the booking."
+  const plan = !isQuote ? `Please pay ${formatRand(Math.max(Number(d.total_cents) - Number(data.paid_cents ?? 0), 0))} by ${formatDate(d.due_date)}. Use ${d.number} as your payment reference.` : d.payment_plan === "full" ? "Payment in full is needed to confirm the booking."
     : d.payment_plan === "deposit"
       ? (hasOptions && !chosen
         ? `A ${d.deposit_percent}% deposit confirms the booking. The balance is due ${d.payment_terms}.`
@@ -180,6 +180,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
   }
 
   const invoiceBalance = Math.max(Number(d.total_cents) - Number(data.paid_cents ?? 0), 0);
+  const heroPaid = Math.min(Number(data.paid_cents ?? 0), Number(d.total_cents));
   const invoiceClaimed = unpaidInvoice && Boolean(data.deposit_claimed_at);
 
   async function promise(formData: FormData) {
@@ -248,8 +249,9 @@ export default async function PublicDocument({ params, searchParams }: { params:
             <h1 className="mt-2 max-w-2xl text-3xl font-black leading-tight tracking-tight sm:text-4xl">{d.title || (isQuote ? "A clear plan for your project" : label)}</h1>
             <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">{isQuote ? "Estimated total" : "Amount due"}</p>
-                <p className="mt-1 text-4xl font-black tracking-tight sm:text-5xl">{showOptionCards && optionCards.length > 1 && <span className="mr-2 text-lg font-bold opacity-75">From</span>}{formatRand(d.total_cents)}</p>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">{isQuote ? "Estimated total" : unpaidInvoice && heroPaid > 0 ? "Balance due" : "Amount due"}</p>
+                <p className="mt-1 text-4xl font-black tracking-tight sm:text-5xl">{showOptionCards && optionCards.length > 1 && <span className="mr-2 text-lg font-bold opacity-75">From</span>}{formatRand(unpaidInvoice && heroPaid > 0 ? invoiceBalance : d.total_cents)}</p>
+                {unpaidInvoice && heroPaid > 0 && <p className="mt-1 text-sm font-semibold opacity-80">{formatRand(d.total_cents)} total, {formatRand(heroPaid)} already paid</p>}
               </div>
               <p className="rounded-full px-3 py-1.5 text-xs font-bold" style={soft}>{isQuote ? validLabel(d.expiry_date, southAfricaDate()) : `Due ${formatDate(d.due_date)}`}</p>
             </div>
@@ -414,6 +416,12 @@ export default async function PublicDocument({ params, searchParams }: { params:
                   <div className="flex justify-between py-1 text-ink/55"><span>Subtotal</span><span>{formatRand(d.subtotal_cents)}</span></div>
                   <div className="flex justify-between py-1 text-ink/55"><span>VAT</span><span>{b.vat_registered ? formatRand(d.vat_cents) : "Not applicable"}</span></div>
                   <div className="mt-2 flex justify-between rounded-xl px-3 py-3 text-lg font-black" style={{ background: `${color}12` }}><span>Total</span><span style={{ color }}>{formatRand(d.total_cents)}</span></div>
+                  {unpaidInvoice && heroPaid > 0 && creditedTotal === 0 && (
+                    <>
+                      <div className="flex justify-between px-3 py-1 text-ink/70"><span>Already paid</span><span>-{formatRand(heroPaid)}</span></div>
+                      <div className="flex justify-between px-3 py-1 font-black"><span>Balance due</span><span>{formatRand(invoiceBalance)}</span></div>
+                    </>
+                  )}
                   {creditsOnInvoice.map((credit) => (
                     <div key={credit.token} className="flex justify-between px-3 py-1 text-ink/70"><a className="underline" href={`/d/${credit.token}`}>Credit note {credit.number}</a><span>-{formatRand(credit.total_cents)}</span></div>
                   ))}
