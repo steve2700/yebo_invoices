@@ -21,6 +21,7 @@ import { saveSiteAccess } from "@/lib/site-access";
 import ViewBeacon from "./ViewBeacon";
 import CopyButton from "./CopyButton";
 import AnswerBar, { DECLINE_REASONS } from "./AnswerBar";
+import { ItemName, ScopeList } from "@/components/DocText";
 import { notifySnoozed, snoozeDate } from "@/lib/snooze";
 import { validLabel } from "@/lib/held";
 import { southAfricaDate } from "@/lib/time";
@@ -359,9 +360,9 @@ export default async function PublicDocument({ params, searchParams }: { params:
             </section>
           )}
           {d.note && <p className="mt-4 border-l-4 pl-4 text-sm leading-relaxed text-ink/80" style={{ borderColor: color }}>{d.note}</p>}
-          {d.description && (<section className="mt-6"><h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">{isQuote ? "What is included" : "What you will get"}</h2><p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink/80">{d.description}</p></section>)}
-          {isQuote && d.exclusions && (<section className="mt-5"><h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">Not included</h2><p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink/80">{d.exclusions}</p></section>)}
-          {isQuote && d.assumptions && (<section className="mt-5"><h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">Assumptions</h2><p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink/80">{d.assumptions}</p></section>)}
+          {d.description && (<section className="mt-6"><h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">{isQuote ? "What is included" : "What you will get"}</h2><ScopeList text={d.description} color={color} /></section>)}
+          {isQuote && d.exclusions && (<section className="mt-5"><h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">Not included</h2><ScopeList text={d.exclusions} color={color} /></section>)}
+          {isQuote && d.assumptions && (<section className="mt-5"><h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">Assumptions</h2><ScopeList text={d.assumptions} color={color} /></section>)}
           {isQuote && d.timeline && (<section className="mt-5"><h2 className="text-xs font-bold uppercase tracking-[.14em] text-ink/45">Timeline</h2><p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink/80">{d.timeline}</p></section>)}
           {d.labour_only && <p className="mt-3 inline-block rounded-full bg-ink/5 px-3 py-1 text-xs font-bold">No materials needed for this job</p>}
 
@@ -375,7 +376,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
                     <ul className="mt-1 divide-y divide-ink/10">
                       {sharedLines.map((l, i) => (
                         <li key={i} className="flex items-start justify-between gap-4 py-3 text-sm">
-                          <span className="font-semibold">{l.description}{Number(l.quantity) !== 1 && <span className="mt-1 block text-xs font-normal text-ink/50">Qty {Number(l.quantity)} × {formatRand(l.unit_price_cents)}</span>}</span>
+                          <ItemName description={l.description} quantity={Number(l.quantity)} unitCents={l.unit_price_cents} />
                           <b className="shrink-0">{formatRand(l.line_total_cents)}</b>
                         </li>
                       ))}
@@ -391,7 +392,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
                       <ul className="mt-2 divide-y divide-ink/10 text-sm">
                         {card.lines.map((l, i) => (
                           <li key={i} className="flex items-start justify-between gap-4 py-2.5">
-                            <span className="font-semibold">{l.description}{Number(l.quantity) !== 1 && <span className="mt-1 block text-xs font-normal text-ink/50">Qty {Number(l.quantity)} × {formatRand(l.unit_price_cents)}</span>}</span>
+                            <ItemName description={l.description} quantity={Number(l.quantity)} unitCents={l.unit_price_cents} />
                             <b className="shrink-0">{formatRand(l.line_total_cents)}</b>
                           </li>
                         ))}
@@ -407,7 +408,7 @@ export default async function PublicDocument({ params, searchParams }: { params:
                 <ul className="mt-2 divide-y divide-ink/10">
                   {shownLines.map((l, i) => (
                     <li key={i} className="flex items-start justify-between gap-4 py-4 text-sm">
-                      <span className="font-semibold">{l.description}{Number(l.quantity) !== 1 && <span className="mt-1 block text-xs font-normal text-ink/50">Qty {Number(l.quantity)} × {formatRand(l.unit_price_cents)}</span>}</span>
+                      <ItemName description={l.description} quantity={Number(l.quantity)} unitCents={l.unit_price_cents} />
                       <b className="shrink-0">{formatRand(l.line_total_cents)}</b>
                     </li>
                   ))}
