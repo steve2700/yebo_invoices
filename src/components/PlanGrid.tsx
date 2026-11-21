@@ -17,22 +17,27 @@ export default function PlanGrid({ mode, currentPlan = null, onboarding = false,
       {PLAN_ORDER.map((id) => {
         const plan = PLANS[id];
         const isCurrent = currentPlan === id;
-        const btn = plan.recommended
+        // Someone choosing a plan for the first time is led to the cheapest way in. Everyone else keeps the usual recommendation.
+        const startHere = mode === "subscribe" && !currentPlan && id === "side";
+        const filled = mode === "subscribe" && !currentPlan ? startHere : Boolean(plan.recommended);
+        const btn = filled
           ? "bg-yebo text-white hover:bg-yebo-deep"
           : "border-2 border-yebo-deep/25 text-yebo-deep hover:bg-yebo-chalk";
         return (
           <article
             key={id}
-            className={`relative flex flex-col rounded-lg bg-white p-6 sm:p-7 ${plan.recommended ? "order-first ring-2 ring-yebo lg:order-none" : "ring-1 ring-yebo-deep/15"}`}
+            className={`relative flex flex-col rounded-lg bg-white p-6 sm:p-7 ${startHere ? "ring-2 ring-yebo shadow-md" : plan.recommended ? "ring-2 ring-yebo" : "ring-1 ring-yebo-deep/15"}`}
           >
             <h3 className="flex items-center gap-3 text-lg font-extrabold text-yebo-deep">
               {plan.name}
+              {startHere && <span className="rounded bg-lime px-2 py-0.5 text-xs font-bold text-ink">Easiest start</span>}
               {plan.recommended && <span className="rounded bg-yebo-sun px-2 py-0.5 text-xs font-bold text-yebo-deep">Most picked</span>}
             </h3>
             <p className="mt-3 flex items-baseline gap-1.5">
               <span className="text-5xl font-black tracking-[-.04em] text-yebo-deep">{priceLabel(id)}</span>
               <span className="text-sm font-semibold text-yebo-deep/65">per month</span>
             </p>
+            {id === "side" && <p className="mt-2 text-sm font-bold text-yebo">About the price of a cold drink and a pie. Stay organised for once.</p>}
             <p className="mt-2 text-base font-bold text-yebo-deep">{plan.tagline}</p>
             <p className="mt-1 text-sm text-yebo-deep/70">{plan.revenue}. {plan.who}</p>
 
@@ -73,8 +78,9 @@ export default function PlanGrid({ mode, currentPlan = null, onboarding = false,
                     pendingLabel="Taking you to secure payment…"
                     className={`inline-flex min-h-12 w-full items-center justify-center rounded-md px-6 py-3 text-sm font-bold transition ${btn}`}
                   >
-                    {isCurrent ? `Keep ${plan.name} (${priceLabel(id)} a month)` : currentPlan ? `Switch to ${plan.name}` : `Subscribe for ${priceLabel(id)} a month`}
+                    {isCurrent ? `Keep ${plan.name} (${priceLabel(id)} a month)` : currentPlan ? `Switch to ${plan.name}` : startHere ? `Start for ${priceLabel(id)} a month` : `Subscribe for ${priceLabel(id)} a month`}
                   </SubmitButton>
+                  <p className="mt-2 text-center text-xs font-semibold text-yebo-deep/60">Cancel or change plan any time</p>
                 </form>
               )}
             </div>

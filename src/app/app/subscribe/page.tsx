@@ -6,6 +6,9 @@ import { loadSubscription } from "@/lib/subscription";
 import { yeboPayfast } from "@/lib/billing-config";
 import { paystackConfig } from "@/lib/paystack";
 import PlanGrid from "@/components/PlanGrid";
+import PaymentReassure from "@/components/PaymentReassure";
+import YourQuotePreview from "@/components/YourQuotePreview";
+import StickyStart from "@/components/StickyStart";
 import EftSection from "./EftSection";
 
 const reasons: Record<string, string> = {
@@ -18,7 +21,7 @@ export default async function Subscribe({ searchParams }: { searchParams: Promis
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data: business } = await supabase.from("businesses").select("id").maybeSingle();
+  const { data: business } = await supabase.from("businesses").select("id, name, logo_url, brand_color, phone").maybeSingle();
   if (!business) redirect("/app/onboarding");
 
   const sub = await loadSubscription(supabase);
@@ -46,9 +49,15 @@ export default async function Subscribe({ searchParams }: { searchParams: Promis
       )}
 
       <header className="fade-up max-w-3xl">
-        <p className="text-xs font-extrabold uppercase tracking-[.2em] text-yebo">Choose your plan</p>
-        <h1 className="mt-3 text-4xl font-black leading-[1.02] tracking-[-.05em] text-ink sm:text-5xl">Pick the one that matches your business.</h1>
+        <p className="text-xs font-extrabold uppercase tracking-[.2em] text-yebo">{onboarding && !active && business.name ? `${business.name} is set up` : "Choose your plan"}</p>
+        <h1 className="mt-3 text-4xl font-black leading-[1.02] tracking-[-.05em] text-ink sm:text-5xl">{onboarding && !active ? "Start with R49. Move up only if you grow." : "Pick the one that matches your business."}</h1>
         <p className="mt-4 text-base leading-7 text-ink/65">Pay monthly. Cancel any time, and you keep access until the end of the month you have paid for. You pay securely through our payment partner, and Yebo never sees your card details.</p>
+        {onboarding && !active && <p className="mt-3 text-base font-bold text-ink">One step and your first quote can go out today.</p>}
+        <ul className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-yebo-deep">
+          {["Cancel any time", "Change plan any time", "Paid days carry over", "Secure Paystack payment"].map((t) => (
+            <li key={t}><span className="inline-flex items-center gap-1.5 rounded-full bg-lime/40 px-3 py-1.5"><span aria-hidden="true">✓</span>{t}</span></li>
+          ))}
+        </ul>
       </header>
 
       {reason && reasons[reason] && <p role="status" className="mt-6 max-w-3xl rounded-2xl border border-orange/30 bg-orange/10 p-4 text-sm font-semibold text-ink">{reasons[reason]}</p>}
@@ -64,15 +73,25 @@ export default async function Subscribe({ searchParams }: { searchParams: Promis
       </p>
       {!paymentsReady && <p role="alert" className="mt-6 max-w-3xl rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">Subscriptions are not switched on yet. Please check back soon.</p>}
 
+      {onboarding && !active && business.name && <YourQuotePreview name={business.name} logoUrl={business.logo_url} color={business.brand_color} phone={business.phone} />}
+
       <div className="mt-10">
         <PlanGrid mode="subscribe" currentPlan={active ? planOf(sub) : null} onboarding={Boolean(onboarding)} renewable={sub?.status === "cancelled" || sub?.status === "past_due"} />
       </div>
+
+      <PaymentReassure onboarding={Boolean(onboarding) && !active} />
 
       <EftSection />
 
       <p className="mt-8 max-w-3xl text-xs leading-6 text-ink/50">
         By subscribing you agree to the <Link className="underline underline-offset-2" href="/terms">Terms of Service</Link> and the <Link className="underline underline-offset-2" href="/privacy">Privacy Notice</Link>. &ldquo;Unlimited&rdquo; plans are subject to fair use. Your plan renews every month until you cancel in Settings.
       </p>
+      {!active && paymentsReady && (
+        <>
+          <div className="h-24 lg:hidden" aria-hidden="true" />
+          <StickyStart onboarding={Boolean(onboarding)} />
+        </>
+      )}
     </main>
   );
 }
